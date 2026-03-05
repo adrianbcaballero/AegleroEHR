@@ -1,0 +1,655 @@
+"use client"
+
+import { useState, useEffect, useCallback} from "react"
+import {
+  GitBranch,
+  Search,
+  ArrowLeft,
+  FileText,
+  CheckCircle2,
+  Clock,
+  ChevronRight,
+  ClipboardList,
+  Plus,
+  Loader2,
+  Shield,
+  Pencil,
+} from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { getTemplates, createTemplate, updateTemplate } from "@/lib/api"
+import type { FormTemplate, TemplateField } from "@/lib/api"
+
+const ALL_ROLES = ["admin", "psychiatrist", "technician"]
+
+const FIELD_TYPES = [
+  { value: "text", label: "Text" },
+  { value: "textarea", label: "Textarea" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+  { value: "checkbox", label: "Yes/No" },
+  { value: "checkbox_group", label: "Check All That Apply" },
+  { value: "select", label: "Dropdown" },
+  { value: "scale", label: "Scale" },
+  { value: "signature", label: "Signature" },
+]
+
+// ------- Template Editor Dialog (create + edit) -------
+function TemplateEditorDialog({
+  existing,
+  onSaved,
+  trigger,
+}: {
+  existing?: FormTemplate
+  onSaved: () => void
+  trigger: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState("")
+  const [category, setCategory] = useState("")
+  const [description, setDescription] = useState("")
+  const [fields, setFields] = useState<TemplateField[]>([{ label: "", type: "text" }])
+  const [allowedRoles, setAllowedRoles] = useState<string[]>(["admin", "psychiatrist", "technician"])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (open && existing) {
+      Promise.resolve().then(() => {
+        setName(existing.name)
+        setCategory(existing.category)
+        setDescription(existing.description || "")
+        setFields(existing.fields.length > 0 ? existing.fields : [{ label: "", type: "text" }])
+      })
+    }
+  }, [open, existing])
+
+  const updateField = (index: number, key: string, value: unknown) => {
+    const updated = [...fields]
+    updated[index] = { ...updated[index], [key]: value }
+    setFields(updated)
+  }
+
+  const removeField = (index: number) => {
+    if (fields.length <= 1) return
+    setFields(fields.filter((_, i) => i !== index))
+  }
+
+  const toggleRole = (role: string) => {
+    setAllowedRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+    )
+  }
+
+  const handleSave = () => {
+    if (!name.trim()) { setError("Name is required"); return }
+    if (!category) { setError("Category is required"); return }
+    if (fields.some((f) => !f.label.trim())) { setError("All fields need a label"); return }
+    if (allowedRoles.length === 0) { setError("At least one role must be selected"); return }
+
+    setLoading(true)
+    setError("")
+
+    const cleanFields = fields.map((f) => {
+      const field: TemplateField = { label: f.label.trim(), type: f.type }
+      if (f.options) {
+        const raw = Array.isArray(f.options) ? f.options.join(", ") : String(f.options)
+        field.options = raw.split(",").map((s: string) => s.trim()).filter(Boolean)
+      }
+      if (f.type === "scale") { field.min = f.min ?? 0; field.max = f.max ?? 3 }
+      return field
+    })
+
+    const payload = {
+      name: name.trim(),
+      category,
+      description: description.trim() || undefined,
+      fields: cleanFields,
+      allowedRoles,
+    }
+
+    const promise = existing
+      ? updateTemplate(existing.id, payload)
+      : createTemplate(payload)
+
+    promise
+      .then(() => {
+        setOpen(false)
+        onSaved()
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to save"))
+      .finally(() => setLoading(false))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-foreground">
+            {existing ? "Edit Template" : "Create New Template"}
+          </DialogTitle>
+          <DialogDescription>
+            {existing ? "Update the form template." : "Define a new form template for use across the system."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 py-2">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium text-foreground">Template Name</Label>
+            <Input placeholder="e.g. Patient Follow-Up Assessment" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium text-foreground">Category</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="intake">Intake</SelectItem>
+                <SelectItem value="assessment">Assessment</SelectItem>
+                <SelectItem value="consent">Consent</SelectItem>
+                <SelectItem value="insurance">Insurance</SelectItem>
+                <SelectItem value="clinical">Clinical</SelectItem>
+                <SelectItem value="discharge">Discharge</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium text-foreground">Description</Label>
+            <Textarea
+              placeholder="Describe the purpose of this template..."
+              className="min-h-[60px]"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          {/* Role Visibility */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <Shield className="size-3.5" /> Visible To
+            </Label>
+            <div className="flex gap-3">
+              {ALL_ROLES.map((role) => (
+                <label key={role} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                  <Checkbox
+                    checked={allowedRoles.includes(role)}
+                    onCheckedChange={() => toggleRole(role)}
+                  />
+                  <span className="capitalize">{role}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Only selected roles can see forms created from this template.</p>
+          </div>
+
+          <Separator />
+
+          {/* Fields */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium text-foreground">Fields</Label>
+            {fields.map((field, idx) => (
+              <div key={idx} className="flex flex-col gap-2 p-3 border border-border rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Field label"
+                    value={field.label}
+                    onChange={(e) => updateField(idx, "label", e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select
+                    value={field.type}
+                    onValueChange={(val) => updateField(idx, "type", val)}
+                  >
+                    <SelectTrigger className="w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FIELD_TYPES.map((ft) => (
+                        <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fields.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive shrink-0"
+                      onClick={() => removeField(idx)}
+                    >
+                      ×
+                    </Button>
+                  )}
+                </div>
+                {/* Options for checkbox_group, select, checkbox */}
+                {(field.type === "checkbox_group" || field.type === "select" || field.type === "checkbox") && (
+                  <div className="flex flex-col gap-1 ml-1">
+                    <Label className="text-xs text-muted-foreground">Options (comma-separated)</Label>
+                    <Input
+                      placeholder={field.type === "checkbox" ? "Yes, No" : "Option 1, Option 2, Option 3"}
+                      value={Array.isArray(field.options) ? field.options.join(", ") : (field.options || "")}
+                      onChange={(e) => updateField(idx, "options", e.target.value)}
+                      className="text-sm"
+                    />
+                  </div>
+                )}
+                {/* Scale min/max */}
+                {field.type === "scale" && (
+                  <div className="flex gap-2 ml-1">
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs text-muted-foreground">Min</Label>
+                      <Input
+                        type="number"
+                        value={field.min ?? 0}
+                        onChange={(e) => updateField(idx, "min", parseInt(e.target.value) || 0)}
+                        className="w-20 text-sm"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs text-muted-foreground">Max</Label>
+                      <Input
+                        type="number"
+                        value={field.max ?? 3}
+                        onChange={(e) => updateField(idx, "max", parseInt(e.target.value) || 3)}
+                        className="w-20 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-transparent text-foreground self-start"
+              onClick={() => setFields([...fields, { label: "", type: "text" }])}
+            >
+              <Plus className="mr-1 size-3" />
+              Add Field
+            </Button>
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)} className="bg-transparent text-foreground" disabled={loading}>
+              Cancel
+            </Button>
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSave} disabled={loading}>
+              {loading ? "Saving…" : existing ? "Save Changes" : "Create Template"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ------- Template Detail Page -------
+function TemplateDetailPage({
+  templateId,
+  onBack,
+  onRefresh,
+}: {
+  templateId: number
+  onBack: () => void
+  onRefresh: () => void
+}) {
+  const [template, setTemplate] = useState<FormTemplate | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetchTemplate = useCallback(async () => {
+    setLoading(true)
+    getTemplates()
+      .then((templates) => {
+        const found = templates.find((t) => t.id === templateId)
+        setTemplate(found || null)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [templateId])
+
+  useEffect(() => {
+    Promise.resolve().then(() => fetchTemplate())
+  }, [templateId, fetchTemplate])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!template) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-sm text-destructive">Template not found</p>
+        <Button variant="outline" className="mt-3 bg-transparent text-foreground" onClick={onBack}>Back</Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
+          <ArrowLeft className="size-4" />
+        </Button>
+        <div className="flex-1">
+          <p className="text-xs text-muted-foreground">Workflows / Templates</p>
+          <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">
+            {template.name}
+          </h1>
+        </div>
+        <Badge variant="secondary" className="text-xs capitalize">{template.category}</Badge>
+        <TemplateEditorDialog
+          existing={template}
+          onSaved={() => { fetchTemplate(); onRefresh() }}
+          trigger={
+            <Button variant="outline" size="sm" className="bg-transparent text-foreground">
+              <Pencil className="mr-1.5 size-3.5" /> Edit
+            </Button>
+          }
+        />
+      </div>
+
+      {/* Description */}
+      <Card className="border-border/60">
+        <CardContent className="p-5">
+          <p className="text-sm text-foreground leading-relaxed">{template.description || "No description."}</p>
+        </CardContent>
+      </Card>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="border-border/60">
+          <CardContent className="p-4 text-center">
+            <p className="text-lg font-bold font-heading text-foreground">{template.fields.length}</p>
+            <p className="text-xs text-muted-foreground">Fields</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/60">
+          <CardContent className="p-4 text-center">
+            <p className="text-lg font-bold font-heading text-primary">{template.instanceCount ?? 0}</p>
+            <p className="text-xs text-muted-foreground">Instances</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border/60">
+          <CardContent className="p-4 text-center">
+            <p className="text-lg font-bold font-heading text-accent">{template.allowedRoles.length}</p>
+            <p className="text-xs text-muted-foreground">Roles</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Role Visibility */}
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-heading font-semibold text-foreground flex items-center gap-2">
+            <Shield className="size-4" /> Role Visibility
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            {ALL_ROLES.map((role) => (
+              <Badge
+                key={role}
+                variant="secondary"
+                className={`text-xs capitalize ${
+                  template.allowedRoles.includes(role)
+                    ? "bg-accent/10 text-accent"
+                    : "bg-muted text-muted-foreground line-through"
+                }`}
+              >
+                {role}
+              </Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Template Fields */}
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-heading font-semibold text-foreground">
+            Template Fields ({template.fields.length})
+          </CardTitle>
+          <CardDescription>The structure and fields used in this form template</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-2">
+            {template.fields.map((field, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
+                  <div>
+                    <span className="text-sm font-medium text-foreground">{field.label}</span>
+                    {field.options && field.options.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Options: {field.options.join(", ")}
+                      </p>
+                    )}
+                    {field.type === "scale" && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Range: {field.min ?? 0} – {field.max ?? 3}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] text-muted-foreground border-border capitalize">
+                  {FIELD_TYPES.find((ft) => ft.value === field.type)?.label || field.type}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ------- Main Workflows View -------
+export function WorkflowsView() {
+  const [templates, setTemplates] = useState<FormTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+
+  const fetchTemplates = useCallback(async () => {
+    setLoading(true)
+    setError("")
+    getTemplates()
+      .then(setTemplates)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load"))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    Promise.resolve().then(() => fetchTemplates())
+  }, [fetchTemplates])
+
+  if (selectedTemplateId) {
+    return (
+      <TemplateDetailPage
+        templateId={selectedTemplateId}
+        onBack={() => setSelectedTemplateId(null)}
+        onRefresh={fetchTemplates}
+      />
+    )
+  }
+
+  const filteredTemplates = templates.filter((t) => {
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q)
+  })
+
+  const totalInstances = templates.reduce((acc, t) => acc + (t.instanceCount || 0), 0)
+  const activeTemplates = templates.filter((t) => t.status === "active").length
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Workflows</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Form templates and their configuration
+          </p>
+        </div>
+        <TemplateEditorDialog
+          onSaved={fetchTemplates}
+          trigger={
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Plus className="mr-2 size-4" /> Template
+            </Button>
+          }
+        />
+      </div>
+
+      {/* Loading / Error */}
+      {loading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {error && (
+        <div className="text-center py-8">
+          <p className="text-sm text-destructive">{error}</p>
+          <Button variant="outline" className="mt-3 bg-transparent text-foreground" onClick={fetchTemplates}>Retry</Button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Card className="border-border/60">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <ClipboardList className="size-3.5 text-primary" />
+                  <p className="text-xs text-muted-foreground font-medium">Templates</p>
+                </div>
+                <p className="text-xl font-bold font-heading text-foreground">{templates.length}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/60">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <CheckCircle2 className="size-3.5 text-accent" />
+                  <p className="text-xs text-muted-foreground font-medium">Active</p>
+                </div>
+                <p className="text-xl font-bold font-heading text-accent">{activeTemplates}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/60">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <FileText className="size-3.5 text-foreground" />
+                  <p className="text-xs text-muted-foreground font-medium">Total Forms</p>
+                </div>
+                <p className="text-xl font-bold font-heading text-foreground">{totalInstances}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/60">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Shield className="size-3.5 text-chart-4" />
+                  <p className="text-xs text-muted-foreground font-medium">Role-Restricted</p>
+                </div>
+                <p className="text-xl font-bold font-heading text-chart-4">
+                  {templates.filter((t) => t.allowedRoles.length < 3).length}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search */}
+          <Card className="border-border/60">
+            <CardContent className="p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search templates by name or category..."
+                  className="pl-9"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Template Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredTemplates.map((template) => (
+              <Card
+                key={template.id}
+                className="border-border/60 cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
+                onClick={() => setSelectedTemplateId(template.id)}
+              >
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="size-4 text-primary shrink-0" />
+                      <Badge variant="secondary" className="text-[10px] capitalize">{template.category}</Badge>
+                    </div>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground mt-2">{template.name}</h3>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{template.description}</p>
+                  <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
+                    <span>{template.fields.length} fields</span>
+                    <span>&middot;</span>
+                    <span>{template.instanceCount || 0} instances</span>
+                    {template.allowedRoles.length < 3 && (
+                      <>
+                        <span>&middot;</span>
+                        <span className="flex items-center gap-1">
+                          <Shield className="size-3" /> Restricted
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {filteredTemplates.length === 0 && (
+              <Card className="border-border/60 col-span-full">
+                <CardContent className="p-8 text-center">
+                  <p className="text-sm text-muted-foreground">No templates found.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
