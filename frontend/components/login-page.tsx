@@ -102,7 +102,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       {/* Main login form */}
       <div className="flex flex-1 flex-col items-center justify-center px-4">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/logo.png" alt="Aeglero" className="size-13 object-contain rounded-lg" />
+          <img src="/logo.png" alt="Aeglero" className="size-12 object-contain rounded-lg" />
           <div>
             <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Aeglero EHR</h1>
             <p className="text-xs text-muted-foreground">Detox &amp; Behavioral Health</p>

@@ -439,3 +439,40 @@ export function deletePatientForm(patientCode: string, formId: number) {
   return apiDelete<{ ok: boolean }>(`/api/patients/${patientCode}/forms/${formId}`)
 }
 
+
+// 42 CFR Part 2 Consent
+export interface Part2Consent {
+  id: number
+  patientId: number
+  receivingParty: string
+  purpose: string
+  informationScope: string
+  expiration: string
+  status: "active" | "revoked"
+  patientSignature: string | null
+  signedAt: string | null
+  revokedAt: string | null
+  revokedBy: number | null
+  revocationReason: string | null
+  createdBy: number | null
+  createdAt: string | null
+}
+
+export function getPart2Consents(patientCode: string) {
+  return apiGet<Part2Consent[]>(`/api/patients/${patientCode}/part2-consents`)
+}
+
+export function createPart2Consent(patientCode: string, data: {
+  receivingParty: string
+  purpose: string
+  informationScope: string
+  expiration: string
+  patientSignature: string
+}) {
+  return apiPost<Part2Consent>(`/api/patients/${patientCode}/part2-consents`, data)
+}
+
+export function revokePart2Consent(patientCode: string, consentId: number, reason?: string) {
+  return apiPost<Part2Consent>(`/api/patients/${patientCode}/part2-consents/${consentId}/revoke`, { reason })
+}
+

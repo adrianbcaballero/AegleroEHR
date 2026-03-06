@@ -173,6 +173,44 @@ class FormTemplate(db.Model):
     )
 
 
+class Part2Consent(db.Model):
+    """
+    42 CFR Part 2 consent record. Federal law requires written patient consent
+    before any SUD treatment information can be disclosed to any third party.
+    Each consent is specific to a receiving party and purpose.
+    """
+    __tablename__ = "part2_consent"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"), nullable=False, index=True)
+
+    # Required disclosure fields per 42 CFR §2.31(a)
+    receiving_party = db.Column(db.String(200), nullable=False)
+    purpose = db.Column(db.Text, nullable=False)
+    information_scope = db.Column(db.Text, nullable=False)
+    expiration = db.Column(db.String(200), nullable=False)
+
+    # status: active / revoked
+    status = db.Column(db.String(20), nullable=False, default="active")
+
+    # Patient signature
+    patient_signature = db.Column(db.String(200), nullable=True)
+    signed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    # Revocation tracking
+    revoked_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    revoked_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    revocation_reason = db.Column(db.String(255), nullable=True)
+
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
 class PatientForm(db.Model):
     __tablename__ = "patient_form"
 

@@ -18,6 +18,9 @@ import {
   Trash2,
   ChevronDown,
   Archive,
+  ShieldAlert,
+  ShieldCheck,
+  XCircle,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -26,8 +29,8 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, createPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, updatePatient} from "@/lib/api"
-import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField } from "@/lib/api"
+import { getPatients, getPatient, createPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, updatePatient, getPart2Consents, createPart2Consent, revokePart2Consent } from "@/lib/api"
+import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent } from "@/lib/api"
 
 import {
   Table,
@@ -495,6 +498,265 @@ function NewFormDialog({ patientCode, onCreated }: { patientCode: string; onCrea
   )
 }
 
+// ------- 42 CFR Part 2 Consent Section -------
+const DEFAULT_SCOPE =
+  "Information relating to the patient's diagnosis, prognosis, and treatment for substance use disorder (SUD), " +
+  "including but not limited to alcohol and/or drug use treatment records."
+
+function Part2ConsentSection({ patientCode }: { patientCode: string }) {
+  const [consents, setConsents] = useState<Part2Consent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showNew, setShowNew] = useState(false)
+  const [showRevoke, setShowRevoke] = useState<number | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState("")
+
+  // New consent form state
+  const [receivingParty, setReceivingParty] = useState("")
+  const [purpose, setPurpose] = useState("")
+  const [informationScope, setInformationScope] = useState(DEFAULT_SCOPE)
+  const [expiration, setExpiration] = useState("")
+  const [patientSignature, setPatientSignature] = useState("")
+  const [acknowledged, setAcknowledged] = useState(false)
+
+  // Revoke form state
+  const [revokeReason, setRevokeReason] = useState("")
+
+  const load = useCallback(() => {
+    setLoading(true)
+    getPart2Consents(patientCode)
+      .then(setConsents)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [patientCode])
+
+  useEffect(() => { load() }, [load])
+
+  const activeConsent = consents.find((c) => c.status === "active")
+
+  const resetNewForm = () => {
+    setReceivingParty("")
+    setPurpose("")
+    setInformationScope(DEFAULT_SCOPE)
+    setExpiration("")
+    setPatientSignature("")
+    setAcknowledged(false)
+    setError("")
+  }
+
+  const handleCreate = async () => {
+    if (!acknowledged) { setError("Patient must acknowledge their rights before signing."); return }
+    setSubmitting(true)
+    setError("")
+    try {
+      await createPart2Consent(patientCode, { receivingParty, purpose, informationScope, expiration, patientSignature })
+      setShowNew(false)
+      resetNewForm()
+      load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to save consent")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleRevoke = async () => {
+    if (!showRevoke) return
+    setSubmitting(true)
+    setError("")
+    try {
+      await revokePart2Consent(patientCode, showRevoke, revokeReason || undefined)
+      setShowRevoke(null)
+      setRevokeReason("")
+      load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to revoke consent")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Card className="border-border/60">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {activeConsent
+              ? <ShieldCheck className="size-4 text-chart-5" />
+              : <ShieldAlert className="size-4 text-destructive" />}
+            <CardTitle className="text-sm font-heading font-semibold text-foreground">
+              42 CFR Part 2 Consent
+            </CardTitle>
+          </div>
+          <Button size="sm" variant="outline" className="h-7 text-xs bg-transparent text-foreground" onClick={() => { resetNewForm(); setShowNew(true) }}>
+            <Plus className="mr-1 size-3" /> New Consent
+          </Button>
+        </div>
+
+        {/* Status banner */}
+        {!loading && (
+          activeConsent ? (
+            <div className="mt-2 flex items-start gap-2 rounded-md bg-chart-5/10 border border-chart-5/20 px-3 py-2">
+              <ShieldCheck className="size-4 text-chart-5 shrink-0 mt-0.5" />
+              <div className="text-xs text-foreground">
+                <span className="font-semibold">Active consent on file</span>
+                {" — "} Expires: <span className="font-medium">{activeConsent.expiration}</span>
+                {" · "} Disclosed to: <span className="font-medium">{activeConsent.receivingParty}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-start gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2">
+              <ShieldAlert className="size-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-xs text-destructive font-medium">
+                No active 42 CFR Part 2 consent on file. Patient SUD information cannot be disclosed to any third party without written consent.
+              </p>
+            </div>
+          )
+        )}
+      </CardHeader>
+
+      {/* Consent history table */}
+      {consents.length > 0 && (
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="text-xs font-semibold text-muted-foreground">Receiving Party</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground hidden sm:table-cell">Purpose</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Expires</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {consents.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="text-sm font-medium text-foreground">{c.receivingParty}</TableCell>
+                  <TableCell className="hidden sm:table-cell text-xs text-muted-foreground max-w-[200px] truncate">{c.purpose}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.expiration}</TableCell>
+                  <TableCell>
+                    {c.status === "active"
+                      ? <Badge variant="secondary" className="text-[10px] bg-chart-5/10 text-chart-5 border-chart-5/20">Active</Badge>
+                      : <Badge variant="secondary" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20">Revoked</Badge>}
+                  </TableCell>
+                  <TableCell>
+                    {c.status === "active" && (
+                      <Button size="sm" variant="ghost" className="h-6 text-xs text-destructive hover:text-destructive px-2"
+                        onClick={() => { setShowRevoke(c.id); setError("") }}>
+                        <XCircle className="size-3 mr-1" />Revoke
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      )}
+
+      {/* New Consent Dialog */}
+      <Dialog open={showNew} onOpenChange={(o) => { if (!o) { setShowNew(false); resetNewForm() } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">New 42 CFR Part 2 Consent</DialogTitle>
+            <DialogDescription>
+              Federal law (42 CFR Part 2) protects the confidentiality of SUD patient records.
+              A separate written consent is required for each disclosure to a third party.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Federal prohibition notice */}
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
+            <p className="font-semibold text-foreground mb-1">Federal Prohibition Notice (42 CFR §2.32)</p>
+            This information has been disclosed from records protected by federal confidentiality rules (42 CFR Part 2).
+            Federal rules prohibit any further disclosure without express written consent of the patient or as otherwise
+            permitted by 42 CFR Part 2. This information may not be used to criminally investigate or prosecute any patient.
+          </div>
+
+          <div className="flex flex-col gap-4 pt-1">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground">Receiving Party <span className="text-destructive">*</span></Label>
+              <Input placeholder="Name of person or organization receiving information" value={receivingParty}
+                onChange={(e) => setReceivingParty(e.target.value)} className="h-9" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground">Purpose of Disclosure <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g., Insurance billing, continuity of care, court order" value={purpose}
+                onChange={(e) => setPurpose(e.target.value)} className="h-9" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground">Information to be Disclosed <span className="text-destructive">*</span></Label>
+              <Textarea rows={3} value={informationScope} onChange={(e) => setInformationScope(e.target.value)} className="text-sm" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground">Consent Expires <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g., 12/31/2026 or Upon completion of treatment" value={expiration}
+                onChange={(e) => setExpiration(e.target.value)} className="h-9" />
+            </div>
+
+            {/* Patient rights acknowledgment */}
+            <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground leading-relaxed">
+              <p className="font-semibold text-foreground mb-1">Patient Rights</p>
+              The patient understands they have the right to revoke this consent at any time, except to the extent that
+              action has already been taken in reliance on it. Revocation does not affect information already disclosed.
+              The patient also understands that treatment is not conditioned on signing this consent.
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Checkbox id="part2-ack" checked={acknowledged} onCheckedChange={(v) => setAcknowledged(!!v)} className="mt-0.5" />
+              <Label htmlFor="part2-ack" className="text-xs text-foreground leading-relaxed cursor-pointer">
+                I confirm the patient has read and understood their rights under 42 CFR Part 2 and consents voluntarily.
+              </Label>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground">Patient Signature (type full name) <span className="text-destructive">*</span></Label>
+              <Input placeholder="Patient's full name as signature" value={patientSignature}
+                onChange={(e) => setPatientSignature(e.target.value)} className="h-9 italic" />
+            </div>
+
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" className="bg-transparent text-foreground" onClick={() => { setShowNew(false); resetNewForm() }} disabled={submitting}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={submitting || !receivingParty || !purpose || !informationScope || !expiration || !patientSignature}>
+              {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              Record Consent
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Consent Dialog */}
+      <Dialog open={showRevoke !== null} onOpenChange={(o) => { if (!o) { setShowRevoke(null); setRevokeReason(""); setError("") } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">Revoke Consent</DialogTitle>
+            <DialogDescription>
+              The patient has the right to revoke this consent at any time. Previously disclosed information is not affected.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 pt-1">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground">Reason for Revocation (optional)</Label>
+              <Input placeholder="Patient-stated reason" value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} className="h-9" />
+            </div>
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" className="bg-transparent text-foreground" onClick={() => { setShowRevoke(null); setRevokeReason("") }} disabled={submitting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleRevoke} disabled={submitting}>
+              {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              Confirm Revocation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  )
+}
+
 // ------- Patient Profile View -------
 function PatientProfileView({
   patientId,
@@ -511,11 +773,12 @@ function PatientProfileView({
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null)
 
   useEffect(() => {
-    Promise.resolve().then(() => {
-      setLoading(true)
-      setError("")
-    })
-    getPatient(patientId).then(setPatient)
+    setLoading(true)
+    setError("")
+    getPatient(patientId)
+      .then(setPatient)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load patient"))
+      .finally(() => setLoading(false))
   }, [patientId])
 
   const fetchForms = useCallback(async () => {
@@ -587,6 +850,9 @@ function PatientProfileView({
           {patient.riskLevel} risk
         </Badge>
       </div>
+
+      {/* 42 CFR Part 2 Consent */}
+      <Part2ConsentSection patientCode={patient.id} />
 
       {/* Patient Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
