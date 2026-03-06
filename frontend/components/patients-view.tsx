@@ -302,6 +302,18 @@ function FormDetailView({
     <tbody>${fieldRows}</tbody>
   </table>
 
+  ${form.status === "completed" ? `
+  <div style="margin-top: 32px; border-top: 2px solid #222; padding-top: 16px;">
+    <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #555; margin-bottom: 10px;">Electronic Signature</div>
+    ${form.signatureImage
+      ? `<img src="${form.signatureImage}" alt="Signature" style="height: 60px; display: block; margin-bottom: 6px;" />`
+      : `<p style="font-size: 18px; font-family: cursive; color: #1a1a2e; margin-bottom: 6px;">${form.signedByName || ""}</p>`}
+    <div style="font-size: 11px; color: #555;">
+      Signed by <strong>${form.signedByName || "—"}</strong>
+      ${form.signedAt ? ` · ${new Date(form.signedAt).toLocaleString()}` : ""}
+    </div>
+  </div>` : ""}
+
   <div class="footer">
     <span>Printed: ${new Date().toLocaleString()}</span>
     <span>Form #${form.id}</span>
@@ -402,6 +414,21 @@ function FormDetailView({
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
               <p className="text-sm font-medium text-destructive mb-1">Please fill in all fields before signing:</p>
               <p className="text-sm text-destructive/80">{validationErrors.join(", ")}</p>
+            </div>
+          )}
+
+          {/* Signature block — shown only on completed forms */}
+          {form.status === "completed" && (
+            <div className="p-4 bg-muted/30 border border-border/50 rounded-lg flex flex-col gap-2">
+              {form.signatureImage ? (
+                <img src={form.signatureImage} alt="Signature" className="h-16 object-contain object-left" />
+              ) : (
+                <p className="text-sm italic text-muted-foreground">{form.signedByName || "—"}</p>
+              )}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>Signed by <span className="font-medium text-foreground">{form.signedByName || "—"}</span></span>
+                {form.signedAt && <span>· {new Date(form.signedAt).toLocaleString()}</span>}
+              </div>
             </div>
           )}
 
