@@ -55,15 +55,19 @@ const FIELD_TYPES = [
   { value: "signature", label: "Signature" },
 ]
 
+const DEFAULT_CATEGORIES = ["intake", "assessment", "flowsheet", "consent", "insurance", "clinical", "discharge"]
+
 // ------- Template Editor Dialog (create + edit) -------
 function TemplateEditorDialog({
   existing,
   onSaved,
   trigger,
+  existingCategories = [],
 }: {
   existing?: FormTemplate
   onSaved: () => void
   trigger: React.ReactNode
+  existingCategories?: string[]
 }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
@@ -161,20 +165,28 @@ function TemplateEditorDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium text-foreground">Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="intake">Intake</SelectItem>
-                <SelectItem value="assessment">Assessment</SelectItem>
-                <SelectItem value="flowsheet">Flowsheet</SelectItem>
-                <SelectItem value="consent">Consent</SelectItem>
-                <SelectItem value="insurance">Insurance</SelectItem>
-                <SelectItem value="clinical">Clinical</SelectItem>
-                <SelectItem value="discharge">Discharge</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              placeholder="e.g. flowsheet, intake, detox-notes…"
+              value={category}
+              onChange={(e) => setCategory(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+            />
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {[...new Set([...DEFAULT_CATEGORIES, ...existingCategories])].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`px-2 py-0.5 rounded-md text-xs border transition-colors ${
+                    category === cat
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Pick an existing category or type a new one to create a custom tab.</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium text-foreground">Description</Label>
@@ -318,6 +330,7 @@ function TemplateDetailPage({
   onRefresh: () => void
 }) {
   const [template, setTemplate] = useState<FormTemplate | null>(null)
+  const [allCategories, setAllCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchTemplate = useCallback(async () => {
@@ -326,6 +339,7 @@ function TemplateDetailPage({
       .then((templates) => {
         const found = templates.find((t) => t.id === templateId)
         setTemplate(found || null)
+        setAllCategories([...new Set(templates.map((t) => t.category))])
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -368,6 +382,7 @@ function TemplateDetailPage({
         <TemplateEditorDialog
           existing={template}
           onSaved={() => { fetchTemplate(); onRefresh() }}
+          existingCategories={allCategories}
           trigger={
             <Button variant="outline" size="sm" className="bg-transparent text-foreground">
               <Pencil className="mr-1.5 size-3.5" /> Edit
@@ -526,6 +541,7 @@ export function WorkflowsView() {
         </div>
         <TemplateEditorDialog
           onSaved={fetchTemplates}
+          existingCategories={[...new Set(templates.map((t) => t.category))]}
           trigger={
             <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
               <Plus className="mr-2 size-4" /> Template
