@@ -773,10 +773,8 @@ function PatientProfileView({
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null)
 
   useEffect(() => {
-    setLoading(true)
-    setError("")
     getPatient(patientId)
-      .then(setPatient)
+      .then((data) => { setError(""); setPatient(data) })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load patient"))
       .finally(() => setLoading(false))
   }, [patientId])

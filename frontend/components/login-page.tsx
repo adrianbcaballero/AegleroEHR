@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react"
 import { getHealth, login as apiLogin } from "@/lib/api"
 import type { LoginResponse } from "@/lib/api"
 
+import Image from "next/image"
 import { LogIn, ChevronDown, ChevronUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -101,9 +102,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       {/* Main login form */}
       <div className="flex flex-1 flex-col items-center justify-center px-4">
-        <div className="flex items-center gap-3 mb-8">
-          <img src="/logo.png" alt="Aeglero" className="size-12 object-contain rounded-lg" />
-          <div>
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <Image src="/logo.png" alt="Aeglero" width={100} height={100} className="object-contain rounded-lg" />
+          <div className="text-center">
             <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Aeglero EHR</h1>
             <p className="text-xs text-muted-foreground">Detox &amp; Behavioral Health</p>
           </div>

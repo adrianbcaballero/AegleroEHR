@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import type { UserRole } from "@/components/login-page"
 import {
   LayoutDashboard,
@@ -91,7 +92,7 @@ export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, tenant
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" className="hover:bg-sidebar-accent">
               {/* Replace logo.png in /public with your logo file */}
-              <img src="/logo.png" alt="Aeglero" className="size-8 object-contain rounded-lg shrink-0" />
+              <Image src="/logo.png" alt="Aeglero" width={32} height={32} className="object-contain rounded-lg shrink-0" />
               <div className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold text-sidebar-primary-foreground">Aeglero</span>
                 <span className="text-xs text-sidebar-foreground/60">{tenantName || "Detox & Behavioral Health"}</span>
