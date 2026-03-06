@@ -340,6 +340,11 @@ def update_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Form #{form_id} not found for patient {p.patient_code}")
         return {"error": "form not found"}, 404
 
+    # Completed forms are legal records and must be immutable
+    if f.status == "completed":
+        log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Attempted to modify completed form #{form_id} for patient {p.patient_code}")
+        return {"error": "completed forms cannot be modified"}, 409
+
     if "formData" in data:
         if not isinstance(data["formData"], dict):
             return {"error": "formData must be an object"}, 400

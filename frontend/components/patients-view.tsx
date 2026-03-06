@@ -81,16 +81,16 @@ const formStatusConfig: Record<string, FormStatusEntry> = {
 }
 
 // ─── Field Renderer ───
-function FormFieldRenderer({ field, value, onChange }: { field: TemplateField; value: unknown; onChange: (v: string | number | string[]) => void }) {
+function FormFieldRenderer({ field, value, onChange, disabled }: { field: TemplateField; value: unknown; onChange: (v: string | number | string[]) => void; disabled?: boolean }) {
   switch (field.type) {
     case "text":
-      return <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} />
+      return <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} disabled={disabled} />
     case "textarea":
-      return <Textarea value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} className="min-h-[80px]" />
+      return <Textarea value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} className="min-h-[80px]" disabled={disabled} />
     case "number":
-      return <Input type="number" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} />
+      return <Input type="number" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} disabled={disabled} />
     case "date":
-      return <Input type="date" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} />
+      return <Input type="date" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
 
     case "checkbox": {
       const opts = field.options || ["Yes", "No"]
@@ -98,8 +98,8 @@ function FormFieldRenderer({ field, value, onChange }: { field: TemplateField; v
       return (
         <div className="flex gap-3">
           {opts.map((o) => (
-            <label key={o} className="flex items-center gap-2 cursor-pointer">
-              <Checkbox checked={cur === o} onCheckedChange={() => onChange(o)} />
+            <label key={o} className={`flex items-center gap-2 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+              <Checkbox checked={cur === o} onCheckedChange={() => !disabled && onChange(o)} disabled={disabled} />
               <span className="text-sm text-foreground">{o}</span>
             </label>
           ))}
@@ -113,10 +113,11 @@ function FormFieldRenderer({ field, value, onChange }: { field: TemplateField; v
       return (
         <div className="flex flex-col gap-2">
           {opts.map((o) => (
-            <label key={o} className="flex items-center gap-2 cursor-pointer">
+            <label key={o} className={`flex items-center gap-2 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
               <Checkbox
                 checked={sel.includes(o)}
-                onCheckedChange={(c) => onChange(c ? [...sel, o] : sel.filter((s) => s !== o))}
+                onCheckedChange={(c) => !disabled && onChange(c ? [...sel, o] : sel.filter((s) => s !== o))}
+                disabled={disabled}
               />
               <span className="text-sm text-foreground">{o}</span>
             </label>
@@ -128,7 +129,7 @@ function FormFieldRenderer({ field, value, onChange }: { field: TemplateField; v
     case "select": {
       const opts = field.options || []
       return (
-        <Select value={(value as string) || ""} onValueChange={onChange}>
+        <Select value={(value as string) || ""} onValueChange={disabled ? undefined : onChange} disabled={disabled}>
           <SelectTrigger><SelectValue placeholder={`Select ${field.label.toLowerCase()}`} /></SelectTrigger>
           <SelectContent>
             {opts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -147,8 +148,9 @@ function FormFieldRenderer({ field, value, onChange }: { field: TemplateField; v
             {Array.from({ length: mx - mn + 1 }, (_, i) => i + mn).map((n) => (
               <button
                 key={n} type="button"
-                className={`size-10 rounded-lg border text-sm font-medium transition-colors ${cur === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-foreground border-border hover:bg-muted"}`}
-                onClick={() => onChange(n)}
+                className={`size-10 rounded-lg border text-sm font-medium transition-colors ${cur === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-foreground border-border hover:bg-muted"} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                onClick={() => !disabled && onChange(n)}
+                disabled={disabled}
               >{n}</button>
             ))}
           </div>
@@ -162,13 +164,13 @@ function FormFieldRenderer({ field, value, onChange }: { field: TemplateField; v
     case "signature":
       return (
         <div className="flex flex-col gap-2">
-          <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder="Type full name as signature" className="italic" />
+          <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder="Type full name as signature" className="italic" disabled={disabled} />
           {!!value && <p className="text-xs text-muted-foreground">Signed electronically on {new Date().toLocaleDateString()}</p>}
         </div>
       )
 
     default:
-      return <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} />
+      return <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} disabled={disabled} />
   }
 }
 
@@ -378,6 +380,7 @@ function FormDetailView({
                 field={field}
                 value={formData[field.label]}
                 onChange={(val) => { setFormData((p) => ({ ...p, [field.label]: val })); setSaveMsg(""); setValidationErrors([]) }}
+                disabled={form.status === "completed"}
               />
             </div>
           ))}
@@ -388,9 +391,11 @@ function FormDetailView({
           <Separator />
 
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="bg-transparent text-foreground" onClick={handleSave} disabled={saving}>
-              {saving ? "Saving…" : "Save Draft"}
-            </Button>
+            {form.status !== "completed" && (
+              <Button variant="outline" className="bg-transparent text-foreground" onClick={handleSave} disabled={saving}>
+                {saving ? "Saving…" : "Save Draft"}
+              </Button>
+            )}
             {form.status !== "completed" && (
               <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => {
                 const errors = validateFields()
