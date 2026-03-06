@@ -10,9 +10,6 @@ import {
   Users,
   AlertTriangle,
   Loader2,
-  FileCheck,
-  FileClock,
-  ClipboardList,
   CheckCircle2,
   Clock,
   Trash2,
@@ -58,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 
 const riskColors: Record<string, string> = {
@@ -406,7 +404,7 @@ function FormDetailView({
 }
 
 // ─── New Form Dialog ───
-function NewFormDialog({ patientCode, onCreated }: { patientCode: string; onCreated: (formId: number) => void }) {
+function NewFormDialog({ patientCode, onCreated, categoryFilter }: { patientCode: string; onCreated: (formId: number) => void; categoryFilter?: string }) {
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<FormTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string>("")
@@ -416,10 +414,13 @@ function NewFormDialog({ patientCode, onCreated }: { patientCode: string; onCrea
   useEffect(() => {
     if (open) {
       getTemplates()
-        .then((t) => setTemplates(t.filter((tpl) => tpl.status === "active")))
+        .then((t) => {
+          const active = t.filter((tpl) => tpl.status === "active")
+          setTemplates(categoryFilter ? active.filter((tpl) => tpl.category === categoryFilter) : active)
+        })
         .catch(() => {})
     }
-  }, [open])
+  }, [open, categoryFilter])
 
   const handleCreate = () => {
     if (!selectedTemplate) {
@@ -767,10 +768,12 @@ function PatientProfileView({
 }) {
   const [patient, setPatient] = useState<PatientDetail | null>(null)
   const [forms, setForms] = useState<PatientFormEntry[]>([])
+  const [templates, setTemplates] = useState<FormTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingForms, setLoadingForms] = useState(true)
   const [error, setError] = useState("")
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<string>("")
 
   useEffect(() => {
     getPatient(patientId)
@@ -778,6 +781,19 @@ function PatientProfileView({
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load patient"))
       .finally(() => setLoading(false))
   }, [patientId])
+
+  useEffect(() => {
+    getTemplates()
+      .then((t) => {
+        const active = t.filter((tpl) => tpl.status === "active")
+        setTemplates(active)
+        if (active.length > 0 && !activeTab) {
+          const cats = [...new Set(active.map((tpl) => tpl.category))]
+          setActiveTab(cats[0])
+        }
+      })
+      .catch(() => {})
+  }, [patientId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchForms = useCallback(async () => {
     setLoadingForms(true)
@@ -821,9 +837,6 @@ function PatientProfileView({
       />
     )
   }
-
-  const completedCount = forms.filter((f) => f.status === "completed").length
-  const draftCount = forms.filter((f) => f.status === "draft").length
 
   return (
     <div className="flex flex-col gap-6">
@@ -920,109 +933,108 @@ function PatientProfileView({
         </Card>
       </div>
 
-      {/* Form Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <ClipboardList className="size-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground font-medium">Total Forms</p>
-            </div>
-            <p className="text-2xl font-bold font-heading text-foreground">{forms.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <FileCheck className="size-4 text-accent" />
-              <p className="text-xs text-muted-foreground font-medium">Completed</p>
-            </div>
-            <p className="text-2xl font-bold font-heading text-accent">{completedCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <FileClock className="size-4 text-chart-4" />
-              <p className="text-xs text-muted-foreground font-medium">Drafts</p>
-            </div>
-            <p className="text-2xl font-bold font-heading text-chart-4">{draftCount}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Category Tabs */}
+      {(() => {
+        const categories = [...new Set(templates.map((t) => t.category))].sort()
+        if (categories.length === 0) return null
+        return (
+          <Tabs value={activeTab || categories[0] || ""} onValueChange={setActiveTab}>
+            <TabsList className="flex flex-wrap h-auto gap-1.5 bg-transparent p-0 border-b border-border pb-2">
+              {categories.map((cat) => (
+                <TabsTrigger
+                  key={cat}
+                  value={cat}
+                  className="capitalize text-xs border border-border/60 bg-background text-muted-foreground rounded-md px-3 py-1.5 transition-all
+                    data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary data-[state=active]:shadow-none"
+                >
+                  {cat}
+                  {(() => {
+                    const count = forms.filter((f) => f.templateCategory === cat).length
+                    return count > 0 ? <span className="ml-1.5 text-[10px] opacity-80">({count})</span> : null
+                  })()}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-      {/* Forms Table */}
-      <Card className="border-border/60">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-heading font-semibold text-foreground">
-              Forms ({forms.length})
-            </CardTitle>
-            <NewFormDialog
-              patientCode={patient.id}
-              onCreated={(formId) => { fetchForms(); setSelectedFormId(formId) }}
-            />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loadingForms ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Form Name</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground hidden sm:table-cell">Category</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Date</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {forms.map((form) => {
-                  const fc = formStatusConfig[form.status] || formStatusConfig["draft"]
-                  const FIcon = fc.icon
-                  return (
-                    <TableRow key={form.id} className="cursor-pointer transition-colors" onClick={() => setSelectedFormId(form.id)}>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{form.templateName}</p>
-                          <p className="text-xs text-muted-foreground">#{form.id}</p>
+            {categories.map((cat) => {
+              const catForms = forms.filter((f) => f.templateCategory === cat)
+              return (
+                <TabsContent key={cat} value={cat} className="mt-3">
+                  <Card className="border-border/60">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-heading font-semibold text-foreground capitalize">
+                          {cat} Forms
+                          <span className="ml-2 text-sm font-normal text-muted-foreground">({catForms.length})</span>
+                        </CardTitle>
+                        <NewFormDialog
+                          patientCode={patient.id}
+                          categoryFilter={cat}
+                          onCreated={(formId) => { fetchForms(); setSelectedFormId(formId) }}
+                        />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {loadingForms ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="size-5 animate-spin text-muted-foreground" />
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <Badge variant="secondary" className="text-[10px] capitalize">{form.templateCategory}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={`text-[10px] ${fc.color}`}>
-                          <FIcon className="mr-1 size-3" />{fc.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <span className="text-sm text-muted-foreground">
-                          {form.createdAt ? new Date(form.createdAt).toLocaleDateString() : "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <ChevronRight className="size-4 text-muted-foreground" />
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-                {forms.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-sm text-muted-foreground">
-                      No forms yet for this patient.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                              <TableHead className="text-xs font-semibold text-muted-foreground">Form Name</TableHead>
+                              <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
+                              <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Date</TableHead>
+                              <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {catForms.map((form) => {
+                              const fc = formStatusConfig[form.status] || formStatusConfig["draft"]
+                              const FIcon = fc.icon
+                              return (
+                                <TableRow key={form.id} className="cursor-pointer transition-colors" onClick={() => setSelectedFormId(form.id)}>
+                                  <TableCell>
+                                    <div>
+                                      <p className="text-sm font-medium text-foreground">{form.templateName}</p>
+                                      <p className="text-xs text-muted-foreground">#{form.id}</p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="secondary" className={`text-[10px] ${fc.color}`}>
+                                      <FIcon className="mr-1 size-3" />{fc.label}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    <span className="text-sm text-muted-foreground">
+                                      {form.createdAt ? new Date(form.createdAt).toLocaleDateString() : "—"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <ChevronRight className="size-4 text-muted-foreground" />
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                            {catForms.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={4} className="text-center py-8 text-sm text-muted-foreground">
+                                  No {cat} forms yet for this patient.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )
+            })}
+          </Tabs>
+        )
+      })()}
 
       {/* Treatment Plan */}
       {patient.treatmentPlan && (
