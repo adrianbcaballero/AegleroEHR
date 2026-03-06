@@ -31,7 +31,7 @@ def get_categories():
 
 
 @categories_bp.put("/categories")
-@require_auth(roles=["admin"])
+@require_auth(roles=["admin", "psychiatrist"])
 def update_categories():
     ip = client_ip()
     data = request.get_json(silent=True) or {}

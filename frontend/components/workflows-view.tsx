@@ -629,7 +629,7 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
 }
 
 // ------- Main Workflows View -------
-export function WorkflowsView() {
+export function WorkflowsView({ userRole }: { userRole?: string }) {
   const [templates, setTemplates] = useState<FormTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -679,16 +679,20 @@ export function WorkflowsView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <CategoryManager onChanged={fetchTemplates} />
-          <TemplateEditorDialog
-            onSaved={fetchTemplates}
-            existingCategories={[...new Set(templates.map((t: FormTemplate) => t.category))] as string[]}
-            trigger={
-              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                <Plus className="mr-2 size-4" /> Template
-              </Button>
-            }
-          />
+          {(userRole === "admin" || userRole === "psychiatrist") && (
+            <>
+              <CategoryManager onChanged={fetchTemplates} />
+              <TemplateEditorDialog
+                onSaved={fetchTemplates}
+                existingCategories={[...new Set(templates.map((t: FormTemplate) => t.category))] as string[]}
+                trigger={
+                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Plus className="mr-2 size-4" /> Template
+                  </Button>
+                }
+              />
+            </>
+          )}
         </div>
       </div>
 

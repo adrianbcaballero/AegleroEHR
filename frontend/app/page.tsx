@@ -84,7 +84,7 @@ export default function EHRApp() {
           />
         )
       case "Workflows":
-        return <WorkflowsView />
+        return <WorkflowsView userRole={userRole} />
       case "System Logs":
         return <SystemLogsView />
       case "Manage Users":
