@@ -186,7 +186,9 @@ function TemplateEditorDialog({
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">Pick an existing category or type a new one to create a custom tab.</p>
+            <p className="text-xs text-muted-foreground">
+              Pick a default category or type a custom one. Tabs are sorted alphabetically — to control order, prefix with a number (e.g. <span className="font-mono font-medium text-foreground">1-intake</span>, <span className="font-mono font-medium text-foreground">2-assessment</span>).
+            </p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium text-foreground">Description</Label>

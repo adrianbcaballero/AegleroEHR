@@ -58,6 +58,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 
+// Default categories that always appear as tabs even with 0 forms — cannot be "deleted" by archiving templates
+const DEFAULT_CATEGORIES = ["assessment", "clinical", "consent", "discharge", "flowsheet", "intake", "insurance"]
+
 const riskColors: Record<string, string> = {
   low: "bg-accent/10 text-accent border-accent/20",
   moderate: "bg-chart-4/10 text-chart-4 border-chart-4/20",
@@ -784,16 +787,9 @@ function PatientProfileView({
 
   useEffect(() => {
     getTemplates()
-      .then((t) => {
-        const active = t.filter((tpl) => tpl.status === "active")
-        setTemplates(active)
-        if (active.length > 0 && !activeTab) {
-          const cats = [...new Set(active.map((tpl) => tpl.category))]
-          setActiveTab(cats[0])
-        }
-      })
+      .then((t) => setTemplates(t.filter((tpl) => tpl.status === "active")))
       .catch(() => {})
-  }, [patientId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [patientId])
 
   const fetchForms = useCallback(async () => {
     setLoadingForms(true)
@@ -935,8 +931,9 @@ function PatientProfileView({
 
       {/* Category Tabs */}
       {(() => {
-        const categories = [...new Set(templates.map((t) => t.category))].sort()
-        if (categories.length === 0) return null
+        // Merge default categories with any custom ones from templates, always sorted alphabetically.
+        // Default categories always remain visible — archiving all templates in a category won't remove the tab.
+        const categories = [...new Set([...DEFAULT_CATEGORIES, ...templates.map((t: FormTemplate) => t.category)])].sort()
         return (
           <Tabs value={activeTab || categories[0] || ""} onValueChange={setActiveTab}>
             <TabsList className="flex flex-wrap h-auto gap-1.5 bg-transparent p-0 border-b border-border pb-2">
@@ -944,8 +941,9 @@ function PatientProfileView({
                 <TabsTrigger
                   key={cat}
                   value={cat}
-                  className="capitalize text-xs border border-border/60 bg-background text-muted-foreground rounded-md px-3 py-1.5 transition-all
-                    data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary data-[state=active]:shadow-none"
+                  className="capitalize text-xs border rounded-md px-3 py-1.5 transition-all
+                    border-primary/25 bg-primary/5 text-foreground/70 hover:bg-primary/10 hover:text-foreground
+                    data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:font-medium"
                 >
                   {cat}
                   {(() => {
