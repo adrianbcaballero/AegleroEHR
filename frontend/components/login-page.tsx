@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
-import { getHealth, login as apiLogin } from "@/lib/api"
+import React, { useState } from "react"
+import { login as apiLogin } from "@/lib/api"
 import type { LoginResponse } from "@/lib/api"
 
 import Image from "next/image"
@@ -29,15 +29,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [notesExpanded, setNotesExpanded] = useState(false)
-  const [backendOk, setBackendOk] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    getHealth()
-      .then(() => { if (!cancelled) setBackendOk(true) })
-      .catch(() => { if (!cancelled) setBackendOk(false) })
-    return () => { cancelled = true }
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -107,17 +98,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <div className="text-center">
             <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Aeglero EHR</h1>
             <p className="text-xs text-muted-foreground">Detox &amp; Behavioral Health</p>
-          </div>
-        </div>
-
-        <div className="mb-3 flex items-center justify-center">
-          <div className="text-xs px-2 py-1 rounded-md border border-border bg-card">
-            Backend:{" "}
-            {backendOk === null
-              ? <span className="text-muted-foreground">checking…</span>
-              : backendOk
-                ? <span className="font-medium">connected</span>
-                : <span className="font-medium">disconnected</span>}
           </div>
         </div>
 

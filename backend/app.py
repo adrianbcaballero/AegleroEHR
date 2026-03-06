@@ -63,11 +63,6 @@ def create_app():
 
     validate_config(app)
 
-    @app.get("/health")
-    def health():
-        return {"ok": True}
-    
-    
     @app.get("/api/protected/ping")
     @require_auth()
     def protected_ping():

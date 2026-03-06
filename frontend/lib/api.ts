@@ -63,10 +63,6 @@ export async function apiPut<T>(path: string, data?: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export function getHealth() {
-  return apiGet<{ ok: boolean }>("/health");
-}
-
 // Auth API calls
 export interface LoginResponse {
   user_id: number;
