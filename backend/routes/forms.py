@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from flask import Blueprint, request, g
+from sqlalchemy import func
 
 from auth_middleware import require_auth
 from extensions import db
@@ -26,14 +27,14 @@ def _serialize_template(t: FormTemplate):
     }
 
 
-def _serialize_form(f: PatientForm):
-    # Get template name
-    template = FormTemplate.query.get(f.template_id)
+def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler: User | None = None):
+    if template is None:
+        template = FormTemplate.query.get(f.template_id)
+    if filler is None and f.filled_by:
+        filler = User.query.get(f.filled_by)
+
     template_name = template.name if template else None
     template_category = template.category if template else None
-
-    # Get who filled it
-    filler = User.query.get(f.filled_by) if f.filled_by else None
     filler_name = (filler.full_name or filler.username) if filler else None
 
     return {
@@ -65,11 +66,19 @@ def list_templates():
 
     templates = q.order_by(FormTemplate.name.asc()).all()
 
-    # Count instances per template
+    # Bulk count instances per template in one query
+    template_ids = [t.id for t in templates]
+    counts = dict(
+        db.session.query(PatientForm.template_id, func.count(PatientForm.id))
+        .filter(PatientForm.template_id.in_(template_ids))
+        .group_by(PatientForm.template_id)
+        .all()
+    ) if template_ids else {}
+
     result = []
     for t in templates:
         data = _serialize_template(t)
-        data["instanceCount"] = PatientForm.query.filter_by(template_id=t.id).count()
+        data["instanceCount"] = counts.get(t.id, 0)
         result.append(data)
 
     return result, 200
@@ -206,13 +215,19 @@ def list_patient_forms(patient_id):
         .all()
     )
 
-    # Filter by role visibility
+    # Bulk load all templates and fillers needed
+    template_ids = {f.template_id for f in forms}
+    user_ids = {f.filled_by for f in forms if f.filled_by}
+    templates_map = {t.id: t for t in FormTemplate.query.filter(FormTemplate.id.in_(template_ids)).all()} if template_ids else {}
+    users_map = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
     user_role = g.user.role
     result = []
     for f in forms:
-        template = FormTemplate.query.get(f.template_id)
+        template = templates_map.get(f.template_id)
         if template and user_role in (template.allowed_roles or []):
-            result.append(_serialize_form(f))
+            filler = users_map.get(f.filled_by) if f.filled_by else None
+            result.append(_serialize_form(f, template=template, filler=filler))
 
     return result, 200
 
@@ -242,7 +257,8 @@ def get_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_GET", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Role '{g.user.role}' not allowed to view form #{form_id}")
         return {"error": "forbidden"}, 403
 
-    data = _serialize_form(f)
+    filler = User.query.get(f.filled_by) if f.filled_by else None
+    data = _serialize_form(f, template=template, filler=filler)
     # Include template fields so frontend can render the form
     data["templateFields"] = template.fields if template else []
 
@@ -297,7 +313,8 @@ def create_patient_form(patient_id):
     db.session.commit()
 
     log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Added '{template.name}' form to {p.first_name} {p.last_name} ({p.patient_code})")
-    return _serialize_form(f), 201
+    filler = User.query.get(f.filled_by) if f.filled_by else None
+    return _serialize_form(f, template=template, filler=filler), 201
 
 
 @forms_bp.put("/patients/<patient_id>/forms/<int:form_id>")
@@ -340,7 +357,8 @@ def update_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_SIGN", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Signed and completed '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
     else:
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Saved draft of '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
-    return _serialize_form(f), 200
+    filler = User.query.get(f.filled_by) if f.filled_by else None
+    return _serialize_form(f, template=template, filler=filler), 200
 
 @forms_bp.delete("/patients/<patient_id>/forms/<int:form_id>")
 @require_auth(roles=["admin", "psychiatrist", "technician"])
