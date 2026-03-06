@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-security:
-    name: Backend Security Scan (Bandit)
+    name: Backend Security Scan (Bandit + pip-audit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,8 +17,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Bandit
-        run: pip install bandit
+      - name: Install security tools
+        run: pip install bandit pip-audit
 
       - name: Run Bandit SAST scan
         run: |
@@ -27,6 +27,24 @@ jobs:
             --severity-level medium \
             --confidence-level medium \
             -f txt
+
+      - name: Run pip-audit dependency scan
+        run: pip-audit -r backend/requirements.txt
+
+  container-scan:
+    name: Container Vulnerability Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
 
   frontend-checks:
     name: Frontend Audit & Lint
