@@ -120,8 +120,9 @@ def logout():
         # No valid session (already logged out or expired)
         return {"ok": True}, 200
 
+    tenant_id = sess.tenant_id
     db.session.delete(sess)
     db.session.commit()
 
-    log_access(user.id, "LOGOUT", "auth", "SUCCESS", ip, description=f"User '{user.username}' logged out")
+    log_access(user.id, "LOGOUT", "auth", "SUCCESS", ip, description=f"User '{user.username}' logged out", tenant_id=tenant_id)
     return {"ok": True}, 200
