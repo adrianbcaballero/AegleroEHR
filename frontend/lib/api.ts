@@ -83,7 +83,11 @@ export function logout() {
 }
 
 export function getMe() {
-  return apiGet<{ user_id: number; username: string; role: string }>("/api/auth/me");
+  return apiGet<{ user_id: number; username: string; full_name: string | null; role: string; signature_data: string | null }>("/api/auth/me");
+}
+
+export function saveSignature(signatureData: string | null) {
+  return apiPut<{ ok: boolean }>("/api/auth/me/signature", { signature_data: signatureData })
 }
 
 
@@ -309,6 +313,9 @@ export interface PatientFormEntry {
   status: string
   filledBy: number | null
   filledByName: string | null
+  signatureImage: string | null
+  signedByName: string | null
+  signedAt: string | null
   templateFields?: TemplateField[]
   createdAt: string | null
   updatedAt: string | null
