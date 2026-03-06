@@ -86,11 +86,10 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
   // Load existing signature when dialog opens
   useEffect(() => {
     if (!open) return
-    setLoadingExisting(true)
-    setSaved(false)
-    setError("")
     getMe()
       .then((me) => {
+        setSaved(false)
+        setError("")
         setHasExisting(!!me.signature_data)
         if (me.signature_data) {
           const canvas = canvasRef.current
@@ -103,9 +102,9 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
             }
           }
         }
+        setLoadingExisting(false)
       })
-      .catch(() => {})
-      .finally(() => setLoadingExisting(false))
+      .catch(() => setLoadingExisting(false))
   }, [open])
 
   const getPos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -271,6 +270,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, tenantName, currentUser }: AppSidebarProps) {
   const [sigDialogOpen, setSigDialogOpen] = useState(false)
+  const [sigOpenCount, setSigOpenCount] = useState(0)
   const mainNavItems = allMainNavItems.filter((item) => item.roles.includes(userRole))
   const filteredAdminItems = adminNavItems.filter((item) => item.roles.includes(userRole))
   const showAdmin = filteredAdminItems.length > 0
@@ -394,7 +394,7 @@ export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, tenant
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="start" className="w-56">
-                <DropdownMenuItem onClick={() => setSigDialogOpen(true)}>
+                <DropdownMenuItem onClick={() => { setSigDialogOpen(true); setSigOpenCount((c: number) => c + 1) }}>
                   <PenLine className="mr-2 size-4" />
                   My Signature
                 </DropdownMenuItem>
@@ -410,6 +410,7 @@ export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, tenant
       </SidebarFooter>
 
       <SignatureDialog
+        key={sigOpenCount}
         open={sigDialogOpen}
         onClose={() => setSigDialogOpen(false)}
         displayName={displayName}

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import {
   Search,
@@ -421,7 +422,7 @@ function FormDetailView({
           {form.status === "completed" && (
             <div className="p-4 bg-muted/30 border border-border/50 rounded-lg flex flex-col gap-2">
               {form.signatureImage ? (
-                <img src={form.signatureImage} alt="Signature" className="h-16 object-contain object-left" />
+                <Image src={form.signatureImage!} alt="Signature" width={440} height={120} unoptimized className="h-16 w-auto object-contain object-left" />
               ) : (
                 <p className="text-sm italic text-muted-foreground">{form.signedByName || "—"}</p>
               )}
