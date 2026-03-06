@@ -16,4 +16,4 @@ ENV FLASK_APP=app.py
 EXPOSE 5000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["python", "app.py"]
+CMD ["gunicorn", "--workers", "2", "--bind", "0.0.0.0:5000", "app:app"]
