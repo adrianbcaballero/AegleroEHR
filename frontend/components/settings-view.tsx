@@ -2,7 +2,6 @@
 
 import { Globe, Shield, Database, Smartphone } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -14,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export function SettingsView() {
+export function SettingsView({ tenantName }: { tenantName?: string }) {
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <div>
@@ -39,26 +38,29 @@ export function SettingsView() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-muted-foreground">Practice Name</Label>
-              <Input defaultValue="Aeglero Mental Health Clinic" disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+              <Input value={tenantName || "—"} readOnly className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" disabled />
             </div>
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-muted-foreground">NPI Number</Label>
-              <Input defaultValue="1234567890" disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+              <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
             </div>
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
-              <Input defaultValue="(555) 100-2000" disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+              <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
             </div>
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-              <Input defaultValue="admin@aeglero.com" disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+              <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
             </div>
           </div>
           <div className="flex flex-col gap-2">
             <Label className="text-sm font-medium text-muted-foreground">Address</Label>
-            <Input defaultValue="123 Wellness Blvd, Suite 200, San Francisco, CA 94102" disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+            <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
           </div>
-          <p className="text-xs text-muted-foreground">Contact your system administrator to update practice information.</p>
+          <p className="text-xs text-muted-foreground">
+            To update practice information, contact{" "}
+            <a href="mailto:ticket@aeglero.com" className="underline hover:text-foreground transition-colors">ticket@aeglero.com</a>.
+          </p>
         </CardContent>
       </Card>
 
@@ -174,19 +176,11 @@ export function SettingsView() {
           <CardDescription>Database and backup configuration</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">Last Backup</p>
-              <p className="text-sm font-medium text-foreground mt-1">2026-02-10 10:00 AM</p>
-            </div>
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">Backup Size</p>
-              <p className="text-sm font-medium text-foreground mt-1">2.4 GB</p>
-            </div>
-          </div>
-          <Button variant="outline" className="self-start bg-transparent">
-            Run Manual Backup
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            Backup and data configuration is managed by Aeglero. Contact{" "}
+            <a href="mailto:ticket@aeglero.com" className="underline hover:text-foreground transition-colors">ticket@aeglero.com</a>{" "}
+            for backup schedules, restore requests, or data exports.
+          </p>
         </CardContent>
       </Card>
     </div>
