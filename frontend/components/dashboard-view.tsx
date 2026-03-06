@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react"
 import {
-  FileText,
   AlertTriangle,
-  ArrowUpRight,
   FolderOpen,
   ChevronRight,
   Users,
@@ -27,23 +25,7 @@ import {
 import { getPatients, getAuditStats, getUsers, getPatientForms } from "@/lib/api"
 import type { Patient, AuditStats, SystemUser, PatientFormEntry } from "@/lib/api"
 import type { UserRole } from "@/components/login-page"
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-} from "recharts"
 import React from "react"
-
-const CHART_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--accent))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--destructive))",
-  "hsl(var(--muted-foreground))",
-]
 
 function StatCard({
   title,
@@ -281,20 +263,6 @@ function PsychiatristDashboard({
   const highRiskPatients = patients.filter((p) => p.riskLevel === "high")
   const activeCount = patients.filter((p) => p.status === "active").length
 
-  // Build diagnosis distribution from real data
-  const diagnosisCounts: Record<string, number> = {}
-  patients.forEach((p) => {
-    const diag = p.primaryDiagnosis || "Unspecified"
-    diagnosisCounts[diag] = (diagnosisCounts[diag] || 0) + 1
-  })
-  const diagnosisData = Object.entries(diagnosisCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, value], i) => ({
-      name,
-      value,
-      fill: CHART_COLORS[i % CHART_COLORS.length],
-    }))
 
   if (loading) {
     return (
@@ -407,53 +375,6 @@ function PsychiatristDashboard({
         </DialogContent>
       </Dialog>
 
-      {/* Diagnosis Distribution Chart */}
-      {diagnosisData.length > 0 && (
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading font-semibold text-foreground">
-              Diagnosis Distribution
-            </CardTitle>
-            <CardDescription>Top {diagnosisData.length} diagnoses across active patients</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={diagnosisData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {diagnosisData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Legend
-                    wrapperStyle={{ fontSize: "11px" }}
-                    formatter={(value) => (
-                      <span style={{ color: "hsl(var(--foreground))" }}>{value}</span>
-                    )}
-                  />
-                  <RechartsTooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                    }}
-                    formatter={(value: number) => [`${value} patients`, ""]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
