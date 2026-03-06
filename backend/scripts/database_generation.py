@@ -319,6 +319,57 @@ def seed():
                     allowed_roles=["admin", "psychiatrist", "technician"],
                     created_by=creator.id,
                 ),
+                # ── Detox Flowsheets ──
+                FormTemplate(
+                    tenant_id=tenant.id,
+                    name="CIWA-Ar",
+                    category="flowsheet",
+                    description="Clinical Institute Withdrawal Assessment for Alcohol, Revised. Scored 0–67. "
+                                "Mild: 0–9 | Moderate: 10–20 | Severe: 21+. Administer every 4–8 hours during active detox.",
+                    fields=[
+                        {"label": "Nausea / Vomiting (0=none, 7=constant nausea + vomiting)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Tremor — arms extended, fingers spread (0=none, 7=severe, even at rest)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Paroxysmal Sweats (0=no sweat, 7=drenching sweats)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Anxiety (0=no anxiety, 7=equivalent to acute panic state)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Agitation (0=normal activity, 7=pacing constantly or thrashing)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Tactile Disturbances (0=none, 7=continuous hallucinations)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Auditory Disturbances (0=none, 7=continuous hallucinations)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Visual Disturbances (0=none, 7=continuous hallucinations)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Headache / Fullness in Head (0=none, 7=extremely severe)", "type": "scale", "min": 0, "max": 7},
+                        {"label": "Orientation / Clouding of Sensorium (0=oriented, 4=oriented to person only)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Pulse Rate (BPM)", "type": "number"},
+                        {"label": "Blood Pressure", "type": "text"},
+                        {"label": "Temperature (°F)", "type": "number"},
+                        {"label": "Respiratory Rate", "type": "number"},
+                        {"label": "Clinician Notes", "type": "textarea"},
+                    ],
+                    allowed_roles=["admin", "psychiatrist", "technician"],
+                    created_by=creator.id,
+                ),
+                FormTemplate(
+                    tenant_id=tenant.id,
+                    name="COWS",
+                    category="flowsheet",
+                    description="Clinical Opiate Withdrawal Scale. Scored 0–48. "
+                                "Mild: 5–12 | Moderate: 13–24 | Moderately Severe: 25–36 | Severe: 37+. "
+                                "Administer every 4–8 hours during opioid detox.",
+                    fields=[
+                        {"label": "Resting Pulse Rate (0=≤80, 1=81–100, 2=101–120, 4=>120)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Sweating (0=none, 1=barely perceptible, 2=beads on brow, 3=streams, 4=drenching)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Restlessness (0=able to sit still, 1=hard time sitting still, 3=frequent shifting, 5=unable to sit)", "type": "scale", "min": 0, "max": 5},
+                        {"label": "Pupil Size (0=normal/pinpoint, 1=possibly larger, 2=moderately dilated, 5=max dilation)", "type": "scale", "min": 0, "max": 5},
+                        {"label": "Bone or Joint Aches (0=none, 1=mild diffuse, 2=patient reports severe, 4=patient rubbing joints)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Runny Nose or Tearing (0=none, 1=nasal stuffiness, 2=runny nose, 4=tears streaming)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "GI Upset (0=none, 1=stomach cramps, 2=nausea/loose stool, 3=vomiting/diarrhea, 5=multiple episodes)", "type": "scale", "min": 0, "max": 5},
+                        {"label": "Tremor (0=none, 1=can feel, 2=can observe, 4=gross tremor)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Yawning (0=none, 1=once/twice, 2=three or more times, 4=several times/min)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Anxiety or Irritability (0=none, 1=patient reports, 2=patient obviously irritable, 4=patient so irritable)", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Gooseflesh Skin (0=smooth, 3=piloerection can be felt, 5=prominent piloerection)", "type": "scale", "min": 0, "max": 5},
+                        {"label": "Clinician Notes", "type": "textarea"},
+                    ],
+                    allowed_roles=["admin", "psychiatrist", "technician"],
+                    created_by=creator.id,
+                ),
             ]
             db.session.add_all(templates)
 
@@ -391,6 +442,59 @@ def seed():
                     filled_by=t2_tech.id,
                 )
                 db.session.add(f)
+
+        db.session.commit()
+
+        # ── Sample CIWA-Ar Flowsheet Entries ──
+        t1_ciwa = FormTemplate.query.filter_by(tenant_id=tenant1.id, name="CIWA-Ar").first()
+        t2_ciwa = FormTemplate.query.filter_by(tenant_id=tenant2.id, name="CIWA-Ar").first()
+
+        def ciwa_data(nausea, tremor, sweats, anxiety, agitation, tactile, auditory, visual, headache, orientation, pulse, bp, temp, rr, notes):
+            return {
+                "Nausea / Vomiting (0=none, 7=constant nausea + vomiting)": nausea,
+                "Tremor — arms extended, fingers spread (0=none, 7=severe, even at rest)": tremor,
+                "Paroxysmal Sweats (0=no sweat, 7=drenching sweats)": sweats,
+                "Anxiety (0=no anxiety, 7=equivalent to acute panic state)": anxiety,
+                "Agitation (0=normal activity, 7=pacing constantly or thrashing)": agitation,
+                "Tactile Disturbances (0=none, 7=continuous hallucinations)": tactile,
+                "Auditory Disturbances (0=none, 7=continuous hallucinations)": auditory,
+                "Visual Disturbances (0=none, 7=continuous hallucinations)": visual,
+                "Headache / Fullness in Head (0=none, 7=extremely severe)": headache,
+                "Orientation / Clouding of Sensorium (0=oriented, 4=oriented to person only)": orientation,
+                "Pulse Rate (BPM)": pulse,
+                "Blood Pressure": bp,
+                "Temperature (°F)": temp,
+                "Respiratory Rate": rr,
+                "Clinician Notes": notes,
+            }
+
+        if t1_ciwa:
+            # Patient 1: mild (score ~7)
+            db.session.add(PatientForm(
+                tenant_id=tenant1.id, patient_id=t1_patients[0].id, template_id=t1_ciwa.id,
+                form_data=ciwa_data(1,1,1,1,1,1,0,0,1,0, 82,"118/76",98.4,16,"Patient resting comfortably."),
+                status="completed", filled_by=t1_tech.id,
+            ))
+            # Patient 2: moderate (score ~16)
+            db.session.add(PatientForm(
+                tenant_id=tenant1.id, patient_id=t1_patients[1].id, template_id=t1_ciwa.id,
+                form_data=ciwa_data(3,2,2,3,2,1,1,1,1,0, 98,"130/84",99.1,18,"Monitor closely, consider PRN lorazepam."),
+                status="completed", filled_by=t1_tech.id,
+            ))
+            # Patient 3: severe (score ~28)
+            db.session.add(PatientForm(
+                tenant_id=tenant1.id, patient_id=t1_patients[2].id, template_id=t1_ciwa.id,
+                form_data=ciwa_data(5,4,4,4,4,2,2,2,2,1, 114,"148/96",100.2,22,"Escalating. Notified physician. Lorazepam administered."),
+                status="completed", filled_by=t1_tech.id,
+            ))
+
+        if t2_ciwa:
+            # Harbor patient 1: moderate (score ~14)
+            db.session.add(PatientForm(
+                tenant_id=tenant2.id, patient_id=t2_patients[0].id, template_id=t2_ciwa.id,
+                form_data=ciwa_data(2,2,2,2,1,1,1,1,2,0, 92,"126/80",98.8,17,"Stable but monitoring."),
+                status="completed", filled_by=t2_tech.id,
+            ))
 
         db.session.commit()
 

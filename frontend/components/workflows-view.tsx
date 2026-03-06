@@ -168,6 +168,7 @@ function TemplateEditorDialog({
               <SelectContent>
                 <SelectItem value="intake">Intake</SelectItem>
                 <SelectItem value="assessment">Assessment</SelectItem>
+                <SelectItem value="flowsheet">Flowsheet</SelectItem>
                 <SelectItem value="consent">Consent</SelectItem>
                 <SelectItem value="insurance">Insurance</SelectItem>
                 <SelectItem value="clinical">Clinical</SelectItem>
