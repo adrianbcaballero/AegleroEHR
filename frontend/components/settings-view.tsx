@@ -1,6 +1,7 @@
 "use client"
 
-import { Globe, Shield, Database, Smartphone } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Globe, Shield, Database, Smartphone, Loader2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,8 +13,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { getTenant } from "@/lib/api"
+import type { TenantInfo } from "@/lib/api"
 
-export function SettingsView({ tenantName }: { tenantName?: string }) {
+export function SettingsView() {
+  const [tenant, setTenant] = useState<TenantInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getTenant()
+      .then(setTenant)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
   return (
     <div className="flex flex-col gap-6 max-w-3xl">
       <div>
@@ -35,28 +48,36 @@ export function SettingsView({ tenantName }: { tenantName?: string }) {
           <CardDescription>General details about your practice (read-only)</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-muted-foreground">Practice Name</Label>
-              <Input value={tenantName || "—"} readOnly className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" disabled />
+          {loading ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="size-4 animate-spin" /> Loading…
             </div>
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-muted-foreground">NPI Number</Label>
-              <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
-              <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-              <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium text-muted-foreground">Address</Label>
-            <Input value="—" readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
-          </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Practice Name</Label>
+                  <Input value={tenant?.name || "—"} readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-muted-foreground">NPI Number</Label>
+                  <Input value={tenant?.npi || "—"} readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
+                  <Input value={tenant?.phone || "—"} readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                  <Input value={tenant?.email || "—"} readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label className="text-sm font-medium text-muted-foreground">Address</Label>
+                <Input value={tenant?.address || "—"} readOnly disabled className="disabled:opacity-70 disabled:cursor-not-allowed bg-muted/40" />
+              </div>
+            </>
+          )}
           <p className="text-xs text-muted-foreground">
             To update practice information, contact{" "}
             <a href="mailto:ticket@aeglero.com" className="underline hover:text-foreground transition-colors">ticket@aeglero.com</a>.

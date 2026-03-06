@@ -420,6 +420,20 @@ export function revokePart2Consent(patientCode: string, consentId: number, reaso
 }
 
 
+// Tenant info
+export interface TenantInfo {
+  name: string
+  npi: string
+  phone: string
+  email: string
+  address: string
+}
+
+export function getTenant() {
+  return apiGet<TenantInfo>("/api/tenant")
+}
+
+
 // Category management
 export interface CategoriesResponse {
   categories: string[]

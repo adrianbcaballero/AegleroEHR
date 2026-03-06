@@ -24,8 +24,24 @@ def seed():
             return
 
         # ── Tenants ──
-        tenant1 = Tenant(name="Sunrise Detox Center", slug="sunrise-detox", status="active")
-        tenant2 = Tenant(name="Harbor Recovery Clinic", slug="harbor-recovery", status="active")
+        tenant1 = Tenant(
+            name="Sunrise Detox Center",
+            slug="sunrise-detox",
+            status="active",
+            npi="1982734560",
+            phone="(512) 555-0190",
+            email="admin@sunrisedetox.com",
+            address="4801 S Congress Ave, Suite 200, Austin, TX 78745",
+        )
+        tenant2 = Tenant(
+            name="Harbor Recovery Clinic",
+            slug="harbor-recovery",
+            status="active",
+            npi="1374859203",
+            phone="(713) 555-0247",
+            email="admin@harborrecovery.com",
+            address="9200 Westheimer Rd, Suite 410, Houston, TX 77063",
+        )
         db.session.add_all([tenant1, tenant2])
         db.session.commit()
 

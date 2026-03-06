@@ -12,6 +12,21 @@ categories_bp = Blueprint("categories", __name__, url_prefix="/api")
 DEFAULT_CATEGORIES = ["assessment", "clinical", "consent", "discharge", "flowsheet", "intake", "insurance", "treatment"]
 
 
+@categories_bp.get("/tenant")
+@require_auth()
+def get_tenant():
+    tenant = Tenant.query.get(g.tenant_id)
+    if not tenant:
+        return {"error": "tenant not found"}, 404
+    return {
+        "name": tenant.name,
+        "npi": tenant.npi or "",
+        "phone": tenant.phone or "",
+        "email": tenant.email or "",
+        "address": tenant.address or "",
+    }, 200
+
+
 @categories_bp.get("/categories")
 @require_auth()
 def get_categories():

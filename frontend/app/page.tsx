@@ -90,7 +90,7 @@ export default function EHRApp() {
       case "Manage Users":
         return <ManageUsersView />
       case "Settings":
-        return <SettingsView tenantName={tenantName} />
+        return <SettingsView />
       case "Help & Support":
         return <HelpView />
       case "HIPAA Compliance Guidelines":
