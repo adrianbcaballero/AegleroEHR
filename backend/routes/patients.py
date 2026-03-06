@@ -1,5 +1,6 @@
 from flask import Blueprint, request, g
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from auth_middleware import require_auth
 from extensions import db
@@ -206,6 +207,7 @@ def create_patient():
             return {"error": "assignedProviderId does not exist"}, 400
 
     patient_code = (data.get("patientCode") or "").strip()
+    auto_code = not patient_code
     if patient_code:
         # validate uniqueness if provided
         existing = Patient.query.filter_by(patient_code=patient_code, tenant_id=g.tenant_id).first()
@@ -255,8 +257,18 @@ def create_patient():
         pharmacy=(data.get("pharmacy") or "").strip() or None,
     )
 
-    db.session.add(p)
-    db.session.commit()
+    for attempt in range(5):
+        p.patient_code = patient_code
+        db.session.add(p)
+        try:
+            db.session.commit()
+            break
+        except IntegrityError:
+            db.session.rollback()
+            if not auto_code or attempt == 4:
+                log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description="Patient creation failed — could not generate a unique patient code")
+                return {"error": "could not generate a unique patient code, please try again"}, 500
+            patient_code = _next_patient_code()
 
     log_access(g.user.id, "PATIENT_CREATE", f"patient/{p.patient_code}", "SUCCESS", ip)
     return _serialize_patient(p), 201
