@@ -7,7 +7,6 @@ import { LoginPage } from "@/components/login-page"
 import type { UserRole } from "@/components/login-page"
 import { DashboardView } from "@/components/dashboard-view"
 import { PatientsView } from "@/components/patients-view"
-import { TreatmentPlansView } from "@/components/treatment-plans-view"
 import { WorkflowsView } from "@/components/workflows-view"
 import { SystemLogsView } from "@/components/system-logs-view"
 import { ManageUsersView } from "@/components/manage-users-view"
@@ -84,8 +83,6 @@ export default function EHRApp() {
             initialPatientId={navOptions?.patientId}
           />
         )
-      case "Treatment Plans":
-        return <TreatmentPlansView initialPatientId={navOptions?.patientId} />
       case "Workflows":
         return <WorkflowsView />
       case "System Logs":

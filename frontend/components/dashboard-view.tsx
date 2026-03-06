@@ -5,7 +5,6 @@ import {
   FileText,
   AlertTriangle,
   ArrowUpRight,
-  ClipboardList,
   FolderOpen,
   ChevronRight,
   Users,
@@ -401,25 +400,6 @@ function PsychiatristDashboard({
               <div className="text-left">
                 <p className="text-sm font-medium">Patient Record</p>
                 <p className="text-xs text-muted-foreground">View forms and details</p>
-              </div>
-              <ChevronRight className="size-4 text-muted-foreground ml-auto" />
-            </Button>
-            <Button
-              variant="outline"
-              className="justify-start gap-3 h-auto p-4 bg-transparent text-foreground hover:bg-muted/50"
-              onClick={() => {
-                if (selectedHighRisk) {
-                  onNavigate?.("Treatment Plans", { patientId: selectedHighRisk.id })
-                }
-                setSelectedHighRisk(null)
-              }}
-            >
-              <div className="flex items-center justify-center size-9 rounded-lg bg-accent/10 shrink-0">
-                <ClipboardList className="size-4 text-accent" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium">Treatment Plan</p>
-                <p className="text-xs text-muted-foreground">View treatment goals and progress</p>
               </div>
               <ChevronRight className="size-4 text-muted-foreground ml-auto" />
             </Button>

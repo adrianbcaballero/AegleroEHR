@@ -138,19 +138,7 @@ export interface Patient {
   pharmacy: string | null
 }
 
-export interface TreatmentPlanData {
-  id: number
-  patientId: number
-  startDate: string | null
-  reviewDate: string | null
-  goals: { goal: string; target: string }[]
-  status: string
-  updatedAt: string | null
-}
-
-export interface PatientDetail extends Patient {
-  treatmentPlan: TreatmentPlanData | null
-}
+export interface PatientDetail extends Patient {}
 
 
 // Admin audit API calls
@@ -285,47 +273,6 @@ export async function exportAuditLogs(params?: {
     a.click()
     URL.revokeObjectURL(a.href)
   })
-}
-
-// Treatment Plans
-export interface TreatmentPlanGoal {
-  id: string
-  description: string
-  status: string
-  targetDate: string
-}
-
-export interface TreatmentPlanListItem {
-  id: number
-  patientId: number
-  patientName: string
-  patientCode: string
-  patientStatus: string
-  startDate: string | null
-  reviewDate: string | null
-  goals: TreatmentPlanGoal[]
-  status: string
-  updatedAt: string | null
-}
-
-export function getTreatmentPlans() {
-  return apiGet<TreatmentPlanListItem[]>("/api/patients/treatment-plans")
-}
-
-export function upsertTreatmentPlan(
-  patientId: string,
-  data: { startDate?: string; reviewDate?: string; goals?: TreatmentPlanGoal[]; status?: string }
-) {
-  return apiPost<{ created: boolean; treatmentPlan: TreatmentPlanListItem }>(
-    `/api/patients/${patientId}/treatment-plan`,
-    data
-  )
-}
-
-export function getTreatmentPlan(patientCode: string) {
-  return apiGet<{ treatmentPlan: TreatmentPlanListItem | null }>(
-    `/api/patients/${patientCode}/treatment-plan`
-  )
 }
 
 

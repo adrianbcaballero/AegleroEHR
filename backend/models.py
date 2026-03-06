@@ -117,30 +117,6 @@ class AuditLog(db.Model):
     status = db.Column(db.String(20), nullable=False)  
 
 
-class TreatmentPlan(db.Model):
-    __tablename__ = "treatment_plan"
-
-    id = db.Column(db.Integer, primary_key=True)
-    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
-
-    patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"), nullable=False, index=True, unique=True)
-
-    start_date = db.Column(db.Date, nullable=True)
-    review_date = db.Column(db.Date, nullable=True)
-
-    #JSON goals list/object
-    goals = db.Column(db.JSON, nullable=False, default=list)
-
-    #active/archived
-    status = db.Column(db.String(20), nullable=False, default="active")
-
-    updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False
-    )
-
 
 class FormTemplate(db.Model):
     __tablename__ = "form_template"

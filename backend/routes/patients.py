@@ -3,7 +3,7 @@ from sqlalchemy import or_
 
 from auth_middleware import require_auth
 from extensions import db
-from models import Patient, User, TreatmentPlan
+from models import Patient, User
 
 import re
 from services.audit_logger import log_access
@@ -69,21 +69,6 @@ def _serialize_patient(p: Patient):
         "referringProvider": p.referring_provider,
         "primaryCarePhysician": p.primary_care_physician,
         "pharmacy": p.pharmacy,
-    }
-
-def _serialize_treatment_plan(tp: TreatmentPlan):
-    created = getattr(tp, "created_at", None)
-    updated = getattr(tp, "updated_at", None)
-
-    return {
-        "id": tp.id,
-        "patientId": tp.patient_id,
-        "startDate": tp.start_date.isoformat() if tp.start_date else None,
-        "reviewDate": tp.review_date.isoformat() if tp.review_date else None,
-        "goals": tp.goals,
-        "status": tp.status,
-        "createdAt": created.isoformat() if created else None,
-        "updatedAt": updated.isoformat() if updated else None,
     }
 
 
@@ -155,19 +140,9 @@ def get_patient(patient_id):
             log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not assigned provider")
             return {"error": "forbidden"}, 403
 
-    tp = (
-        TreatmentPlan.query
-        .filter_by(patient_id=p.id)
-        .order_by(TreatmentPlan.id.desc())
-        .first()
-    )
-
     log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "SUCCESS", ip, description=f"Viewed patient record for {p.first_name} {p.last_name} ({p.patient_code})")
 
-    return {
-        **_serialize_patient(p),
-        "treatmentPlan": _serialize_treatment_plan(tp) if tp else None,
-    }, 200
+    return _serialize_patient(p), 200
 
 
 

@@ -1040,43 +1040,6 @@ function PatientProfileView({
         )
       })()}
 
-      {/* Treatment Plan */}
-      {patient.treatmentPlan && (
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading font-semibold text-foreground">
-              Treatment Plan
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground">Start Date</p>
-                <p className="text-sm font-medium text-foreground mt-1">{patient.treatmentPlan.startDate || "—"}</p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground">Review Date</p>
-                <p className="text-sm font-medium text-foreground mt-1">{patient.treatmentPlan.reviewDate || "—"}</p>
-              </div>
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground">Status</p>
-                <p className="text-sm font-medium text-foreground mt-1 capitalize">{patient.treatmentPlan.status}</p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              {(patient.treatmentPlan.goals || []).map((g, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                  <span className="text-xs font-medium text-muted-foreground w-6">{idx + 1}.</span>
-                  <div className="flex-1">
-                    <p className="text-sm text-foreground">{g.goal}</p>
-                    <p className="text-xs text-muted-foreground">Target: {g.target}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

@@ -9,7 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 categories_bp = Blueprint("categories", __name__, url_prefix="/api")
 
-DEFAULT_CATEGORIES = ["assessment", "clinical", "consent", "discharge", "flowsheet", "intake", "insurance"]
+DEFAULT_CATEGORIES = ["assessment", "clinical", "consent", "discharge", "flowsheet", "intake", "insurance", "treatment"]
 
 
 @categories_bp.get("/categories")

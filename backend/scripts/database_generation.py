@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from werkzeug.security import generate_password_hash
 from app import create_app
 from extensions import db
-from models import Tenant, User, Patient, AuditLog, TreatmentPlan, FormTemplate, PatientForm
+from models import Tenant, User, Patient, AuditLog, FormTemplate, PatientForm
 import random
 
 app = create_app()
@@ -156,46 +156,7 @@ def seed():
         db.session.add_all(logs)
         db.session.commit()
 
-        # ── Treatment Plans ──
         now = datetime.now(timezone.utc)
-
-        for p in t1_patients:
-            if random.random() < 0.7:
-                start = now.date() - timedelta(days=random.randint(0, 60))
-                review = start + timedelta(days=30)
-                tp = TreatmentPlan(
-                    tenant_id=tenant1.id,
-                    patient_id=p.id,
-                    start_date=start,
-                    review_date=review,
-                    goals=[
-                        {"goal": "Reduce symptoms", "target": "4 weeks"},
-                        {"goal": "Improve daily routine", "target": "2 weeks"},
-                    ],
-                    status="active",
-                    updated_at=now,
-                )
-                db.session.add(tp)
-
-        for p in t2_patients:
-            if random.random() < 0.7:
-                start = now.date() - timedelta(days=random.randint(0, 30))
-                review = start + timedelta(days=14)
-                tp = TreatmentPlan(
-                    tenant_id=tenant2.id,
-                    patient_id=p.id,
-                    start_date=start,
-                    review_date=review,
-                    goals=[
-                        {"goal": "Complete detox protocol", "target": "2 weeks"},
-                        {"goal": "Establish sobriety support plan", "target": "3 weeks"},
-                    ],
-                    status="active",
-                    updated_at=now,
-                )
-                db.session.add(tp)
-
-        db.session.commit()
 
         # ── Form Templates (one set per tenant) ──
         for tenant, creator in [(tenant1, t1_users[2]), (tenant2, t2_users[2])]:
@@ -370,6 +331,34 @@ def seed():
                     allowed_roles=["admin", "psychiatrist", "technician"],
                     created_by=creator.id,
                 ),
+                FormTemplate(
+                    tenant_id=tenant.id,
+                    name="Treatment Plan",
+                    category="treatment",
+                    description="Individualized treatment plan documenting patient goals, target dates, assigned provider, and review schedule for the episode of care.",
+                    fields=[
+                        {"label": "Primary Substance(s)", "type": "text"},
+                        {"label": "Start Date", "type": "date"},
+                        {"label": "Anticipated Discharge Date", "type": "date"},
+                        {"label": "Review Date", "type": "date"},
+                        {"label": "Problem / Presenting Issue", "type": "textarea"},
+                        {"label": "Goal 1", "type": "text"},
+                        {"label": "Goal 1 Target Date", "type": "date"},
+                        {"label": "Goal 1 Status", "type": "select", "options": ["In Progress", "Partially Met", "Met", "Not Met"]},
+                        {"label": "Goal 2", "type": "text"},
+                        {"label": "Goal 2 Target Date", "type": "date"},
+                        {"label": "Goal 2 Status", "type": "select", "options": ["In Progress", "Partially Met", "Met", "Not Met"]},
+                        {"label": "Goal 3", "type": "text"},
+                        {"label": "Goal 3 Target Date", "type": "date"},
+                        {"label": "Goal 3 Status", "type": "select", "options": ["In Progress", "Partially Met", "Met", "Not Met"]},
+                        {"label": "Aftercare / Continuing Care Plan", "type": "textarea"},
+                        {"label": "Patient Agrees to Plan", "type": "checkbox", "options": ["Yes", "No"]},
+                        {"label": "Patient Signature", "type": "signature"},
+                        {"label": "Clinician Signature", "type": "signature"},
+                    ],
+                    allowed_roles=["admin", "psychiatrist", "technician"],
+                    created_by=creator.id,
+                ),
             ]
             db.session.add_all(templates)
 
@@ -510,7 +499,7 @@ def seed():
         print(f"  Harbor:   admin2 / psychiatrist2 / technician2")
         print()
         print(f"Patients: {len(t1_patients)} (Sunrise) + {len(t2_patients)} (Harbor)")
-        print("Treatment plans, form templates, and sample forms created for both tenants.")
+        print("Form templates and sample forms created for both tenants.")
 
 
 if __name__ == "__main__":

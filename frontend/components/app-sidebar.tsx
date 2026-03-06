@@ -5,7 +5,6 @@ import type { UserRole } from "@/components/login-page"
 import {
   LayoutDashboard,
   Users,
-  ClipboardList,
   ScrollText,
   Settings,
   HelpCircle,
@@ -39,7 +38,6 @@ import {
 const allMainNavItems = [
   { title: "Dashboard", icon: LayoutDashboard, roles: ["psychiatrist", "technician", "admin"] },
   { title: "Patients", icon: Users, roles: ["psychiatrist", "technician", "admin"] },
-  { title: "Treatment Plans", icon: ClipboardList, roles: ["psychiatrist", "admin"] },
 ]
 
 const adminNavItems = [
