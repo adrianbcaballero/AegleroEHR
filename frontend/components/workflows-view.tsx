@@ -14,6 +14,10 @@ import {
   Loader2,
   Shield,
   Pencil,
+  ChevronUp,
+  ChevronDown,
+  X,
+  Settings2,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -38,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getTemplates, createTemplate, updateTemplate } from "@/lib/api"
+import { getTemplates, createTemplate, updateTemplate, getCategories, updateCategories } from "@/lib/api"
 import type { FormTemplate, TemplateField } from "@/lib/api"
 
 const ALL_ROLES = ["admin", "psychiatrist", "technician"]
@@ -491,6 +495,139 @@ function TemplateDetailPage({
   )
 }
 
+// ------- Category Manager -------
+function CategoryManager({ onChanged }: { onChanged: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [categories, setCategories] = useState<string[]>([])
+  const [defaultCategories, setDefaultCategories] = useState<string[]>([])
+  const [newCat, setNewCat] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (open) {
+      getCategories()
+        .then((r) => { setCategories(r.categories); setDefaultCategories(r.defaultCategories) })
+        .catch(() => {})
+    }
+  }, [open])
+
+  const move = (idx: number, dir: -1 | 1) => {
+    const next = [...categories]
+    const target = idx + dir
+    if (target < 0 || target >= next.length) return
+    ;[next[idx], next[target]] = [next[target], next[idx]]
+    setCategories(next)
+  }
+
+  const addCat = () => {
+    const val = newCat.trim().toLowerCase().replace(/\s+/g, "-")
+    if (!val) return
+    if (categories.includes(val)) { setError(`"${val}" already exists`); return }
+    setCategories([...categories, val])
+    setNewCat("")
+    setError("")
+  }
+
+  const removeCat = (cat: string) => {
+    setCategories(categories.filter((c: string) => c !== cat))
+    setError("")
+  }
+
+  const handleSave = () => {
+    setSaving(true)
+    setError("")
+    updateCategories(categories)
+      .then(() => { setOpen(false); onChanged() })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to save"))
+      .finally(() => setSaving(false))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="bg-transparent text-foreground">
+          <Settings2 className="mr-2 size-4" /> Manage Categories
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-foreground">Manage Categories</DialogTitle>
+          <DialogDescription>
+            Reorder categories using the arrows. Add custom categories or remove ones you created.
+            Default categories cannot be removed.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-2 max-h-72 overflow-y-auto py-1">
+          {categories.map((cat: string, idx: number) => {
+            const isDefault = defaultCategories.includes(cat)
+            return (
+              <div key={cat} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
+                    onClick={() => move(idx, -1)}
+                    disabled={idx === 0}
+                  >
+                    <ChevronUp className="size-3.5 text-muted-foreground" />
+                  </button>
+                  <button
+                    type="button"
+                    className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
+                    onClick={() => move(idx, 1)}
+                    disabled={idx === categories.length - 1}
+                  >
+                    <ChevronDown className="size-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+                <span className="flex-1 text-sm capitalize text-foreground">{cat}</span>
+                {isDefault ? (
+                  <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">default</span>
+                ) : (
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    onClick={() => removeCat(cat)}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Input
+            placeholder="New category name…"
+            value={newCat}
+            onChange={(e) => { setNewCat((e.target as HTMLInputElement).value); setError("") }}
+            onKeyDown={(e) => { if ((e as KeyboardEvent).key === "Enter") { e.preventDefault(); addCat() } }}
+            className="flex-1"
+          />
+          <Button type="button" variant="outline" className="bg-transparent text-foreground" onClick={addCat}>
+            <Plus className="size-4" />
+          </Button>
+        </div>
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setOpen(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+            Save Order
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ------- Main Workflows View -------
 export function WorkflowsView() {
   const [templates, setTemplates] = useState<FormTemplate[]>([])
@@ -541,15 +678,18 @@ export function WorkflowsView() {
             Form templates and their configuration
           </p>
         </div>
-        <TemplateEditorDialog
-          onSaved={fetchTemplates}
-          existingCategories={[...new Set(templates.map((t) => t.category))]}
-          trigger={
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Plus className="mr-2 size-4" /> Template
-            </Button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <CategoryManager onChanged={fetchTemplates} />
+          <TemplateEditorDialog
+            onSaved={fetchTemplates}
+            existingCategories={[...new Set(templates.map((t: FormTemplate) => t.category))] as string[]}
+            trigger={
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                <Plus className="mr-2 size-4" /> Template
+              </Button>
+            }
+          />
+        </div>
       </div>
 
       {/* Loading / Error */}

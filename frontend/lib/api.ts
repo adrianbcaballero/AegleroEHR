@@ -472,3 +472,18 @@ export function revokePart2Consent(patientCode: string, consentId: number, reaso
   return apiPost<Part2Consent>(`/api/patients/${patientCode}/part2-consents/${consentId}/revoke`, { reason })
 }
 
+
+// Category management
+export interface CategoriesResponse {
+  categories: string[]
+  defaultCategories: string[]
+}
+
+export function getCategories() {
+  return apiGet<CategoriesResponse>("/api/categories")
+}
+
+export function updateCategories(categories: string[]) {
+  return apiPut<CategoriesResponse>("/api/categories", { categories })
+}
+

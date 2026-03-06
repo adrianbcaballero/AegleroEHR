@@ -25,6 +25,7 @@ class Tenant(db.Model):
     name = db.Column(db.String(200), nullable=False)
     slug = db.Column(db.String(80), unique=True, nullable=False)  # url-friendly identifier e.g. "sunrise-detox"
     status = db.Column(db.String(20), nullable=False, default="active")  # active/suspended
+    category_order = db.Column(db.JSON, nullable=True, default=None)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

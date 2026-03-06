@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, createPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, updatePatient, getPart2Consents, createPart2Consent, revokePart2Consent } from "@/lib/api"
+import { getPatients, getPatient, createPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, updatePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories } from "@/lib/api"
 import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent } from "@/lib/api"
 
 import {
@@ -772,6 +772,7 @@ function PatientProfileView({
   const [patient, setPatient] = useState<PatientDetail | null>(null)
   const [forms, setForms] = useState<PatientFormEntry[]>([])
   const [templates, setTemplates] = useState<FormTemplate[]>([])
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES)
   const [loading, setLoading] = useState(true)
   const [loadingForms, setLoadingForms] = useState(true)
   const [error, setError] = useState("")
@@ -783,6 +784,12 @@ function PatientProfileView({
       .then((data) => { setError(""); setPatient(data) })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load patient"))
       .finally(() => setLoading(false))
+  }, [patientId])
+
+  useEffect(() => {
+    getCategories()
+      .then((r) => setCategories(r.categories))
+      .catch(() => {})
   }, [patientId])
 
   useEffect(() => {
@@ -931,13 +938,12 @@ function PatientProfileView({
 
       {/* Category Tabs */}
       {(() => {
-        // Merge default categories with any custom ones from templates, always sorted alphabetically.
-        // Default categories always remain visible — archiving all templates in a category won't remove the tab.
-        const categories = [...new Set([...DEFAULT_CATEGORIES, ...templates.map((t: FormTemplate) => t.category)])].sort()
+        // Use tenant-configured order from API; append any template categories not yet in the list
+        const allCategories = [...new Set([...categories, ...templates.map((t: FormTemplate) => t.category)])]
         return (
-          <Tabs value={activeTab || categories[0] || ""} onValueChange={setActiveTab}>
+          <Tabs value={activeTab || allCategories[0] || ""} onValueChange={setActiveTab}>
             <TabsList className="flex flex-wrap h-auto gap-1.5 bg-transparent p-0 border-b border-border pb-2">
-              {categories.map((cat) => (
+              {allCategories.map((cat: string) => (
                 <TabsTrigger
                   key={cat}
                   value={cat}
@@ -954,7 +960,7 @@ function PatientProfileView({
               ))}
             </TabsList>
 
-            {categories.map((cat) => {
+            {allCategories.map((cat: string) => {
               const catForms = forms.filter((f) => f.templateCategory === cat)
               return (
                 <TabsContent key={cat} value={cat} className="mt-3">

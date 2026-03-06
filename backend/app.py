@@ -46,6 +46,9 @@ def create_app():
     from routes.consent import consent_bp
     app.register_blueprint(consent_bp)
 
+    from routes.categories import categories_bp
+    app.register_blueprint(categories_bp)
+
     # Import models so Alembic can detect
     import models
 
