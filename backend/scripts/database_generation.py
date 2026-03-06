@@ -2,6 +2,7 @@
 
 import os
 import sys
+import base64
 from datetime import date, datetime, timedelta, timezone
 
 # Ensure imports work when running from /app/scripts
@@ -12,6 +13,21 @@ from app import create_app
 from extensions import db
 from models import Tenant, User, Patient, AuditLog, FormTemplate, PatientForm
 import random
+
+
+def _make_svg_signature(name: str) -> str:
+    """Generate a cursive-style SVG signature as a base64 data URL."""
+    # Escape special XML characters
+    safe = name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="440" height="120" viewBox="0 0 440 120">'
+        f'<text x="20" y="85" '
+        f'font-family="\'Brush Script MT\', \'Segoe Script\', \'Dancing Script\', cursive" '
+        f'font-size="58" font-style="italic" fill="#1a1a2e">{safe}</text>'
+        f'</svg>'
+    )
+    encoded = base64.b64encode(svg.encode()).decode()
+    return f"data:image/svg+xml;base64,{encoded}"
 
 app = create_app()
 
@@ -58,6 +74,7 @@ def seed():
                 password_hash=generate_password_hash(default_pw),
                 role="psychiatrist",
                 full_name="Dr. Fierro",
+                signature_data=_make_svg_signature("Dr. Fierro"),
             ),
             User(
                 tenant_id=tenant1.id,
@@ -65,6 +82,7 @@ def seed():
                 password_hash=generate_password_hash(default_pw),
                 role="technician",
                 full_name="Jordan Kim",
+                signature_data=_make_svg_signature("Jordan Kim"),
             ),
             User(
                 tenant_id=tenant1.id,
@@ -72,6 +90,7 @@ def seed():
                 password_hash=generate_password_hash(default_pw),
                 role="admin",
                 full_name="Morgan Lee",
+                signature_data=_make_svg_signature("Morgan Lee"),
             ),
         ]
 
@@ -83,6 +102,7 @@ def seed():
                 password_hash=generate_password_hash(default_pw),
                 role="psychiatrist",
                 full_name="Dr. Santos",
+                signature_data=_make_svg_signature("Dr. Santos"),
             ),
             User(
                 tenant_id=tenant2.id,
@@ -90,6 +110,7 @@ def seed():
                 password_hash=generate_password_hash(default_pw),
                 role="technician",
                 full_name="Alex Rivera",
+                signature_data=_make_svg_signature("Alex Rivera"),
             ),
             User(
                 tenant_id=tenant2.id,
@@ -97,6 +118,7 @@ def seed():
                 password_hash=generate_password_hash(default_pw),
                 role="admin",
                 full_name="Casey Zhang",
+                signature_data=_make_svg_signature("Casey Zhang"),
             ),
         ]
 
@@ -385,9 +407,26 @@ def seed():
         t1_intake = FormTemplate.query.filter_by(tenant_id=tenant1.id, name="New Patient Intake Form").first()
         t1_symptom = FormTemplate.query.filter_by(tenant_id=tenant1.id, name="Symptom Checklist").first()
 
+        t1_tech_name = t1_tech.full_name or t1_tech.username
+        t2_tech_name = t2_tech.full_name or t2_tech.username
+
+        def completed_form(tenant_id, patient_id, template_id, form_data, filled_by, signed_by_name, days_ago=3):
+            signed_at = now - timedelta(days=days_ago, hours=random.randint(0, 8))
+            return PatientForm(
+                tenant_id=tenant_id,
+                patient_id=patient_id,
+                template_id=template_id,
+                form_data=form_data,
+                status="completed",
+                filled_by=filled_by,
+                signed_by_name=signed_by_name,
+                signed_at=signed_at,
+                signature_image=_make_svg_signature(signed_by_name),
+            )
+
         if t1_intake:
-            for p in t1_patients[:5]:
-                f = PatientForm(
+            for i, p in enumerate(t1_patients[:5]):
+                db.session.add(completed_form(
                     tenant_id=tenant1.id,
                     patient_id=p.id,
                     template_id=t1_intake.id,
@@ -401,10 +440,10 @@ def seed():
                         "Current Medications": "None",
                         "Consent Acknowledgment": "Yes",
                     },
-                    status="completed",
                     filled_by=t1_tech.id,
-                )
-                db.session.add(f)
+                    signed_by_name=t1_tech_name,
+                    days_ago=i + 1,
+                ))
 
         if t1_symptom:
             for p in t1_patients[3:7]:
@@ -428,8 +467,8 @@ def seed():
         t2_intake = FormTemplate.query.filter_by(tenant_id=tenant2.id, name="New Patient Intake Form").first()
 
         if t2_intake:
-            for p in t2_patients[:3]:
-                f = PatientForm(
+            for i, p in enumerate(t2_patients[:3]):
+                db.session.add(completed_form(
                     tenant_id=tenant2.id,
                     patient_id=p.id,
                     template_id=t2_intake.id,
@@ -443,10 +482,10 @@ def seed():
                         "Current Medications": "Suboxone",
                         "Consent Acknowledgment": "Yes",
                     },
-                    status="completed",
                     filled_by=t2_tech.id,
-                )
-                db.session.add(f)
+                    signed_by_name=t2_tech_name,
+                    days_ago=i + 1,
+                ))
 
         db.session.commit()
 
@@ -474,31 +513,27 @@ def seed():
             }
 
         if t1_ciwa:
-            # Patient 1: mild (score ~7)
-            db.session.add(PatientForm(
+            db.session.add(completed_form(
                 tenant_id=tenant1.id, patient_id=t1_patients[0].id, template_id=t1_ciwa.id,
                 form_data=ciwa_data(1,1,1,1,1,1,0,0,1,0, 82,"118/76",98.4,16,"Patient resting comfortably."),
-                status="completed", filled_by=t1_tech.id,
+                filled_by=t1_tech.id, signed_by_name=t1_tech_name, days_ago=3,
             ))
-            # Patient 2: moderate (score ~16)
-            db.session.add(PatientForm(
+            db.session.add(completed_form(
                 tenant_id=tenant1.id, patient_id=t1_patients[1].id, template_id=t1_ciwa.id,
                 form_data=ciwa_data(3,2,2,3,2,1,1,1,1,0, 98,"130/84",99.1,18,"Monitor closely, consider PRN lorazepam."),
-                status="completed", filled_by=t1_tech.id,
+                filled_by=t1_tech.id, signed_by_name=t1_tech_name, days_ago=2,
             ))
-            # Patient 3: severe (score ~28)
-            db.session.add(PatientForm(
+            db.session.add(completed_form(
                 tenant_id=tenant1.id, patient_id=t1_patients[2].id, template_id=t1_ciwa.id,
                 form_data=ciwa_data(5,4,4,4,4,2,2,2,2,1, 114,"148/96",100.2,22,"Escalating. Notified physician. Lorazepam administered."),
-                status="completed", filled_by=t1_tech.id,
+                filled_by=t1_tech.id, signed_by_name=t1_tech_name, days_ago=1,
             ))
 
         if t2_ciwa:
-            # Harbor patient 1: moderate (score ~14)
-            db.session.add(PatientForm(
+            db.session.add(completed_form(
                 tenant_id=tenant2.id, patient_id=t2_patients[0].id, template_id=t2_ciwa.id,
                 form_data=ciwa_data(2,2,2,2,1,1,1,1,2,0, 92,"126/80",98.8,17,"Stable but monitoring."),
-                status="completed", filled_by=t2_tech.id,
+                filled_by=t2_tech.id, signed_by_name=t2_tech_name, days_ago=2,
             ))
 
         db.session.commit()
