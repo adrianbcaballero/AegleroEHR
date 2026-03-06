@@ -8,12 +8,16 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' })
 
 export const metadata: Metadata = {
-  title: 'Aeglero - Mental Health EMR Platform',
-  description: 'Modern electronic medical records for mental health providers. Streamline patient care, clinical documentation, and practice management.',
+  title: 'Aeglero - Detox & Behavioral Health EHR',
+  description: 'Secure electronic health records for detox and behavioral health clinics. Built for 42 CFR Part 2 and HIPAA compliance.',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+  },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1a6b8a',
+  themeColor: '#b91c1c',
   width: 'device-width',
   initialScale: 1,
 }

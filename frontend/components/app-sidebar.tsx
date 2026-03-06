@@ -8,7 +8,6 @@ import {
   ScrollText,
   Settings,
   HelpCircle,
-  Brain,
   LogOut,
   ChevronDown,
   ShieldCheck,
@@ -91,12 +90,11 @@ export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, tenant
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" className="hover:bg-sidebar-accent">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <Brain className="size-4" />
-              </div>
+              {/* Replace logo.png in /public with your logo file */}
+              <img src="/logo.png" alt="Aeglero" className="size-8 object-contain rounded-lg shrink-0" />
               <div className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold text-sidebar-primary-foreground">Aeglero</span>
-                <span className="text-xs text-sidebar-foreground/60">{tenantName || "Mental Health EMR"}</span>
+                <span className="text-xs text-sidebar-foreground/60">{tenantName || "Detox & Behavioral Health"}</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
