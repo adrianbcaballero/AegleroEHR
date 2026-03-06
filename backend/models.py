@@ -16,6 +16,7 @@ class User(db.Model):
     failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
     locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
     permanently_locked = db.Column(db.Boolean, default=False, nullable=False)
+    signature_data = db.Column(db.Text, nullable=True)  # base64 data-URL of saved signature image
     __table_args__ = (db.UniqueConstraint("tenant_id", "username", name="uq_tenant_username"),)
 
 class Tenant(db.Model):
@@ -204,6 +205,11 @@ class PatientForm(db.Model):
     form_data = db.Column(db.JSON, nullable=False, default=dict)
 
     status = db.Column(db.String(20), nullable=False, default="draft")  # draft/completed
+
+    # Embedded at sign time so signature is preserved even if user changes/deletes theirs
+    signature_image = db.Column(db.Text, nullable=True)   # base64 data-URL
+    signed_by_name = db.Column(db.String(200), nullable=True)
+    signed_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     filled_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     created_at = db.Column(

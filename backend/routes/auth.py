@@ -103,7 +103,35 @@ def me():
         "role": user.role,
         "tenant_id": user.tenant_id,
         "tenant_name": tenant.name if tenant else None,
+        "signature_data": user.signature_data,
     }, 200
+
+
+@auth_bp.put("/me/signature")
+def update_signature():
+    """
+    Save or clear the current user's signature.
+    Body: { "signature_data": "data:image/png;base64,..." } or { "signature_data": null }
+    """
+    session_id = _get_session_id()
+    user, _ = _validate_session(session_id)
+    if not user:
+        return {"error": "not authenticated"}, 401
+
+    data = request.get_json(silent=True) or {}
+    sig = data.get("signature_data")
+
+    if sig is not None:
+        if not isinstance(sig, str):
+            return {"error": "signature_data must be a string or null"}, 400
+        if not sig.startswith("data:image/png;base64,") and not sig.startswith("data:image/jpeg;base64,"):
+            return {"error": "signature_data must be a PNG or JPEG data URL"}, 400
+        if len(sig) > 200_000:
+            return {"error": "signature image too large"}, 400
+
+    user.signature_data = sig or None
+    db.session.commit()
+    return {"ok": True}, 200
 
 
 @auth_bp.post("/logout")

@@ -47,6 +47,9 @@ def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler
         "status": f.status,
         "filledBy": f.filled_by,
         "filledByName": filler_name,
+        "signatureImage": f.signature_image,
+        "signedByName": f.signed_by_name,
+        "signedAt": f.signed_at.isoformat() if f.signed_at else None,
         "createdAt": f.created_at.isoformat() if f.created_at else None,
         "updatedAt": f.updated_at.isoformat() if f.updated_at else None,
     }
@@ -348,6 +351,10 @@ def update_patient_form(patient_id, form_id):
         if status not in {"draft", "completed"}:
             return {"error": "status must be draft or completed"}, 400
         f.status = status
+        if status == "completed" and not f.signed_at:
+            f.signed_by_name = g.user.full_name or g.user.username
+            f.signed_at = datetime.now(timezone.utc)
+            f.signature_image = g.user.signature_data
 
     db.session.commit()
 
