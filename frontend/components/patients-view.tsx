@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   XCircle,
+  Printer,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -237,6 +238,84 @@ function FormDetailView({
       .finally(() => setSaving(false))
   }
 
+  const handlePrint = () => {
+    if (!form) return
+    const fields = form.templateFields || []
+    const statusLabel = form.status === "completed" ? "Completed" : "Draft"
+    const createdDate = form.createdAt ? new Date(form.createdAt).toLocaleDateString() : "—"
+    const updatedDate = form.updatedAt ? new Date(form.updatedAt).toLocaleDateString() : "—"
+
+    const fieldRows = fields.map((field: TemplateField) => {
+      const raw = formData[field.label]
+      let display = "—"
+      if (Array.isArray(raw)) display = raw.length > 0 ? raw.join(", ") : "—"
+      else if (raw !== undefined && raw !== null && raw !== "") display = String(raw)
+      return `
+        <tr>
+          <td class="label">${field.label}</td>
+          <td class="value">${display.replace(/\n/g, "<br/>")}</td>
+        </tr>`
+    }).join("")
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${form.templateName} — ${patientName}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 32px; }
+    .header { border-bottom: 2px solid #222; padding-bottom: 12px; margin-bottom: 20px; }
+    .header h1 { font-size: 18px; font-weight: bold; }
+    .header .meta { display: flex; gap: 40px; margin-top: 8px; }
+    .header .meta span { font-size: 11px; color: #555; }
+    .header .meta strong { color: #111; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    tr { border-bottom: 1px solid #e0e0e0; }
+    tr:last-child { border-bottom: none; }
+    td { padding: 8px 6px; vertical-align: top; }
+    td.label { width: 35%; font-weight: bold; color: #333; padding-right: 16px; }
+    td.value { color: #111; }
+    .section-title { font-size: 13px; font-weight: bold; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; color: #555; }
+    .footer { margin-top: 32px; border-top: 1px solid #ccc; padding-top: 12px; font-size: 10px; color: #888; display: flex; justify-content: space-between; }
+    @media print { body { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${form.templateName}</h1>
+    <div class="meta">
+      <span>Patient: <strong>${patientName}</strong></span>
+      <span>ID: <strong>${patientCode}</strong></span>
+      <span>Category: <strong>${(form.templateCategory || "—").charAt(0).toUpperCase() + (form.templateCategory || "").slice(1)}</strong></span>
+      <span>Status: <strong>${statusLabel}</strong></span>
+    </div>
+    <div class="meta">
+      <span>Created: <strong>${createdDate}</strong></span>
+      <span>Last Updated: <strong>${updatedDate}</strong></span>
+      <span>Filled By: <strong>${form.filledByName || "—"}</strong></span>
+    </div>
+  </div>
+
+  <div class="section-title">Form Fields</div>
+  <table>
+    <tbody>${fieldRows}</tbody>
+  </table>
+
+  <div class="footer">
+    <span>Printed: ${new Date().toLocaleString()}</span>
+    <span>Form #${form.id}</span>
+  </div>
+  <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`
+
+    const blob = new Blob([html], { type: "text/html" })
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, "_blank")
+    if (win) win.addEventListener("afterprint", () => URL.revokeObjectURL(url))
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -308,6 +387,9 @@ function FormDetailView({
                 <PenLine className="mr-2 size-4" />Sign & Complete
               </Button>
             )}
+            <Button variant="outline" className="bg-transparent text-foreground" onClick={handlePrint}>
+              <Printer className="mr-2 size-4" />Print
+            </Button>
             {saveMsg && <span className="text-sm text-accent">{saveMsg}</span>}
             <div className="ml-auto">
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)} disabled={saving || deleting}>
