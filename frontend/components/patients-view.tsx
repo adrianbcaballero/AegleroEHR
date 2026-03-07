@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories } from "@/lib/api"
+import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories } from "@/lib/api"
 import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent } from "@/lib/api"
 
 import {
@@ -914,6 +914,43 @@ export function PatientProfileView({
   const [dischargeReason, setDischargeReason] = useState("completed")
 
   const canAdmitDischarge = userRole === "admin" || userRole === "psychiatrist"
+  const canEdit = userRole === "admin" || userRole === "psychiatrist"
+
+  const [editingSection, setEditingSection] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<Record<string, string>>({})
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState("")
+
+  const startEdit = (section: string, fields: Record<string, string>) => {
+    setEditingSection(section)
+    setEditForm(fields)
+    setEditError("")
+  }
+
+  const cancelEdit = () => {
+    setEditingSection(null)
+    setEditForm({})
+    setEditError("")
+  }
+
+  const saveEdit = async () => {
+    if (!patient) return
+    setEditSaving(true)
+    setEditError("")
+    try {
+      const updated = await updatePatient(patient.id, editForm)
+      setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
+      setEditingSection(null)
+      setEditForm({})
+    } catch (e: unknown) {
+      setEditError(e instanceof Error ? e.message : "Failed to save changes")
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const ef = (field: string) => (e: { target: { value: string } }) =>
+    setEditForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const handleAdmit = async () => {
     if (!patient) return
@@ -1089,6 +1126,16 @@ export function PatientProfileView({
         </DialogContent>
       </Dialog>
 
+      {/* Pending banner */}
+      {patient.status === "pending" && (
+        <div className="flex items-center gap-3 p-4 rounded-lg border border-chart-4/30 bg-chart-4/10">
+          <AlertTriangle className="size-4 text-chart-4 shrink-0" />
+          <p className="text-sm text-chart-4 font-medium">
+            Pending Admission — complete intake forms before admitting this patient.
+          </p>
+        </div>
+      )}
+
       {/* 42 CFR Part 2 Consent */}
       <Part2ConsentSection patientCode={patient.id} />
 
@@ -1097,87 +1144,227 @@ export function PatientProfileView({
 
         {/* Basic Info */}
         <Card className="border-border/60">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-heading font-semibold text-foreground">Basic Information</CardTitle>
+            {canEdit && editingSection !== "basic" && (
+              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
+                onClick={() => startEdit("basic", {
+                  firstName: patient.firstName || "",
+                  lastName: patient.lastName || "",
+                  dateOfBirth: patient.dateOfBirth || "",
+                  ssnLast4: patient.ssnLast4 || "",
+                  gender: patient.gender || "",
+                  pronouns: patient.pronouns || "",
+                  maritalStatus: patient.maritalStatus || "",
+                  ethnicity: patient.ethnicity || "",
+                  preferredLanguage: patient.preferredLanguage || "",
+                  employmentStatus: patient.employmentStatus || "",
+                })}>
+                <PenLine className="size-3.5" />
+              </Button>
+            )}
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <div><p className="text-xs text-muted-foreground">Date of Birth</p><p className="font-medium text-foreground">{patient.dateOfBirth || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">SSN (Last 4)</p><p className="font-medium text-foreground">{patient.ssnLast4 ? `••• ${patient.ssnLast4}` : "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Gender</p><p className="font-medium text-foreground">{patient.gender || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Pronouns</p><p className="font-medium text-foreground">{patient.pronouns || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Marital Status</p><p className="font-medium text-foreground">{patient.maritalStatus || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Ethnicity</p><p className="font-medium text-foreground">{patient.ethnicity || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Language</p><p className="font-medium text-foreground">{patient.preferredLanguage || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Employment</p><p className="font-medium text-foreground">{patient.employmentStatus || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Status</p><p className="font-medium text-foreground capitalize">{patient.status}</p></div>
-            {patient.admittedAt && (
-              <div><p className="text-xs text-muted-foreground">Admitted</p><p className="font-medium text-foreground">{new Date(patient.admittedAt).toLocaleDateString()}</p></div>
-            )}
-            {patient.dischargedAt && (
-              <div><p className="text-xs text-muted-foreground">Discharged</p><p className="font-medium text-foreground">{new Date(patient.dischargedAt).toLocaleDateString()}</p></div>
-            )}
-            {patient.dischargeReason && (
-              <div><p className="text-xs text-muted-foreground">Discharge Reason</p><p className="font-medium text-foreground capitalize">{patient.dischargeReason}</p></div>
+          <CardContent className="text-sm space-y-3">
+            {editingSection === "basic" ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground mb-1">First Name</p><Input className="h-7 text-sm" value={editForm.firstName} onChange={ef("firstName")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Last Name</p><Input className="h-7 text-sm" value={editForm.lastName} onChange={ef("lastName")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Date of Birth</p><Input className="h-7 text-sm" value={editForm.dateOfBirth} onChange={ef("dateOfBirth")} placeholder="YYYY-MM-DD" /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">SSN (Last 4)</p><Input className="h-7 text-sm" value={editForm.ssnLast4} onChange={ef("ssnLast4")} maxLength={4} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Gender</p><Input className="h-7 text-sm" value={editForm.gender} onChange={ef("gender")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Pronouns</p><Input className="h-7 text-sm" value={editForm.pronouns} onChange={ef("pronouns")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Marital Status</p><Input className="h-7 text-sm" value={editForm.maritalStatus} onChange={ef("maritalStatus")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Ethnicity</p><Input className="h-7 text-sm" value={editForm.ethnicity} onChange={ef("ethnicity")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Language</p><Input className="h-7 text-sm" value={editForm.preferredLanguage} onChange={ef("preferredLanguage")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Employment</p><Input className="h-7 text-sm" value={editForm.employmentStatus} onChange={ef("employmentStatus")} /></div>
+                </div>
+                {editError && <p className="text-xs text-destructive">{editError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Date of Birth</p><p className="font-medium text-foreground">{patient.dateOfBirth || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">SSN (Last 4)</p><p className="font-medium text-foreground">{patient.ssnLast4 ? `••• ${patient.ssnLast4}` : "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Gender</p><p className="font-medium text-foreground">{patient.gender || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Pronouns</p><p className="font-medium text-foreground">{patient.pronouns || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Marital Status</p><p className="font-medium text-foreground">{patient.maritalStatus || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Ethnicity</p><p className="font-medium text-foreground">{patient.ethnicity || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Language</p><p className="font-medium text-foreground">{patient.preferredLanguage || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Employment</p><p className="font-medium text-foreground">{patient.employmentStatus || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Status</p><p className="font-medium text-foreground capitalize">{patient.status}</p></div>
+                {patient.admittedAt && (
+                  <div><p className="text-xs text-muted-foreground">Admitted</p><p className="font-medium text-foreground">{new Date(patient.admittedAt).toLocaleDateString()}</p></div>
+                )}
+                {patient.dischargedAt && (
+                  <div><p className="text-xs text-muted-foreground">Discharged</p><p className="font-medium text-foreground">{new Date(patient.dischargedAt).toLocaleDateString()}</p></div>
+                )}
+                {patient.dischargeReason && (
+                  <div><p className="text-xs text-muted-foreground">Discharge Reason</p><p className="font-medium text-foreground capitalize">{patient.dischargeReason}</p></div>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
 
         {/* Contact & Address */}
         <Card className="border-border/60">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-heading font-semibold text-foreground">Contact & Address</CardTitle>
+            {canEdit && editingSection !== "contact" && (
+              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
+                onClick={() => startEdit("contact", {
+                  phone: patient.phone || "",
+                  email: patient.email || "",
+                  addressStreet: patient.addressStreet || "",
+                  addressCity: patient.addressCity || "",
+                  addressState: patient.addressState || "",
+                  addressZip: patient.addressZip || "",
+                })}>
+                <PenLine className="size-3.5" />
+              </Button>
+            )}
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.phone || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Email</p><p className="font-medium text-foreground">{patient.email || "—"}</p></div>
-            <div className="col-span-2">
-              <p className="text-xs text-muted-foreground">Address</p>
-              <p className="font-medium text-foreground">
-                {[patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean).join(", ") || "—"}
-              </p>
-            </div>
+          <CardContent className="text-sm space-y-3">
+            {editingSection === "contact" ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground mb-1">Phone</p><Input className="h-7 text-sm" value={editForm.phone} onChange={ef("phone")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Email</p><Input className="h-7 text-sm" value={editForm.email} onChange={ef("email")} /></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground mb-1">Street</p><Input className="h-7 text-sm" value={editForm.addressStreet} onChange={ef("addressStreet")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">City</p><Input className="h-7 text-sm" value={editForm.addressCity} onChange={ef("addressCity")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">State</p><Input className="h-7 text-sm" value={editForm.addressState} onChange={ef("addressState")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Zip</p><Input className="h-7 text-sm" value={editForm.addressZip} onChange={ef("addressZip")} /></div>
+                </div>
+                {editError && <p className="text-xs text-destructive">{editError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.phone || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Email</p><p className="font-medium text-foreground">{patient.email || "—"}</p></div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">Address</p>
+                  <p className="font-medium text-foreground">
+                    {[patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean).join(", ") || "—"}
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Emergency Contact */}
         <Card className="border-border/60">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-heading font-semibold text-foreground">Emergency Contact</CardTitle>
+            {canEdit && editingSection !== "emergency" && (
+              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
+                onClick={() => startEdit("emergency", {
+                  emergencyContactName: patient.emergencyContactName || "",
+                  emergencyContactPhone: patient.emergencyContactPhone || "",
+                  emergencyContactRelationship: patient.emergencyContactRelationship || "",
+                })}>
+                <PenLine className="size-3.5" />
+              </Button>
+            )}
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium text-foreground">{patient.emergencyContactName || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Relationship</p><p className="font-medium text-foreground">{patient.emergencyContactRelationship || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.emergencyContactPhone || "—"}</p></div>
+          <CardContent className="text-sm space-y-3">
+            {editingSection === "emergency" ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground mb-1">Name</p><Input className="h-7 text-sm" value={editForm.emergencyContactName} onChange={ef("emergencyContactName")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Relationship</p><Input className="h-7 text-sm" value={editForm.emergencyContactRelationship} onChange={ef("emergencyContactRelationship")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Phone</p><Input className="h-7 text-sm" value={editForm.emergencyContactPhone} onChange={ef("emergencyContactPhone")} /></div>
+                </div>
+                {editError && <p className="text-xs text-destructive">{editError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium text-foreground">{patient.emergencyContactName || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Relationship</p><p className="font-medium text-foreground">{patient.emergencyContactRelationship || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.emergencyContactPhone || "—"}</p></div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Clinical */}
         <Card className="border-border/60">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-heading font-semibold text-foreground">Clinical</CardTitle>
+            {canEdit && editingSection !== "clinical" && (
+              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
+                onClick={() => startEdit("clinical", {
+                  primaryDiagnosis: patient.primaryDiagnosis || "",
+                  insurance: patient.insurance || "",
+                  referringProvider: patient.referringProvider || "",
+                  primaryCarePhysician: patient.primaryCarePhysician || "",
+                  pharmacy: patient.pharmacy || "",
+                  currentMedications: patient.currentMedications || "",
+                  allergies: patient.allergies || "",
+                })}>
+                <PenLine className="size-3.5" />
+              </Button>
+            )}
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <div><p className="text-xs text-muted-foreground">ASAM LOC</p><p className="font-medium text-foreground">{patient.currentLoc ? `LOC ${patient.currentLoc}` : "Not assessed"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Diagnosis</p><p className="font-medium text-foreground">{patient.primaryDiagnosis || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Insurance</p><p className="font-medium text-foreground">{patient.insurance || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Provider</p><p className="font-medium text-foreground">{patient.assignedProvider || "Unassigned"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Referring Provider</p><p className="font-medium text-foreground">{patient.referringProvider || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Primary Care Physician</p><p className="font-medium text-foreground">{patient.primaryCarePhysician || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Pharmacy</p><p className="font-medium text-foreground">{patient.pharmacy || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Medications</p><p className="font-medium text-foreground whitespace-pre-line">{patient.currentMedications || "—"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Allergies</p><p className="font-medium text-foreground whitespace-pre-line">{patient.allergies || "—"}</p></div>
+          <CardContent className="text-sm space-y-3">
+            {editingSection === "clinical" ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground mb-1">Diagnosis</p><Input className="h-7 text-sm" value={editForm.primaryDiagnosis} onChange={ef("primaryDiagnosis")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Insurance</p><Input className="h-7 text-sm" value={editForm.insurance} onChange={ef("insurance")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Referring Provider</p><Input className="h-7 text-sm" value={editForm.referringProvider} onChange={ef("referringProvider")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Primary Care Physician</p><Input className="h-7 text-sm" value={editForm.primaryCarePhysician} onChange={ef("primaryCarePhysician")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Pharmacy</p><Input className="h-7 text-sm" value={editForm.pharmacy} onChange={ef("pharmacy")} /></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground mb-1">Current Medications</p><Textarea className="text-sm min-h-[60px]" value={editForm.currentMedications} onChange={ef("currentMedications")} /></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground mb-1">Allergies</p><Textarea className="text-sm min-h-[60px]" value={editForm.allergies} onChange={ef("allergies")} /></div>
+                </div>
+                {editError && <p className="text-xs text-destructive">{editError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">ASAM LOC</p><p className="font-medium text-foreground">{patient.currentLoc ? `LOC ${patient.currentLoc}` : "Not assessed"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Diagnosis</p><p className="font-medium text-foreground">{patient.primaryDiagnosis || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Insurance</p><p className="font-medium text-foreground">{patient.insurance || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Provider</p><p className="font-medium text-foreground">{patient.assignedProvider || "Unassigned"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Referring Provider</p><p className="font-medium text-foreground">{patient.referringProvider || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Primary Care Physician</p><p className="font-medium text-foreground">{patient.primaryCarePhysician || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Pharmacy</p><p className="font-medium text-foreground">{patient.pharmacy || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Medications</p><p className="font-medium text-foreground whitespace-pre-line">{patient.currentMedications || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Allergies</p><p className="font-medium text-foreground whitespace-pre-line">{patient.allergies || "—"}</p></div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Category Tabs */}
       {(() => {
+        const PENDING_ALLOWED = ["consent", "intake", "assessment"]
         // Use tenant-configured order from API; append any template categories not yet in the list
         const allCategories = [...new Set([...categories, ...templates.map((t: FormTemplate) => t.category)])]
+        const visibleCategories = patient.status === "pending"
+          ? allCategories.filter((c: string) => PENDING_ALLOWED.includes(c.toLowerCase()))
+          : allCategories
         return (
-          <Tabs value={activeTab || allCategories[0] || ""} onValueChange={setActiveTab}>
+          <Tabs value={activeTab || visibleCategories[0] || ""} onValueChange={setActiveTab}>
             <TabsList className="flex flex-wrap h-auto gap-1.5 bg-transparent p-0 border-b border-border pb-2">
-              {allCategories.map((cat: string) => (
+              {visibleCategories.map((cat: string) => (
                 <TabsTrigger
                   key={cat}
                   value={cat}
@@ -1194,7 +1381,7 @@ export function PatientProfileView({
               ))}
             </TabsList>
 
-            {allCategories.map((cat: string) => {
+            {visibleCategories.map((cat: string) => {
               const catForms = forms.filter((f) => f.templateCategory === cat)
               return (
                 <TabsContent key={cat} value={cat} className="mt-3">
