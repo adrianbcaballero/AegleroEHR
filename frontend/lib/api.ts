@@ -116,6 +116,13 @@ export function dischargePatient(patientCode: string, reason: string) {
   return apiPost<Patient>(`/api/patients/${patientCode}/discharge`, { reason })
 }
 
+export function searchArchive(params: { q?: string; ssn?: string }) {
+  const query = new URLSearchParams()
+  if (params.q) query.set("q", params.q)
+  if (params.ssn) query.set("ssn", params.ssn)
+  return apiGet<Patient[]>(`/api/patients/archive/search?${query.toString()}`)
+}
+
 // Shared types
 export interface Patient {
   id: string

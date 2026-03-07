@@ -6,7 +6,7 @@ from werkzeug.security import check_password_hash
 
 from extensions import db
 import config
-from models import User, UserSession, Tenant
+from models import User, UserSession, Tenant, Patient
 from services.audit_logger import log_access
 from services.rate_limiter import login_limiter
 from services.helpers import client_ip, get_slug_from_host
@@ -71,6 +71,14 @@ def login():
     db.session.commit()
 
     log_access(user.id, "LOGIN", "auth", "SUCCESS", ip, description=f"User '{user.username}' ({user.role}) logged in", tenant_id=t_id)
+
+    # Auto-archive inactive patients discharged 14+ days ago
+    cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+    stale = Patient.query.filter_by(tenant_id=t_id, status="inactive").filter(Patient.discharged_at <= cutoff).all()
+    for p in stale:
+        p.status = "archived"
+    if stale:
+        db.session.commit()
 
     return {
         "user_id": user.id,

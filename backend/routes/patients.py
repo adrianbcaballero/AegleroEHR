@@ -509,3 +509,39 @@ def discharge_patient(patient_id):
                description=f"Discharged {p.first_name} {p.last_name} ({p.patient_code}) — reason: {reason_labels.get(reason, reason)}")
     return _serialize_patient(p), 200
 
+
+# ─── ARCHIVE ───
+
+@patients_bp.get("/archive/search")
+@require_auth(roles=["admin", "psychiatrist", "technician"])
+def search_archive():
+    """
+    GET /api/patients/archive/search?q=name&ssn=1234
+    Searches inactive and archived patients. At least one param required.
+    """
+    q_str = (request.args.get("q") or "").strip()
+    ssn = (request.args.get("ssn") or "").strip()
+
+    if not q_str and not ssn:
+        return {"error": "provide at least one search term (q or ssn)"}, 400
+
+    query = tenant_query(Patient).filter(
+        Patient.status.in_(["inactive", "archived"])
+    )
+
+    if q_str:
+        like = f"%{q_str}%"
+        query = query.filter(
+            or_(
+                Patient.first_name.ilike(like),
+                Patient.last_name.ilike(like),
+                Patient.patient_code.ilike(like),
+            )
+        )
+
+    if ssn:
+        query = query.filter(Patient.ssn_last4 == ssn)
+
+    results = query.order_by(Patient.last_name.asc(), Patient.first_name.asc()).all()
+    return [_serialize_patient(p) for p in results], 200
+
