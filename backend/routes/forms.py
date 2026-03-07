@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, g
 from sqlalchemy import func
 
@@ -232,6 +232,64 @@ def update_template(template_id):
     return _serialize_template(t), 200
 
 
+def _maybe_generate_recurring_forms(p: Patient, user_role: str, tenant_id: int):
+    """Lazily create draft forms for any overdue recurring templates."""
+    now = datetime.now(timezone.utc)
+
+    recurring_templates = (
+        FormTemplate.query
+        .filter_by(tenant_id=tenant_id, is_recurring=True, status="active")
+        .all()
+    )
+
+    created_any = False
+    for template in recurring_templates:
+        if user_role not in (template.allowed_roles or []):
+            continue
+        if not template.recurrence_value:
+            continue
+
+        interval = timedelta(hours=template.recurrence_value)
+
+        # Skip if there's already an open draft — let staff finish it first
+        existing_draft = (
+            PatientForm.query
+            .filter_by(patient_id=p.id, template_id=template.id, status="draft")
+            .first()
+        )
+        if existing_draft:
+            continue
+
+        # Find the most recent form (will be completed or None since no draft exists)
+        last_form = (
+            PatientForm.query
+            .filter_by(patient_id=p.id, template_id=template.id)
+            .order_by(PatientForm.created_at.desc())
+            .first()
+        )
+
+        should_create = False
+        if last_form is None:
+            should_create = True
+        elif last_form.status == "completed":
+            reference_time = last_form.signed_at or last_form.updated_at
+            if reference_time and (now - reference_time) >= interval:
+                should_create = True
+
+        if should_create:
+            db.session.add(PatientForm(
+                tenant_id=tenant_id,
+                patient_id=p.id,
+                template_id=template.id,
+                form_data={},
+                status="draft",
+            ))
+            created_any = True
+
+    if created_any:
+        db.session.commit()
+
+
 # ─── PATIENT FORM ENDPOINTS ───
 
 @forms_bp.get("/patients/<patient_id>/forms")
@@ -247,6 +305,8 @@ def list_patient_forms(patient_id):
     if not check_patient_access(p):
         log_access(g.user.id, "FORM_LIST", f"patient/{p.patient_code}/forms", "FAILED", ip, description=f"Access denied to forms for patient {p.patient_code}")
         return {"error": "forbidden"}, 403
+
+    _maybe_generate_recurring_forms(p, g.user.role, g.tenant_id)
 
     forms = (
         PatientForm.query

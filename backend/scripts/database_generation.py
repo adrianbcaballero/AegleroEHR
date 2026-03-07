@@ -397,6 +397,28 @@ def seed():
                     allowed_roles=["admin", "psychiatrist", "technician"],
                     created_by=creator.id,
                 ),
+                # ── Recurring: Nursing Vitals ──
+                FormTemplate(
+                    tenant_id=tenant.id,
+                    name="Nursing Vitals",
+                    category="flowsheet",
+                    description="Routine vital signs flowsheet. Auto-generated every 8 hours for active detox patients.",
+                    fields=[
+                        {"label": "Blood Pressure (mmHg)", "type": "text"},
+                        {"label": "Heart Rate (BPM)", "type": "number"},
+                        {"label": "Respiratory Rate (breaths/min)", "type": "number"},
+                        {"label": "Temperature (°F)", "type": "number"},
+                        {"label": "Oxygen Saturation (%)", "type": "number"},
+                        {"label": "Pain Level (0–10)", "type": "scale", "min": 0, "max": 10},
+                        {"label": "Level of Consciousness", "type": "select", "options": ["Alert", "Verbal", "Pain", "Unresponsive"]},
+                        {"label": "Notes", "type": "textarea"},
+                    ],
+                    allowed_roles=["admin", "psychiatrist", "technician"],
+                    is_recurring=True,
+                    recurrence_value=8,
+                    recurrence_unit="hours",
+                    created_by=creator.id,
+                ),
                 # ── ASAM Level of Care Assessment ──
                 FormTemplate(
                     tenant_id=tenant.id,
