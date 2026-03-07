@@ -972,7 +972,7 @@ function PatientProfileView({
             {patient.firstName} {patient.lastName}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {patient.id} &middot; {patient.primaryDiagnosis || "No diagnosis"}
+            {patient.id} &middot; {patient.insurance || "No insurance on file"}
           </p>
         </div>
         <Badge variant="secondary" className={`ml-auto text-xs ${riskColors[patient.riskLevel] || ""}`}>
@@ -1457,7 +1457,7 @@ function PatientTable({
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead className="text-xs font-semibold text-muted-foreground">Patient</TableHead>
-          <TableHead className="text-xs font-semibold text-muted-foreground hidden sm:table-cell">Diagnosis</TableHead>
+          <TableHead className="text-xs font-semibold text-muted-foreground hidden sm:table-cell">Insurance</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Provider</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground">Risk</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
@@ -1486,7 +1486,7 @@ function PatientTable({
               </div>
             </TableCell>
             <TableCell className="hidden sm:table-cell">
-              <span className="text-sm text-foreground">{patient.primaryDiagnosis || "—"}</span>
+              <span className="text-sm text-foreground">{patient.insurance || "—"}</span>
             </TableCell>
             <TableCell className="hidden md:table-cell">
               <span className="text-sm text-muted-foreground">{patient.assignedProvider || "Unassigned"}</span>
@@ -1558,7 +1558,7 @@ export function PatientsView({
     return (
       `${p.firstName} ${p.lastName}`.toLowerCase().includes(q) ||
       p.id.toLowerCase().includes(q) ||
-      (p.primaryDiagnosis || "").toLowerCase().includes(q)
+      (p.insurance || "").toLowerCase().includes(q)
     )
   }
 
@@ -1624,7 +1624,7 @@ export function PatientsView({
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
-          placeholder="Search by name, ID, or diagnosis..."
+          placeholder="Search by name, ID, or insurance..."
           className="pl-9"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
