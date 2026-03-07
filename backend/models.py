@@ -1,6 +1,96 @@
 from datetime import datetime, timezone
 from extensions import db
 
+
+# ─── PERMISSIONS ─────────────────────────────────────────────────────────────
+# Canonical list of all permission strings used in require_auth(permission=).
+# Roles are tenant-scoped bundles of these permissions.
+
+ALL_PERMISSIONS = [
+    "patients.view",       # list / get patient records (scoped to assigned if no view_all)
+    "patients.view_all",   # view all patients regardless of assignment
+    "patients.create",     # create new patient
+    "patients.edit",       # update patient demographics / fields
+    "patients.admit",      # admit a patient
+    "patients.discharge",  # discharge a patient
+    "forms.view",          # view patient form instances
+    "forms.edit",          # fill out / save / delete draft forms
+    "templates.view",      # view form templates
+    "templates.manage",    # create / edit / delete form templates
+    "categories.manage",   # manage form categories on the tenant
+    "consent.manage",      # create / revoke 42 CFR Part 2 consents
+    "users.manage",        # create / edit / lock / unlock users
+    "roles.manage",        # create / edit / delete custom roles
+    "audit.view",          # view audit logs and stats
+]
+
+# Default permissions granted to each system role on creation
+SYSTEM_ROLE_PERMISSIONS = {
+    "admin": ALL_PERMISSIONS,
+    "psychiatrist": [
+        "patients.view", "patients.view_all",
+        "patients.create", "patients.edit",
+        "patients.admit", "patients.discharge",
+        "forms.view", "forms.edit",
+        "templates.view", "templates.manage",
+        "categories.manage",
+        "consent.manage",
+        "audit.view",
+    ],
+    "technician": [
+        "patients.view",   # scoped to assigned (no view_all)
+        "patients.edit",
+        "forms.view", "forms.edit",
+        "consent.manage",
+    ],
+    "auditor": [
+        "patients.view", "patients.view_all",
+        "forms.view",
+        "templates.view",
+        "audit.view",
+    ],
+}
+
+
+class Role(db.Model):
+    """Tenant-scoped role. Bundles a set of permissions for RBAC."""
+    __tablename__ = "role"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
+    name = db.Column(db.String(50), nullable=False)          # slug: "admin", "psychiatrist", …
+    display_name = db.Column(db.String(100), nullable=False)  # human label: "Administrator"
+    is_system_default = db.Column(db.Boolean, nullable=False, default=False)
+
+    permissions = db.relationship(
+        "RolePermission", backref="role", cascade="all, delete-orphan", lazy="joined"
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("tenant_id", "name", name="uq_tenant_role_name"),
+    )
+
+    def has_permission(self, permission: str) -> bool:
+        return any(p.permission == permission for p in self.permissions)
+
+    @property
+    def permission_list(self):
+        return [p.permission for p in self.permissions]
+
+
+class RolePermission(db.Model):
+    """Individual permission entry belonging to a Role."""
+    __tablename__ = "role_permission"
+
+    id = db.Column(db.Integer, primary_key=True)
+    role_id = db.Column(db.Integer, db.ForeignKey("role.id"), nullable=False, index=True)
+    permission = db.Column(db.String(50), nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("role_id", "permission", name="uq_role_permission"),
+    )
+
+
 class User(db.Model):
     __tablename__ = "user"
 
@@ -9,15 +99,36 @@ class User(db.Model):
     username = db.Column(db.String(80), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
 
-    #Roles: psychiatrist, technician, admin
-    role = db.Column(db.String(30), nullable=False)  
+    # Legacy role string — kept during migration, will be dropped in a later migration
+    role = db.Column(db.String(30), nullable=True)
+
+    # New permission-based role FK
+    role_id = db.Column(db.Integer, db.ForeignKey("role.id"), nullable=True, index=True)
+    role_obj = db.relationship("Role", foreign_keys=[role_id], lazy="joined")
+
+    # Professional credentials: ["MD", "LCDC", "RN", …]
+    credentials = db.Column(db.JSON, nullable=True, default=list)
+
     full_name = db.Column(db.String(120), nullable=True)
 
     failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
     locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
     permanently_locked = db.Column(db.Boolean, default=False, nullable=False)
     signature_data = db.Column(db.Text, nullable=True)  # base64 data-URL of saved signature image
+
     __table_args__ = (db.UniqueConstraint("tenant_id", "username", name="uq_tenant_username"),)
+
+    @property
+    def role_name(self) -> str:
+        """Role slug for inline checks (e.g. data-scoping logic). Falls back to legacy string."""
+        if self.role_obj:
+            return self.role_obj.name
+        return self.role or ""
+
+    def has_permission(self, permission: str) -> bool:
+        if self.role_obj:
+            return self.role_obj.has_permission(permission)
+        return False
 
 class Tenant(db.Model):
     __tablename__ = "tenant"

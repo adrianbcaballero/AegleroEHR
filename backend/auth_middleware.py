@@ -40,7 +40,16 @@ def _validate_session(session_id: str):
     return user, sess
 
 
-def require_auth(roles=None):
+def require_auth(permission=None):
+    """
+    Decorator that authenticates the request and optionally checks a permission.
+
+    Usage:
+        @require_auth()                          # authentication only
+        @require_auth(permission="patients.view") # auth + permission check
+
+    The permission is checked against the user's role (via role_obj.has_permission).
+    """
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
@@ -54,10 +63,10 @@ def require_auth(roles=None):
             g.user = user
             g.tenant_id = user.tenant_id
 
-            if roles and user.role not in roles:
+            if permission is not None and not user.has_permission(permission):
                 log_access(
-                    user.id, "ACCESS_403", request.path, "FAILED", ip, 
-                    description=f"'{user.username}' ({user.role}) denied access to {request.method} {request.path}",
+                    user.id, "ACCESS_403", request.path, "FAILED", ip,
+                    description=f"'{user.username}' ({user.role_name}) denied — missing permission '{permission}' on {request.method} {request.path}",
                     tenant_id=user.tenant_id
                 )
                 return {"error": "forbidden"}, 403
