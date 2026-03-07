@@ -129,9 +129,27 @@ def seed():
         t2_tech = User.query.filter_by(username="technician2").first()
 
         # ── Patients ──
-        # Tenant 1: 10 patients
+        seed_now = datetime.now(timezone.utc)
+
+        # Tenant 1: 10 patients — mix of pending (2), active (6), inactive (2)
         t1_patients = []
         for i in range(1, 11):
+            if i <= 2:
+                pt_status = "pending"
+                pt_admitted_at = None
+                pt_discharged_at = None
+                pt_discharge_reason = None
+            elif i <= 8:
+                pt_status = "active"
+                pt_admitted_at = seed_now - timedelta(days=i)
+                pt_discharged_at = None
+                pt_discharge_reason = None
+            else:
+                pt_status = "inactive"
+                pt_admitted_at = seed_now - timedelta(days=30)
+                pt_discharged_at = seed_now - timedelta(days=i - 8)
+                pt_discharge_reason = "completed" if i == 9 else "ama"
+
             p = Patient(
                 tenant_id=tenant1.id,
                 patient_code=f"PT-{i:03d}",
@@ -140,11 +158,14 @@ def seed():
                 date_of_birth=date(1990, 1, min(i, 28)),
                 phone=f"555-010{i:02d}",
                 email=f"pt{i:03d}@example.com",
-                status="active",
+                status=pt_status,
                 risk_level="low" if i <= 6 else ("moderate" if i <= 8 else "high"),
                 primary_diagnosis="General Anxiety" if i <= 5 else "Depression",
                 insurance="Blue Shield" if i % 2 == 0 else "Kaiser",
                 assigned_provider_id=t1_tech.id if t1_tech else None,
+                admitted_at=pt_admitted_at,
+                discharged_at=pt_discharged_at,
+                discharge_reason=pt_discharge_reason,
             )
             t1_patients.append(p)
 

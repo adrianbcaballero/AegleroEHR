@@ -15,7 +15,7 @@ from services.helpers import client_ip, parse_date_iso, get_patient_by_id_or_cod
 patients_bp = Blueprint("patients", __name__, url_prefix="/api/patients")
 
 VALID_RISK = {"low", "moderate", "high"}
-VALID_STATUS = {"active", "inactive", "archived"}
+VALID_STATUS = {"pending", "active", "inactive", "archived"}
 
 
 def _next_patient_code():
@@ -181,7 +181,7 @@ def create_patient():
         log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description="Patient creation failed — invalid date of birth format")
         return {"error": "dateOfBirth must be YYYY-MM-DD"}, 400
 
-    status = (data.get("status") or "active").strip()
+    status = (data.get("status") or "pending").strip()
     risk = (data.get("riskLevel") or "low").strip()
 
     if status not in VALID_STATUS:
@@ -444,10 +444,10 @@ def admit_patient(patient_id):
         return {"error": "patient not found"}, 404
     if not check_patient_access(p):
         return {"error": "forbidden"}, 403
-    if p.status == "active" and p.admitted_at:
+    if p.status == "active":
         return {"error": "patient is already admitted"}, 409
 
-    is_readmit = p.discharged_at is not None
+    is_readmit = p.status == "inactive"
     p.admitted_at = datetime.now(timezone.utc)
     p.discharged_at = None
     p.discharge_reason = None
