@@ -90,6 +90,9 @@ class Patient(db.Model):
 
     assigned_provider_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
+    # ASAM Level of Care — updated automatically when ASAM assessment form is completed
+    current_loc = db.Column(db.String(10), nullable=True)
+
 
 class UserSession(db.Model):
     __tablename__ = "user_session"

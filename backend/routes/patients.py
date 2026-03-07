@@ -70,6 +70,7 @@ def _serialize_patient(p: Patient):
         "referringProvider": p.referring_provider,
         "primaryCarePhysician": p.primary_care_physician,
         "pharmacy": p.pharmacy,
+        "currentLoc": p.current_loc,
     }
 
 

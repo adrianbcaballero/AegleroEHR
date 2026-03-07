@@ -120,6 +120,7 @@ export interface Patient {
   primaryDiagnosis: string | null
   insurance: string | null
   riskLevel: string
+  currentLoc: string | null
   assignedProvider: string | null
   ssnLast4: string | null
   gender: string | null
@@ -287,6 +288,8 @@ export interface TemplateField {
   options?: string[]
   min?: number
   max?: number
+  optional?: boolean
+  note?: string
 }
 
 export interface FormTemplate {

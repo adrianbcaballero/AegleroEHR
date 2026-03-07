@@ -397,6 +397,27 @@ def seed():
                     allowed_roles=["admin", "psychiatrist", "technician"],
                     created_by=creator.id,
                 ),
+                # ── ASAM Level of Care Assessment ──
+                FormTemplate(
+                    tenant_id=tenant.id,
+                    name="ASAM Level of Care Assessment",
+                    category="assessment",
+                    description="ASAM Patient Placement Criteria (3rd Ed.) — scores 6 dimensions 0–4 to determine recommended Level of Care (LOC). "
+                                "Completing this form automatically updates the patient's current LOC.",
+                    fields=[
+                        {"label": "D1: Acute Intoxication / Withdrawal Risk", "type": "scale", "min": 0, "max": 4},
+                        {"label": "D2: Biomedical Conditions", "type": "scale", "min": 0, "max": 4},
+                        {"label": "D3: Emotional / Behavioral / Cognitive", "type": "scale", "min": 0, "max": 4},
+                        {"label": "D4: Readiness to Change", "type": "scale", "min": 0, "max": 4},
+                        {"label": "D5: Relapse / Continued Use Risk", "type": "scale", "min": 0, "max": 4},
+                        {"label": "D6: Recovery / Living Environment", "type": "scale", "min": 0, "max": 4},
+                        {"label": "Primary Substance", "type": "select", "options": ["Alcohol", "Opioids", "Stimulants", "Cannabis", "Benzodiazepines", "Multiple Substances", "Other"]},
+                        {"label": "LOC Override", "type": "select", "options": ["No override", "1.0 - Outpatient", "2.1 - IOP", "2.5 - PHP", "3.1 - Low-Intensity Residential", "3.5 - RTC", "3.7 - Medically Monitored Inpatient", "4.0 - Medically Managed Inpatient"], "optional": True, "note": "Leave as 'No override' to let the system calculate LOC automatically from D1–D6 scores."},
+                        {"label": "Clinical Notes", "type": "textarea"},
+                    ],
+                    allowed_roles=["admin", "psychiatrist"],
+                    created_by=creator.id,
+                ),
             ]
             db.session.add_all(templates)
 

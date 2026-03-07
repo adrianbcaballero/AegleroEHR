@@ -7,9 +7,29 @@ from extensions import db
 from models import FormTemplate, PatientForm, Patient, User
 from services.audit_logger import log_access
 from services.helpers import client_ip, get_patient_by_id_or_code, check_patient_access, tenant_query
+from services.asam_scorer import ASAM_TEMPLATE_NAME, DIMENSION_LABELS, LOC_OVERRIDE_LABEL, compute_loc
 from sqlalchemy.orm.attributes import flag_modified
 
 forms_bp = Blueprint("forms", __name__, url_prefix="/api")
+
+
+def _maybe_score_asam(f: PatientForm, p: Patient, template: FormTemplate, ip: str):
+    """If this completed form is an ASAM assessment, compute LOC and write it to the patient."""
+    if not template or template.name != ASAM_TEMPLATE_NAME:
+        return
+    try:
+        scores = [int(float(f.form_data.get(lbl) or 0)) for lbl in DIMENSION_LABELS]
+        override = (f.form_data.get(LOC_OVERRIDE_LABEL) or "").strip()
+        if override and override != "No override":
+            loc = override.split(" - ")[0].strip()
+        else:
+            loc = compute_loc(scores)
+        p.current_loc = loc
+        db.session.commit()
+        log_access(g.user.id, "ASAM_SCORE", f"patient/{p.patient_code}", "SUCCESS", ip,
+                   description=f"ASAM LOC set to {loc} for {p.first_name} {p.last_name} ({p.patient_code})")
+    except Exception:
+        pass  # Never let scoring failure block form completion
 
 
 def _serialize_template(t: FormTemplate):
@@ -367,6 +387,7 @@ def update_patient_form(patient_id, form_id):
     tpl_name = template.name if template else f"form #{f.id}"
     if "status" in data and data["status"] == "completed":
         log_access(g.user.id, "FORM_SIGN", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Signed and completed '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
+        _maybe_score_asam(f, p, template, ip)
     else:
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Saved draft of '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
     filler = User.query.get(f.filled_by) if f.filled_by else None

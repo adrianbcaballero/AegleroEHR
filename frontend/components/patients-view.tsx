@@ -216,6 +216,7 @@ function FormDetailView({
     const fields = form?.templateFields || []
     const missing: string[] = []
     for (const field of fields) {
+      if (field.optional) continue
       const val = formData[field.label]
       if (val === undefined || val === null || val === "") missing.push(field.label)
       else if (Array.isArray(val) && val.length === 0) missing.push(field.label)
@@ -375,7 +376,11 @@ function FormDetailView({
         <CardContent className="flex flex-col gap-6">
           {fields.map((field, idx) => (
             <div key={idx} className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">{idx + 1}. {field.label}</Label>
+              <Label className="text-sm font-medium text-foreground">
+                {idx + 1}. {field.label}
+                {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
+              </Label>
+              {field.note && <p className="text-xs text-muted-foreground italic">{field.note}</p>}
               <FormFieldRenderer
                 field={field}
                 value={formData[field.label]}
@@ -894,12 +899,16 @@ function PatientProfileView({
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<string>("")
 
-  useEffect(() => {
+  const fetchPatient = useCallback(() => {
     getPatient(patientId)
       .then((data) => { setError(""); setPatient(data) })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load patient"))
       .finally(() => setLoading(false))
   }, [patientId])
+
+  useEffect(() => {
+    fetchPatient()
+  }, [fetchPatient])
 
   useEffect(() => {
     getCategories()
@@ -950,7 +959,7 @@ function PatientProfileView({
         formId={selectedFormId}
         patientCode={patient.id}
         patientName={`${patient.firstName} ${patient.lastName}`}
-        onBack={() => { setSelectedFormId(null); fetchForms() }}
+        onBack={() => { setSelectedFormId(null); fetchForms(); fetchPatient() }}
         onDeleted={() => { setSelectedFormId(null); fetchForms() }}
       />
     )
@@ -975,9 +984,16 @@ function PatientProfileView({
             {patient.id} &middot; {patient.insurance || "No insurance on file"}
           </p>
         </div>
-        <Badge variant="secondary" className={`ml-auto text-xs ${riskColors[patient.riskLevel] || ""}`}>
-          {patient.riskLevel} risk
-        </Badge>
+        <div className="ml-auto flex items-center gap-2">
+          {patient.currentLoc && (
+            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+              LOC {patient.currentLoc}
+            </Badge>
+          )}
+          <Badge variant="secondary" className={`text-xs ${riskColors[patient.riskLevel] || ""}`}>
+            {patient.riskLevel} risk
+          </Badge>
+        </div>
       </div>
 
       {/* 42 CFR Part 2 Consent */}
@@ -1039,6 +1055,7 @@ function PatientProfileView({
             <CardTitle className="text-sm font-heading font-semibold text-foreground">Clinical</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div><p className="text-xs text-muted-foreground">ASAM LOC</p><p className="font-medium text-foreground">{patient.currentLoc ? `LOC ${patient.currentLoc}` : "Not assessed"}</p></div>
             <div><p className="text-xs text-muted-foreground">Diagnosis</p><p className="font-medium text-foreground">{patient.primaryDiagnosis || "—"}</p></div>
             <div><p className="text-xs text-muted-foreground">Insurance</p><p className="font-medium text-foreground">{patient.insurance || "—"}</p></div>
             <div><p className="text-xs text-muted-foreground">Provider</p><p className="font-medium text-foreground">{patient.assignedProvider || "Unassigned"}</p></div>
