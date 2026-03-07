@@ -246,8 +246,8 @@ function FormDetailView({
     if (!form) return
     const fields = form.templateFields || []
     const statusLabel = form.status === "completed" ? "Completed" : "Draft"
-    const createdDate = form.createdAt ? new Date(form.createdAt).toLocaleDateString() : "—"
-    const updatedDate = form.updatedAt ? new Date(form.updatedAt).toLocaleDateString() : "—"
+    const createdDate = form.createdAt ? new Date(form.createdAt).toLocaleString() : "—"
+    const updatedDate = form.updatedAt ? new Date(form.updatedAt).toLocaleString() : "—"
 
     const fieldRows = fields.map((field: TemplateField) => {
       const raw = formData[field.label]
@@ -509,11 +509,11 @@ function FormDetailView({
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground">Created</p>
-              <p className="text-sm font-medium text-foreground mt-1">{form.createdAt ? new Date(form.createdAt).toLocaleDateString() : "—"}</p>
+              <p className="text-sm font-medium text-foreground mt-1">{form.createdAt ? new Date(form.createdAt).toLocaleString() : "—"}</p>
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground">Last Updated</p>
-              <p className="text-sm font-medium text-foreground mt-1">{form.updatedAt ? new Date(form.updatedAt).toLocaleDateString() : "—"}</p>
+              <p className="text-sm font-medium text-foreground mt-1">{form.updatedAt ? new Date(form.updatedAt).toLocaleString() : "—"}</p>
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
               <p className="text-xs text-muted-foreground">Filled By</p>
@@ -599,7 +599,14 @@ function NewFormDialog({ patientCode, onCreated, categoryFilter }: { patientCode
             if (!tpl) return null
             return (
               <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium text-foreground">{tpl.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground">{tpl.name}</p>
+                  {tpl.isRecurring && (
+                    <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20">
+                      Every {tpl.recurrenceValue} {tpl.recurrenceUnit}
+                    </Badge>
+                  )}
+                </div>
                 {tpl.description && <p className="text-xs text-muted-foreground mt-1">{tpl.description}</p>}
                 <p className="text-xs text-muted-foreground mt-1">{tpl.fields.length} fields</p>
               </div>
@@ -1121,7 +1128,8 @@ function PatientProfileView({
                             <TableRow className="hover:bg-transparent">
                               <TableHead className="text-xs font-semibold text-muted-foreground">Form Name</TableHead>
                               <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
-                              <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Date</TableHead>
+                              <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Created</TableHead>
+                              <TableHead className="text-xs font-semibold text-muted-foreground hidden lg:table-cell">Last Updated</TableHead>
                               <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
                             </TableRow>
                           </TableHeader>
@@ -1133,7 +1141,12 @@ function PatientProfileView({
                                 <TableRow key={form.id} className="cursor-pointer transition-colors" onClick={() => setSelectedFormId(form.id)}>
                                   <TableCell>
                                     <div>
-                                      <p className="text-sm font-medium text-foreground">{form.templateName}</p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-medium text-foreground">{form.templateName}</p>
+                                        {form.templateCategory === "flowsheet" && (
+                                          <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20">Recurring</Badge>
+                                        )}
+                                      </div>
                                       <p className="text-xs text-muted-foreground">#{form.id}</p>
                                     </div>
                                   </TableCell>
@@ -1144,7 +1157,12 @@ function PatientProfileView({
                                   </TableCell>
                                   <TableCell className="hidden md:table-cell">
                                     <span className="text-sm text-muted-foreground">
-                                      {form.createdAt ? new Date(form.createdAt).toLocaleDateString() : "—"}
+                                      {form.createdAt ? new Date(form.createdAt).toLocaleString() : "—"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="hidden lg:table-cell">
+                                    <span className="text-sm text-muted-foreground">
+                                      {form.updatedAt ? new Date(form.updatedAt).toLocaleString() : "—"}
                                     </span>
                                   </TableCell>
                                   <TableCell>

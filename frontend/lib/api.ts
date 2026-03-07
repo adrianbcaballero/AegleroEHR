@@ -300,6 +300,9 @@ export interface FormTemplate {
   fields: TemplateField[]
   allowedRoles: string[]
   status: string
+  isRecurring: boolean
+  recurrenceValue: number | null
+  recurrenceUnit: string | null
   createdBy: number | null
   createdAt: string | null
   updatedAt: string | null
