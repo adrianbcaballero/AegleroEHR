@@ -318,6 +318,23 @@ def seed():
                     allowed_roles=["admin", "psychiatrist", "technician"],
                     created_by=creator.id,
                 ),
+                # ── Progress Notes ──
+                FormTemplate(
+                    tenant_id=tenant.id,
+                    name="Detox Progress Note",
+                    category="progress-notes",
+                    description="SOAP-format clinical progress note. Written each shift by the treating clinician to document the patient's current status, withdrawal progression, and any changes to the treatment plan.",
+                    fields=[
+                        {"label": "Shift", "type": "select", "options": ["Day (7am–3pm)", "Evening (3pm–11pm)", "Night (11pm–7am)"]},
+                        {"label": "Subjective — Patient's own report (symptoms, mood, complaints, sleep, appetite)", "type": "textarea"},
+                        {"label": "Objective — Clinician observations (behavior, appearance, affect, CIWA/COWS score this shift)", "type": "textarea"},
+                        {"label": "Assessment — Clinical impression and withdrawal stage", "type": "textarea"},
+                        {"label": "Plan — Medication changes, interventions, follow-up, LOC considerations", "type": "textarea"},
+                        {"label": "Clinician Signature", "type": "signature"},
+                    ],
+                    allowed_roles=["admin", "psychiatrist", "technician"],
+                    created_by=creator.id,
+                ),
                 # ── Detox Flowsheets ──
                 FormTemplate(
                     tenant_id=tenant.id,
