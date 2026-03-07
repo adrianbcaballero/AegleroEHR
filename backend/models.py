@@ -155,6 +155,10 @@ class FormTemplate(db.Model):
 
     status = db.Column(db.String(20), nullable=False, default="active")  # active/archived
 
+    # Admission / discharge gates
+    required_for_admission = db.Column(db.Boolean, nullable=False, default=False)
+    required_for_discharge = db.Column(db.Boolean, nullable=False, default=False)
+
     created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
     created_at = db.Column(
         db.DateTime(timezone=True),

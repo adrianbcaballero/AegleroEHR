@@ -44,6 +44,8 @@ def _serialize_template(t: FormTemplate):
         "isRecurring": t.is_recurring,
         "recurrenceValue": t.recurrence_value,
         "recurrenceUnit": t.recurrence_unit,
+        "requiredForAdmission": t.required_for_admission,
+        "requiredForDischarge": t.required_for_discharge,
         "createdBy": t.created_by,
         "createdAt": t.created_at.isoformat() if t.created_at else None,
         "updatedAt": t.updated_at.isoformat() if t.updated_at else None,
@@ -155,6 +157,8 @@ def create_template():
     is_recurring = bool(data.get("isRecurring", False))
     recurrence_value = int(data["recurrenceValue"]) if data.get("recurrenceValue") else None
     recurrence_unit = (data.get("recurrenceUnit") or "").strip() or None
+    required_for_admission = bool(data.get("requiredForAdmission", False))
+    required_for_discharge = bool(data.get("requiredForDischarge", False))
 
     t = FormTemplate(
         tenant_id=g.tenant_id,
@@ -166,6 +170,8 @@ def create_template():
         is_recurring=is_recurring,
         recurrence_value=recurrence_value,
         recurrence_unit=recurrence_unit,
+        required_for_admission=required_for_admission,
+        required_for_discharge=required_for_discharge,
         status="active",
         created_by=g.user.id,
     )
@@ -224,6 +230,10 @@ def update_template(template_id):
         t.recurrence_value = int(data["recurrenceValue"]) if data["recurrenceValue"] else None
     if "recurrenceUnit" in data:
         t.recurrence_unit = (data["recurrenceUnit"] or "").strip() or None
+    if "requiredForAdmission" in data:
+        t.required_for_admission = bool(data["requiredForAdmission"])
+    if "requiredForDischarge" in data:
+        t.required_for_discharge = bool(data["requiredForDischarge"])
 
     db.session.commit()
 

@@ -321,6 +321,8 @@ export interface FormTemplate {
   isRecurring: boolean
   recurrenceValue: number | null
   recurrenceUnit: string | null
+  requiredForAdmission: boolean
+  requiredForDischarge: boolean
   createdBy: number | null
   createdAt: string | null
   updatedAt: string | null
@@ -362,6 +364,8 @@ export function createTemplate(data: {
   isRecurring?: boolean
   recurrenceValue?: number | null
   recurrenceUnit?: string | null
+  requiredForAdmission?: boolean
+  requiredForDischarge?: boolean
 }) {
   return apiPost<FormTemplate>("/api/templates", data)
 }
@@ -376,6 +380,8 @@ export function updateTemplate(templateId: number, data: {
   isRecurring?: boolean
   recurrenceValue?: number | null
   recurrenceUnit?: string | null
+  requiredForAdmission?: boolean
+  requiredForDischarge?: boolean
 }) {
   return apiPut<FormTemplate>(`/api/templates/${templateId}`, data)
 }

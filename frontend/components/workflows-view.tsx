@@ -94,6 +94,8 @@ function TemplateEditorDialog({
   const [isRecurring, setIsRecurring] = useState(false)
   const [recurrenceValue, setRecurrenceValue] = useState("8")
   const [recurrenceUnit, setRecurrenceUnit] = useState("hours")
+  const [requiredForAdmission, setRequiredForAdmission] = useState(false)
+  const [requiredForDischarge, setRequiredForDischarge] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -117,6 +119,8 @@ function TemplateEditorDialog({
           setRecurrenceValue(String(storedHours))
           setRecurrenceUnit("hours")
         }
+        setRequiredForAdmission(existing.requiredForAdmission)
+        setRequiredForDischarge(existing.requiredForDischarge)
       })
     }
   }, [open, existing])
@@ -170,6 +174,8 @@ function TemplateEditorDialog({
       isRecurring,
       recurrenceValue: totalHours,
       recurrenceUnit: isRecurring ? "hours" : null,
+      requiredForAdmission,
+      requiredForDischarge,
     }
 
     const promise = existing
@@ -204,12 +210,7 @@ function TemplateEditorDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium text-foreground">Category</Label>
-            <Input
-              placeholder="e.g. flowsheet, intake, detox-notes…"
-              value={category}
-              onChange={(e) => setCategory(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-            />
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
+            <div className="flex flex-wrap gap-1.5">
               {[...new Set([...DEFAULT_CATEGORIES, ...existingCategories])].map((cat) => (
                 <button
                   key={cat}
@@ -226,7 +227,7 @@ function TemplateEditorDialog({
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              Pick a default category or type a custom one. Tabs are sorted alphabetically — to control order, prefix with a number (e.g. <span className="font-mono font-medium text-foreground">1-intake</span>, <span className="font-mono font-medium text-foreground">2-assessment</span>).
+              Select a category. To add custom categories use <span className="font-medium text-foreground">Manage Categories</span> on the Workflows page.
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -268,6 +269,20 @@ function TemplateEditorDialog({
             <p className="text-xs text-muted-foreground pl-6">
               {isRecurring ? "A new draft will be auto-created each time the interval elapses." : "One-time form — created manually per patient."}
             </p>
+          </div>
+
+          {/* Admission / Discharge Gates */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium text-foreground">Completion Gates</Label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={requiredForAdmission} onCheckedChange={(v) => setRequiredForAdmission(!!v)} />
+              <span className="text-sm text-foreground">Required before admission</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={requiredForDischarge} onCheckedChange={(v) => setRequiredForDischarge(!!v)} />
+              <span className="text-sm text-foreground">Required before discharge</span>
+            </label>
+            <p className="text-xs text-muted-foreground">If checked, this form must be completed before a patient can be admitted or discharged.</p>
           </div>
 
           {/* Role Visibility */}
@@ -542,6 +557,25 @@ function TemplateDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Completion Gates */}
+      {(template.requiredForAdmission || template.requiredForDischarge) && (
+        <Card className="border-border/60">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-heading font-semibold text-foreground">Completion Gates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              {template.requiredForAdmission && (
+                <Badge variant="secondary" className="text-xs bg-chart-4/10 text-chart-4">Required for Admission</Badge>
+              )}
+              {template.requiredForDischarge && (
+                <Badge variant="secondary" className="text-xs bg-chart-4/10 text-chart-4">Required for Discharge</Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Role Visibility */}
       <Card className="border-border/60">

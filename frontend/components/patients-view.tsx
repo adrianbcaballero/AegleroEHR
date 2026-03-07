@@ -977,6 +977,7 @@ export function PatientProfileView({
       fetchForms()
     } catch (e: unknown) {
       setActionError(e instanceof Error ? e.message : "Failed to discharge patient")
+      setShowDischarge(false)
     } finally {
       setActionLoading(false)
     }

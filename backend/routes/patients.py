@@ -447,6 +447,22 @@ def admit_patient(patient_id):
     if p.status == "active":
         return {"error": "patient is already admitted"}, 409
 
+    # Check all required-for-admission templates have completed forms
+    required_templates = (
+        FormTemplate.query
+        .filter_by(tenant_id=g.tenant_id, required_for_admission=True, status="active")
+        .all()
+    )
+    missing = []
+    for tmpl in required_templates:
+        completed = PatientForm.query.filter_by(
+            patient_id=p.id, template_id=tmpl.id, status="completed"
+        ).first()
+        if not completed:
+            missing.append(tmpl.name)
+    if missing:
+        return {"error": "Cannot admit — required forms not completed", "missingForms": missing}, 409
+
     is_readmit = p.status == "inactive"
     p.admitted_at = datetime.now(timezone.utc)
     p.discharged_at = None
@@ -478,6 +494,22 @@ def discharge_patient(patient_id):
     reason = (data.get("reason") or "other").strip().lower()
     if reason not in VALID_DISCHARGE_REASONS:
         return {"error": f"reason must be one of {sorted(VALID_DISCHARGE_REASONS)}"}, 400
+
+    # Check all required-for-discharge templates have completed forms
+    required_templates = (
+        FormTemplate.query
+        .filter_by(tenant_id=g.tenant_id, required_for_discharge=True, status="active")
+        .all()
+    )
+    missing = []
+    for tmpl in required_templates:
+        completed = PatientForm.query.filter_by(
+            patient_id=p.id, template_id=tmpl.id, status="completed"
+        ).first()
+        if not completed:
+            missing.append(tmpl.name)
+    if missing:
+        return {"error": "Cannot discharge — required forms not completed", "missingForms": missing}, 409
 
     p.discharged_at = datetime.now(timezone.utc)
     p.discharge_reason = reason
