@@ -93,6 +93,12 @@ class Patient(db.Model):
     # ASAM Level of Care — updated automatically when ASAM assessment form is completed
     current_loc = db.Column(db.String(10), nullable=True)
 
+    # Admission / discharge — tracks the current episode of care
+    # On readmission, admitted_at is updated and discharge fields are cleared
+    admitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    discharged_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    discharge_reason = db.Column(db.String(80), nullable=True)  # completed / ama / transferred / other
+
 
 class UserSession(db.Model):
     __tablename__ = "user_session"
