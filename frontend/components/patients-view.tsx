@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   Clock,
   Trash2,
-  ChevronDown,
   Archive,
   ShieldAlert,
   ShieldCheck,
@@ -30,7 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, createPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, updatePatient, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories } from "@/lib/api"
+import { getPatients, getPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories } from "@/lib/api"
 import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent } from "@/lib/api"
 
 import {
@@ -1290,288 +1289,6 @@ export function PatientProfileView({
   )
 }
 
-// ------- New Patient Dialog -------
-function NewPatientDialog({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [showMore, setShowMore] = useState(false)
-
-  const [form, setForm] = useState({
-    firstName: "", lastName: "", dob: "", phone: "", email: "",
-    insurance: "", diagnosis: "", gender: "", pronouns: "", ssnLast4: "",
-    maritalStatus: "", preferredLanguage: "", ethnicity: "", employmentStatus: "",
-    addressStreet: "", addressCity: "", addressState: "", addressZip: "",
-    emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelationship: "",
-    currentMedications: "", allergies: "", referringProvider: "", primaryCarePhysician: "", pharmacy: "",
-  })
-
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }))
-
-  const resetForm = () => {
-    setForm({
-      firstName: "", lastName: "", dob: "", phone: "", email: "",
-      insurance: "", diagnosis: "", gender: "", pronouns: "", ssnLast4: "",
-      maritalStatus: "", preferredLanguage: "", ethnicity: "", employmentStatus: "",
-      addressStreet: "", addressCity: "", addressState: "", addressZip: "",
-      emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelationship: "",
-      currentMedications: "", allergies: "", referringProvider: "", primaryCarePhysician: "", pharmacy: "",
-    })
-    setError("")
-    setShowMore(false)
-  }
-
-  const handleCreate = async () => {
-    if (!form.firstName.trim() || !form.lastName.trim()) {
-      setError("First and last name are required")
-      return
-    }
-
-    setLoading(true)
-    setError("")
-
-    const payload: Record<string, unknown> = {
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-    }
-    if (form.dob) payload.dateOfBirth = form.dob
-    if (form.phone.trim()) payload.phone = form.phone.trim()
-    if (form.email.trim()) payload.email = form.email.trim()
-    if (form.insurance.trim()) payload.insurance = form.insurance.trim()
-    if (form.diagnosis.trim()) payload.primaryDiagnosis = form.diagnosis.trim()
-    if (form.ssnLast4.trim()) payload.ssnLast4 = form.ssnLast4.trim()
-    if (form.gender.trim()) payload.gender = form.gender.trim()
-    if (form.pronouns.trim()) payload.pronouns = form.pronouns.trim()
-    if (form.maritalStatus.trim()) payload.maritalStatus = form.maritalStatus.trim()
-    if (form.preferredLanguage.trim()) payload.preferredLanguage = form.preferredLanguage.trim()
-    if (form.ethnicity.trim()) payload.ethnicity = form.ethnicity.trim()
-    if (form.employmentStatus.trim()) payload.employmentStatus = form.employmentStatus.trim()
-    if (form.addressStreet.trim()) payload.addressStreet = form.addressStreet.trim()
-    if (form.addressCity.trim()) payload.addressCity = form.addressCity.trim()
-    if (form.addressState.trim()) payload.addressState = form.addressState.trim()
-    if (form.addressZip.trim()) payload.addressZip = form.addressZip.trim()
-    if (form.emergencyContactName.trim()) payload.emergencyContactName = form.emergencyContactName.trim()
-    if (form.emergencyContactPhone.trim()) payload.emergencyContactPhone = form.emergencyContactPhone.trim()
-    if (form.emergencyContactRelationship.trim()) payload.emergencyContactRelationship = form.emergencyContactRelationship.trim()
-    if (form.currentMedications.trim()) payload.currentMedications = form.currentMedications.trim()
-    if (form.allergies.trim()) payload.allergies = form.allergies.trim()
-    if (form.referringProvider.trim()) payload.referringProvider = form.referringProvider.trim()
-    if (form.primaryCarePhysician.trim()) payload.primaryCarePhysician = form.primaryCarePhysician.trim()
-    if (form.pharmacy.trim()) payload.pharmacy = form.pharmacy.trim()
-
-    try {
-      await createPatient(payload)
-      resetForm()
-      setOpen(false)
-      onCreated()
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create patient")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
-      <DialogTrigger asChild>
-        <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-          <Plus className="mr-2 size-4" />
-          New Patient
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-heading text-foreground">Add New Patient</DialogTitle>
-          <DialogDescription>Enter patient information below. Only name is required.</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-5 py-2">
-
-          {/* Basic Info */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Basic Information</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">First Name *</Label>
-                <Input placeholder="First name" value={form.firstName} onChange={set("firstName")} disabled={loading} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">Last Name *</Label>
-                <Input placeholder="Last name" value={form.lastName} onChange={set("lastName")} disabled={loading} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">Date of Birth</Label>
-                <Input type="date" value={form.dob} onChange={set("dob")} disabled={loading} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">SSN (Last 4)</Label>
-                <Input placeholder="0000" maxLength={4} value={form.ssnLast4} onChange={set("ssnLast4")} disabled={loading} />
-              </div>
-            </div>
-          </div>
-
-          {/* Contact */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Contact</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">Phone</Label>
-                <Input placeholder="(555) 000-0000" value={form.phone} onChange={set("phone")} disabled={loading} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">Email</Label>
-                <Input type="email" placeholder="patient@email.com" value={form.email} onChange={set("email")} disabled={loading} />
-              </div>
-            </div>
-          </div>
-
-          {/* Clinical */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Clinical</p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">Primary Diagnosis</Label>
-                <Input placeholder="e.g. Major Depressive Disorder" value={form.diagnosis} onChange={set("diagnosis")} disabled={loading} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-sm font-medium text-foreground">Insurance</Label>
-                <Input placeholder="Insurance provider" value={form.insurance} onChange={set("insurance")} disabled={loading} />
-              </div>
-            </div>
-          </div>
-
-          {/* Expandable section */}
-          <button
-            type="button"
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setShowMore(!showMore)}
-          >
-            {showMore ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-            {showMore ? "Hide additional fields" : "Show additional fields (demographics, address, emergency contact, etc.)"}
-          </button>
-
-          {showMore && (
-            <>
-              {/* Demographics */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Demographics</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Gender</Label>
-                    <Input placeholder="e.g. Female, Male, Non-binary" value={form.gender} onChange={set("gender")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Pronouns</Label>
-                    <Input placeholder="e.g. she/her, he/him, they/them" value={form.pronouns} onChange={set("pronouns")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Marital Status</Label>
-                    <Input placeholder="e.g. Single, Married, Divorced" value={form.maritalStatus} onChange={set("maritalStatus")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Ethnicity</Label>
-                    <Input placeholder="e.g. Hispanic/Latino" value={form.ethnicity} onChange={set("ethnicity")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Preferred Language</Label>
-                    <Input placeholder="e.g. English, Spanish" value={form.preferredLanguage} onChange={set("preferredLanguage")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Employment Status</Label>
-                    <Input placeholder="e.g. Employed, Unemployed, Student" value={form.employmentStatus} onChange={set("employmentStatus")} disabled={loading} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Address */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Address</p>
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Street</Label>
-                    <Input placeholder="123 Main St" value={form.addressStreet} onChange={set("addressStreet")} disabled={loading} />
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <Label className="text-sm font-medium text-foreground">City</Label>
-                      <Input placeholder="City" value={form.addressCity} onChange={set("addressCity")} disabled={loading} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label className="text-sm font-medium text-foreground">State</Label>
-                      <Input placeholder="CA" value={form.addressState} onChange={set("addressState")} disabled={loading} />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label className="text-sm font-medium text-foreground">ZIP</Label>
-                      <Input placeholder="90241" value={form.addressZip} onChange={set("addressZip")} disabled={loading} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Emergency Contact */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Emergency Contact</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Name</Label>
-                    <Input placeholder="Contact name" value={form.emergencyContactName} onChange={set("emergencyContactName")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Phone</Label>
-                    <Input placeholder="(555) 000-0000" value={form.emergencyContactPhone} onChange={set("emergencyContactPhone")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Relationship</Label>
-                    <Input placeholder="e.g. Spouse, Parent" value={form.emergencyContactRelationship} onChange={set("emergencyContactRelationship")} disabled={loading} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Medical */}
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Medical</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Current Medications</Label>
-                    <Textarea placeholder="List current medications" value={form.currentMedications} onChange={set("currentMedications")} disabled={loading} rows={2} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Allergies</Label>
-                    <Textarea placeholder="List known allergies" value={form.allergies} onChange={set("allergies")} disabled={loading} rows={2} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Referring Provider</Label>
-                    <Input placeholder="Dr. name" value={form.referringProvider} onChange={set("referringProvider")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className="text-sm font-medium text-foreground">Primary Care Physician</Label>
-                    <Input placeholder="Dr. name" value={form.primaryCarePhysician} onChange={set("primaryCarePhysician")} disabled={loading} />
-                  </div>
-                  <div className="flex flex-col gap-1.5 col-span-2">
-                    <Label className="text-sm font-medium text-foreground">Pharmacy</Label>
-                    <Input placeholder="Pharmacy name and location" value={form.pharmacy} onChange={set("pharmacy")} disabled={loading} />
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
-          <Separator />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)} className="bg-transparent text-foreground" disabled={loading}>
-              Cancel
-            </Button>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleCreate} disabled={loading}>
-              {loading ? "Creating…" : "Create Patient"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 // ------- Patient Table (reusable) -------
 function PatientTable({
@@ -1659,7 +1376,6 @@ export function PatientsView({
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(initialPatientId || null)
-  const [archivedOpen, setArchivedOpen] = useState(false)
 
   const fetchPatients = useCallback(async () => {
     setLoading(true)
@@ -1696,12 +1412,11 @@ export function PatientsView({
     )
   }
 
-  const activePatients = patients.filter((p) => p.status !== "archived" && matchesSearch(p))
-  const archivedPatients = patients.filter((p) => p.status === "archived" && matchesSearch(p))
+  const activePatients = patients.filter((p) => p.status === "active" && matchesSearch(p))
 
-  const activeCount = patients.filter((p) => p.status !== "archived").length
-  const archivedCount = patients.filter((p) => p.status === "archived").length
-  const highRiskCount = patients.filter((p) => p.riskLevel === "high" && p.status !== "archived").length
+  const activeCount = patients.filter((p) => p.status === "active").length
+  const inactiveCount = patients.filter((p) => p.status === "inactive").length
+  const highRiskCount = patients.filter((p) => p.riskLevel === "high" && p.status === "active").length
 
   return (
     <div className="flex flex-col gap-6">
@@ -1711,7 +1426,6 @@ export function PatientsView({
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Patients</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage your patient roster</p>
         </div>
-        <NewPatientDialog onCreated={fetchPatients} />
       </div>
 
       {/* Quick Stats */}
@@ -1738,9 +1452,9 @@ export function PatientsView({
           <CardContent className="p-4">
             <div className="flex items-center gap-1.5 mb-1">
               <Archive className="size-3.5 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground font-medium">Archived</p>
+              <p className="text-xs text-muted-foreground font-medium">Inactive</p>
             </div>
-            <p className="text-xl font-bold font-heading text-muted-foreground">{archivedCount}</p>
+            <p className="text-xl font-bold font-heading text-muted-foreground">{inactiveCount}</p>
           </CardContent>
         </Card>
         <Card className="border-border/60">
@@ -1799,36 +1513,6 @@ export function PatientsView({
         </Card>
       )}
 
-      {/* Archived Patients — Collapsible */}
-      {!loading && !error && (
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <button
-              type="button"
-              className="flex items-center gap-2 w-full text-left"
-              onClick={() => setArchivedOpen(!archivedOpen)}
-            >
-              {archivedOpen ? (
-                <ChevronDown className="size-4 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="size-4 text-muted-foreground" />
-              )}
-              <CardTitle className="text-base font-heading font-semibold text-muted-foreground">
-                Archived Patients ({archivedPatients.length})
-              </CardTitle>
-            </button>
-          </CardHeader>
-          {archivedOpen && (
-            <CardContent className="p-0">
-              <PatientTable
-                patients={archivedPatients}
-                onSelect={setSelectedPatientId}
-                emptyMessage={searchQuery ? "No archived patients match your search." : "No archived patients."}
-              />
-            </CardContent>
-          )}
-        </Card>
-      )}
     </div>
   )
 }
