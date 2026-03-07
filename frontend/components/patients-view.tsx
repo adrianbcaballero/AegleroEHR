@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   XCircle,
   Printer,
+  LogIn,
+  LogOut,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -28,7 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, createPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, updatePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories } from "@/lib/api"
+import { getPatients, getPatient, createPatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, updatePatient, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories } from "@/lib/api"
 import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent } from "@/lib/api"
 
 import {
@@ -892,9 +894,11 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
 function PatientProfileView({
   patientId,
   onBack,
+  userRole,
 }: {
   patientId: string
   onBack: () => void
+  userRole?: string
 }) {
   const [patient, setPatient] = useState<PatientDetail | null>(null)
   const [forms, setForms] = useState<PatientFormEntry[]>([])
@@ -905,6 +909,42 @@ function PatientProfileView({
   const [error, setError] = useState("")
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<string>("")
+  const [actionLoading, setActionLoading] = useState(false)
+  const [actionError, setActionError] = useState("")
+  const [showDischarge, setShowDischarge] = useState(false)
+  const [dischargeReason, setDischargeReason] = useState("completed")
+
+  const canAdmitDischarge = userRole === "admin" || userRole === "psychiatrist"
+
+  const handleAdmit = async () => {
+    if (!patient) return
+    setActionLoading(true)
+    setActionError("")
+    try {
+      const updated = await admitPatient(patient.id)
+      setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Failed to admit patient")
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDischarge = async () => {
+    if (!patient) return
+    setActionLoading(true)
+    setActionError("")
+    try {
+      const updated = await dischargePatient(patient.id, dischargeReason)
+      setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
+      setShowDischarge(false)
+      fetchForms()
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Failed to discharge patient")
+    } finally {
+      setActionLoading(false)
+    }
+  }
 
   const fetchPatient = useCallback(() => {
     getPatient(patientId)
@@ -1000,8 +1040,55 @@ function PatientProfileView({
           <Badge variant="secondary" className={`text-xs ${riskColors[patient.riskLevel] || ""}`}>
             {patient.riskLevel} risk
           </Badge>
+          {canAdmitDischarge && patient.status !== "active" && (
+            <Button size="sm" onClick={handleAdmit} disabled={actionLoading} className="gap-1.5">
+              <LogIn className="size-3.5" />
+              {patient.status === "inactive" ? "Re-admit" : "Admit"}
+            </Button>
+          )}
+          {canAdmitDischarge && patient.status === "active" && (
+            <Button size="sm" variant="outline" onClick={() => setShowDischarge(true)} disabled={actionLoading} className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10">
+              <LogOut className="size-3.5" />
+              Discharge
+            </Button>
+          )}
         </div>
       </div>
+      {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+
+      {/* Discharge Dialog */}
+      <Dialog open={showDischarge} onOpenChange={setShowDischarge}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discharge Patient</DialogTitle>
+            <DialogDescription>
+              Select a discharge reason for {patient.firstName} {patient.lastName}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Discharge Reason</Label>
+              <Select value={dischargeReason} onValueChange={setDischargeReason}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="completed">Completed Program</SelectItem>
+                  <SelectItem value="ama">Against Medical Advice (AMA)</SelectItem>
+                  <SelectItem value="transferred">Transferred</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowDischarge(false)} disabled={actionLoading}>Cancel</Button>
+              <Button variant="destructive" onClick={handleDischarge} disabled={actionLoading}>
+                {actionLoading ? <Loader2 className="size-4 animate-spin" /> : "Discharge"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 42 CFR Part 2 Consent */}
       <Part2ConsentSection patientCode={patient.id} />
@@ -1024,6 +1111,15 @@ function PatientProfileView({
             <div><p className="text-xs text-muted-foreground">Language</p><p className="font-medium text-foreground">{patient.preferredLanguage || "—"}</p></div>
             <div><p className="text-xs text-muted-foreground">Employment</p><p className="font-medium text-foreground">{patient.employmentStatus || "—"}</p></div>
             <div><p className="text-xs text-muted-foreground">Status</p><p className="font-medium text-foreground capitalize">{patient.status}</p></div>
+            {patient.admittedAt && (
+              <div><p className="text-xs text-muted-foreground">Admitted</p><p className="font-medium text-foreground">{new Date(patient.admittedAt).toLocaleDateString()}</p></div>
+            )}
+            {patient.dischargedAt && (
+              <div><p className="text-xs text-muted-foreground">Discharged</p><p className="font-medium text-foreground">{new Date(patient.dischargedAt).toLocaleDateString()}</p></div>
+            )}
+            {patient.dischargeReason && (
+              <div><p className="text-xs text-muted-foreground">Discharge Reason</p><p className="font-medium text-foreground capitalize">{patient.dischargeReason}</p></div>
+            )}
           </CardContent>
         </Card>
 
@@ -1552,9 +1648,11 @@ function PatientTable({
 export function PatientsView({
   initialFilter,
   initialPatientId,
+  userRole,
 }: {
   initialFilter?: string | null
   initialPatientId?: string
+  userRole?: string
 }) {
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
@@ -1582,6 +1680,7 @@ export function PatientsView({
       <PatientProfileView
         patientId={selectedPatientId}
         onBack={() => { setSelectedPatientId(null); fetchPatients() }}
+        userRole={userRole}
       />
     )
   }

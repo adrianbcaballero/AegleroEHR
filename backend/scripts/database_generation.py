@@ -457,6 +457,29 @@ def seed():
                     allowed_roles=["admin", "psychiatrist"],
                     created_by=creator.id,
                 ),
+                # ── Discharge Summary ──
+                FormTemplate(
+                    tenant_id=tenant.id,
+                    name="Discharge Summary",
+                    category="discharge",
+                    description="Clinical summary completed at time of discharge. Captures treatment course, reason for discharge, aftercare plan, and clinician attestation.",
+                    fields=[
+                        {"label": "Discharge Date", "type": "date"},
+                        {"label": "Discharge Reason", "type": "select", "options": ["Completed Program", "Against Medical Advice (AMA)", "Transferred", "Other"]},
+                        {"label": "Admission Date", "type": "date"},
+                        {"label": "Primary Diagnosis", "type": "text"},
+                        {"label": "Secondary Diagnoses", "type": "textarea", "optional": True},
+                        {"label": "Treatment Summary", "type": "textarea"},
+                        {"label": "Medications at Discharge", "type": "textarea"},
+                        {"label": "Aftercare Plan", "type": "textarea"},
+                        {"label": "Follow-Up Appointments", "type": "textarea", "optional": True},
+                        {"label": "Patient Condition at Discharge", "type": "select", "options": ["Stable", "Improved", "Unchanged", "Deteriorated"]},
+                        {"label": "Clinician Notes", "type": "textarea", "optional": True},
+                        {"label": "Clinician Signature", "type": "signature"},
+                    ],
+                    allowed_roles=["admin", "psychiatrist"],
+                    created_by=creator.id,
+                ),
             ]
             db.session.add_all(templates)
 

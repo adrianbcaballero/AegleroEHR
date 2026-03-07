@@ -81,6 +81,7 @@ export default function EHRApp() {
               navOptions?.filter as "intake-complete" | "intake-incomplete" | "dr-completion" | null | undefined
             }
             initialPatientId={navOptions?.patientId}
+            userRole={userRole}
           />
         )
       case "Workflows":
