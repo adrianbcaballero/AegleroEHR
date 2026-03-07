@@ -115,10 +115,12 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Front Desk</h1>
           <p className="text-sm text-muted-foreground">Manage incoming patients and pre-admission intake</p>
         </div>
-        <Button onClick={() => { resetForm(); setShowAdd(true) }} className="gap-2">
-          <Plus className="size-4" />
-          Add Patient
-        </Button>
+        {userRole !== "technician" && (
+          <Button onClick={() => { resetForm(); setShowAdd(true) }} className="gap-2">
+            <Plus className="size-4" />
+            Add Patient
+          </Button>
+        )}
       </div>
 
       {/* Pending patients */}

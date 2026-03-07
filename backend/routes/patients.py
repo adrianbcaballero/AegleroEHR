@@ -153,7 +153,7 @@ def get_patient(patient_id):
 
 
 @patients_bp.post("")
-@require_auth(roles=["technician", "psychiatrist", "admin"])
+@require_auth(roles=["psychiatrist", "admin"])
 def create_patient():
     """
     POST /api/patients
