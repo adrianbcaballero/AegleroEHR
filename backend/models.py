@@ -135,9 +135,14 @@ class FormTemplate(db.Model):
     category = db.Column(db.String(50), nullable=False)  # intake, assessment, consent, insurance, clinical, discharge
     description = db.Column(db.Text, nullable=True)
 
-    # JSON array: [{label, type, options?, min?, max?}]
+    # JSON array: [{label, type, options?, min?, max?, optional?, note?}]
     # types: text, textarea, number, date, checkbox, checkbox_group, select, scale, signature
     fields = db.Column(db.JSON, nullable=False, default=list)
+
+    # Recurring form generation
+    is_recurring = db.Column(db.Boolean, nullable=False, default=False)
+    recurrence_value = db.Column(db.Integer, nullable=True)    # e.g. 4, 8, 1
+    recurrence_unit = db.Column(db.String(10), nullable=True)  # "hours", "days", "weeks"
 
     # JSON array of role strings that can view forms created from this template
     allowed_roles = db.Column(db.JSON, nullable=False, default=lambda: ["admin", "psychiatrist", "technician"])
