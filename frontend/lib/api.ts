@@ -380,6 +380,10 @@ export function updateTemplate(templateId: number, data: {
   return apiPut<FormTemplate>(`/api/templates/${templateId}`, data)
 }
 
+export function deleteTemplate(templateId: number) {
+  return apiDelete<{ ok: boolean }>(`/api/templates/${templateId}`)
+}
+
 export function getPatientForms(patientCode: string) {
   return apiGet<PatientFormEntry[]>(`/api/patients/${patientCode}/forms`)
 }

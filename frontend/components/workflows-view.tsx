@@ -18,6 +18,7 @@ import {
   ChevronDown,
   X,
   Settings2,
+  Trash2,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -36,13 +37,24 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getTemplates, createTemplate, updateTemplate, getCategories, updateCategories } from "@/lib/api"
+import { getTemplates, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories } from "@/lib/api"
 import type { FormTemplate, TemplateField } from "@/lib/api"
 
 const ALL_ROLES = ["admin", "psychiatrist", "technician"]
@@ -384,14 +396,18 @@ function TemplateDetailPage({
   templateId,
   onBack,
   onRefresh,
+  userRole,
 }: {
   templateId: number
   onBack: () => void
   onRefresh: () => void
+  userRole?: string
 }) {
   const [template, setTemplate] = useState<FormTemplate | null>(null)
   const [allCategories, setAllCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
 
   const fetchTemplate = useCallback(async () => {
     setLoading(true)
@@ -408,6 +424,18 @@ function TemplateDetailPage({
   useEffect(() => {
     Promise.resolve().then(() => fetchTemplate())
   }, [templateId, fetchTemplate])
+
+  const canManage = userRole === "admin" || userRole === "psychiatrist"
+
+  const handleDelete = () => {
+    if (!template) return
+    setDeleting(true)
+    setDeleteError("")
+    deleteTemplate(template.id)
+      .then(() => { onRefresh(); onBack() })
+      .catch((e: unknown) => setDeleteError(e instanceof Error ? e.message : "Delete failed"))
+      .finally(() => setDeleting(false))
+  }
 
   if (loading) {
     return (
@@ -439,16 +467,51 @@ function TemplateDetailPage({
           </h1>
         </div>
         <Badge variant="secondary" className="text-xs capitalize">{template.category}</Badge>
-        <TemplateEditorDialog
-          existing={template}
-          onSaved={() => { fetchTemplate(); onRefresh() }}
-          existingCategories={allCategories}
-          trigger={
-            <Button variant="outline" size="sm" className="bg-transparent text-foreground">
-              <Pencil className="mr-1.5 size-3.5" /> Edit
-            </Button>
-          }
-        />
+        {canManage && (
+          <>
+            <TemplateEditorDialog
+              existing={template}
+              onSaved={() => { fetchTemplate(); onRefresh() }}
+              existingCategories={allCategories}
+              trigger={
+                <Button variant="outline" size="sm" className="bg-transparent text-foreground">
+                  <Pencil className="mr-1.5 size-3.5" /> Edit
+                </Button>
+              }
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="bg-transparent text-destructive border-destructive/40 hover:bg-destructive/10" disabled={deleting}>
+                  <Trash2 className="mr-1.5 size-3.5" /> Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="font-heading text-foreground">Delete Template?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete <strong>{template.name}</strong>.
+                    {(template.instanceCount ?? 0) > 0
+                      ? ` This template has ${template.instanceCount} form instance(s) and cannot be deleted — archive it instead.`
+                      : " This action cannot be undone."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                {deleteError && <p className="text-sm text-destructive px-1">{deleteError}</p>}
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-transparent text-foreground">Cancel</AlertDialogCancel>
+                  {(template.instanceCount ?? 0) === 0 && (
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={handleDelete}
+                    >
+                      {deleting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                      Delete Template
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
       </div>
 
       {/* Description */}
@@ -709,6 +772,7 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
         templateId={selectedTemplateId}
         onBack={() => setSelectedTemplateId(null)}
         onRefresh={fetchTemplates}
+        userRole={userRole}
       />
     )
   }

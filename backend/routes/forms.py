@@ -232,6 +232,29 @@ def update_template(template_id):
     return _serialize_template(t), 200
 
 
+@forms_bp.delete("/templates/<int:template_id>")
+@require_auth(roles=["admin", "psychiatrist"])
+def delete_template(template_id):
+    ip = client_ip()
+
+    t = tenant_query(FormTemplate).filter_by(id=template_id).first()
+    if not t:
+        log_access(g.user.id, "TEMPLATE_DELETE", f"template/{template_id}", "FAILED", ip, description=f"Template #{template_id} not found")
+        return {"error": "template not found"}, 404
+
+    instance_count = PatientForm.query.filter_by(template_id=t.id).count()
+    if instance_count > 0:
+        log_access(g.user.id, "TEMPLATE_DELETE", f"template/{template_id}", "FAILED", ip,
+                   description=f"Attempted to delete template '{t.name}' which has {instance_count} form instance(s)")
+        return {"error": f"Cannot delete — this template has {instance_count} form instance(s). Archive it instead."}, 409
+
+    name = t.name
+    db.session.delete(t)
+    db.session.commit()
+    log_access(g.user.id, "TEMPLATE_DELETE", f"template/{template_id}", "SUCCESS", ip, description=f"Deleted form template '{name}'")
+    return {"ok": True}, 200
+
+
 def _maybe_generate_recurring_forms(p: Patient, user_role: str, tenant_id: int):
     """Lazily create draft forms for any overdue recurring templates."""
     now = datetime.now(timezone.utc)
