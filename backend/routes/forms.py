@@ -485,6 +485,10 @@ def update_patient_form(patient_id, form_id):
         status = (data["status"] or "").strip()
         if status not in {"draft", "completed"}:
             return {"error": "status must be draft or completed"}, 400
+        if status == "completed" and not g.user.has_permission("forms.sign"):
+            log_access(g.user.id, "FORM_SIGN", f"patient/{p.patient_code}/forms/{f.id}", "FAILED", ip,
+                       description=f"Signing denied — missing forms.sign permission")
+            return {"error": "forbidden — you do not have permission to sign forms"}, 403
         f.status = status
         if status == "completed" and not f.signed_at:
             f.signed_by_name = g.user.full_name or g.user.username

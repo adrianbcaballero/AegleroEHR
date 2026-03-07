@@ -70,7 +70,7 @@ def login():
     db.session.add(sess)
     db.session.commit()
 
-    log_access(user.id, "LOGIN", "auth", "SUCCESS", ip, description=f"User '{user.username}' ({user.role}) logged in", tenant_id=t_id)
+    log_access(user.id, "LOGIN", "auth", "SUCCESS", ip, description=f"User '{user.username}' ({user.role_name}) logged in", tenant_id=t_id)
 
     # Auto-archive inactive patients discharged 14+ days ago
     cutoff = datetime.now(timezone.utc) - timedelta(days=14)
@@ -84,7 +84,10 @@ def login():
         "user_id": user.id,
         "username": user.username,
         "full_name": user.full_name,
-        "role": user.role,
+        "role": user.role_name,
+        "roleId": user.role_id,
+        "roleDisplayName": user.role_obj.display_name if user.role_obj else None,
+        "credentials": user.credentials or [],
         "tenant_id": t_id,
         "tenant_name": tenant.name,
         "session_id": session_id,
@@ -108,7 +111,10 @@ def me():
         "user_id": user.id,
         "username": user.username,
         "full_name": user.full_name,
-        "role": user.role,
+        "role": user.role_name,
+        "roleId": user.role_id,
+        "roleDisplayName": user.role_obj.display_name if user.role_obj else None,
+        "credentials": user.credentials or [],
         "tenant_id": user.tenant_id,
         "tenant_name": tenant.name if tenant else None,
         "signature_data": user.signature_data,

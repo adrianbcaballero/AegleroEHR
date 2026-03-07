@@ -49,6 +49,9 @@ def create_app():
     from routes.categories import categories_bp
     app.register_blueprint(categories_bp)
 
+    from routes.roles import roles_bp
+    app.register_blueprint(roles_bp)
+
     # Import models so Alembic can detect
     import models
 
@@ -69,7 +72,7 @@ def create_app():
     @app.get("/api/protected/ping")
     @require_auth()
     def protected_ping():
-        return {"ok": True, "user": {"id": g.user.id, "username": g.user.username, "role": g.user.role}}
+        return {"ok": True, "user": {"id": g.user.id, "username": g.user.username, "role": g.user.role_name}}
 
     return app
 

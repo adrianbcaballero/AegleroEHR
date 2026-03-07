@@ -14,7 +14,8 @@ ALL_PERMISSIONS = [
     "patients.admit",      # admit a patient
     "patients.discharge",  # discharge a patient
     "forms.view",          # view patient form instances
-    "forms.edit",          # fill out / save / delete draft forms
+    "forms.edit",          # fill out / save draft forms
+    "forms.sign",          # complete / sign forms (makes them legal records)
     "templates.view",      # view form templates
     "templates.manage",    # create / edit / delete form templates
     "categories.manage",   # manage form categories on the tenant
@@ -31,7 +32,7 @@ SYSTEM_ROLE_PERMISSIONS = {
         "patients.view", "patients.view_all",
         "patients.create", "patients.edit",
         "patients.admit", "patients.discharge",
-        "forms.view", "forms.edit",
+        "forms.view", "forms.edit", "forms.sign",
         "templates.view", "templates.manage",
         "categories.manage",
         "consent.manage",
@@ -40,7 +41,7 @@ SYSTEM_ROLE_PERMISSIONS = {
     "technician": [
         "patients.view",   # scoped to assigned (no view_all)
         "patients.edit",
-        "forms.view", "forms.edit",
+        "forms.view", "forms.edit", "forms.sign",
         "consent.manage",
     ],
     "auditor": [
@@ -99,10 +100,7 @@ class User(db.Model):
     username = db.Column(db.String(80), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
 
-    # Legacy role string — kept during migration, will be dropped in a later migration
-    role = db.Column(db.String(30), nullable=True)
-
-    # New permission-based role FK
+    # Permission-based role FK
     role_id = db.Column(db.Integer, db.ForeignKey("role.id"), nullable=True, index=True)
     role_obj = db.relationship("Role", foreign_keys=[role_id], lazy="joined")
 
