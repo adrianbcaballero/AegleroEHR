@@ -152,6 +152,10 @@ def create_template():
         log_access(g.user.id, "TEMPLATE_CREATE", "templates", "FAILED", ip, description="Template creation failed — allowedRoles must be a list")
         return {"error": "allowedRoles must be a list"}, 400
 
+    is_recurring = bool(data.get("isRecurring", False))
+    recurrence_value = int(data["recurrenceValue"]) if data.get("recurrenceValue") else None
+    recurrence_unit = (data.get("recurrenceUnit") or "").strip() or None
+
     t = FormTemplate(
         tenant_id=g.tenant_id,
         name=name,
@@ -159,6 +163,9 @@ def create_template():
         description=(data.get("description") or "").strip() or None,
         fields=fields,
         allowed_roles=allowed_roles,
+        is_recurring=is_recurring,
+        recurrence_value=recurrence_value,
+        recurrence_unit=recurrence_unit,
         status="active",
         created_by=g.user.id,
     )
@@ -210,6 +217,13 @@ def update_template(template_id):
         if status not in {"active", "archived"}:
             return {"error": "status must be active or archived"}, 400
         t.status = status
+
+    if "isRecurring" in data:
+        t.is_recurring = bool(data["isRecurring"])
+    if "recurrenceValue" in data:
+        t.recurrence_value = int(data["recurrenceValue"]) if data["recurrenceValue"] else None
+    if "recurrenceUnit" in data:
+        t.recurrence_unit = (data["recurrenceUnit"] or "").strip() or None
 
     db.session.commit()
 

@@ -79,6 +79,9 @@ function TemplateEditorDialog({
   const [description, setDescription] = useState("")
   const [fields, setFields] = useState<TemplateField[]>([{ label: "", type: "text" }])
   const [allowedRoles, setAllowedRoles] = useState<string[]>(["admin", "psychiatrist", "technician"])
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [recurrenceValue, setRecurrenceValue] = useState("8")
+  const [recurrenceUnit, setRecurrenceUnit] = useState("hours")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -89,6 +92,19 @@ function TemplateEditorDialog({
         setCategory(existing.category)
         setDescription(existing.description || "")
         setFields(existing.fields.length > 0 ? existing.fields : [{ label: "", type: "text" }])
+        setIsRecurring(existing.isRecurring)
+        // stored value is always total hours — decode back to best unit
+        const storedHours = existing.recurrenceValue || 8
+        if (storedHours % 168 === 0) {
+          setRecurrenceValue(String(storedHours / 168))
+          setRecurrenceUnit("weeks")
+        } else if (storedHours % 24 === 0) {
+          setRecurrenceValue(String(storedHours / 24))
+          setRecurrenceUnit("days")
+        } else {
+          setRecurrenceValue(String(storedHours))
+          setRecurrenceUnit("hours")
+        }
       })
     }
   }, [open, existing])
@@ -115,6 +131,7 @@ function TemplateEditorDialog({
     if (!category) { setError("Category is required"); return }
     if (fields.some((f) => !f.label.trim())) { setError("All fields need a label"); return }
     if (allowedRoles.length === 0) { setError("At least one role must be selected"); return }
+    if (isRecurring && (!recurrenceValue || parseInt(recurrenceValue) < 1)) { setError("Recurring interval must be at least 1"); return }
 
     setLoading(true)
     setError("")
@@ -129,12 +146,18 @@ function TemplateEditorDialog({
       return field
     })
 
+    const hoursMap: Record<string, number> = { hours: 1, days: 24, weeks: 168 }
+    const totalHours = isRecurring ? parseInt(recurrenceValue) * (hoursMap[recurrenceUnit] ?? 1) : null
+
     const payload = {
       name: name.trim(),
       category,
       description: description.trim() || undefined,
       fields: cleanFields,
       allowedRoles,
+      isRecurring,
+      recurrenceValue: totalHours,
+      recurrenceUnit: isRecurring ? "hours" : null,
     }
 
     const promise = existing
@@ -202,6 +225,37 @@ function TemplateEditorDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          {/* Recurring Schedule */}
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Checkbox checked={isRecurring} onCheckedChange={(v) => setIsRecurring(!!v)} />
+              <span className="text-sm font-medium text-foreground">Recurring form</span>
+            </label>
+            {isRecurring && (
+              <div className="flex items-center gap-2 pl-6">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Every</span>
+                <Input
+                  type="number"
+                  min={1}
+                  value={recurrenceValue}
+                  onChange={(e) => setRecurrenceValue(e.target.value)}
+                  className="w-20"
+                />
+                <Select value={recurrenceUnit} onValueChange={setRecurrenceUnit}>
+                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hours">Hours</SelectItem>
+                    <SelectItem value="days">Days</SelectItem>
+                    <SelectItem value="weeks">Weeks</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground pl-6">
+              {isRecurring ? "A new draft will be auto-created each time the interval elapses." : "One-time form — created manually per patient."}
+            </p>
           </div>
 
           {/* Role Visibility */}

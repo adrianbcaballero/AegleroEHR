@@ -341,6 +341,9 @@ export function createTemplate(data: {
   description?: string
   fields: TemplateField[]
   allowedRoles: string[]
+  isRecurring?: boolean
+  recurrenceValue?: number | null
+  recurrenceUnit?: string | null
 }) {
   return apiPost<FormTemplate>("/api/templates", data)
 }
@@ -352,6 +355,9 @@ export function updateTemplate(templateId: number, data: {
   fields?: TemplateField[]
   allowedRoles?: string[]
   status?: string
+  isRecurring?: boolean
+  recurrenceValue?: number | null
+  recurrenceUnit?: string | null
 }) {
   return apiPut<FormTemplate>(`/api/templates/${templateId}`, data)
 }
