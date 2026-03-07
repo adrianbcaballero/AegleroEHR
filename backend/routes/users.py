@@ -28,7 +28,7 @@ def _serialize_user(u: User):
 
 
 @users_bp.get("")
-@require_auth(roles=["admin"])
+@require_auth(permission="users.manage")
 def list_users():
     """
     GET /api/users
@@ -40,7 +40,7 @@ def list_users():
 
 
 @users_bp.post("/<int:user_id>/unlock")
-@require_auth(roles=["admin"])
+@require_auth(permission="users.manage")
 def unlock_user(user_id: int):
     """
     POST /api/users/:id/unlock
@@ -62,7 +62,7 @@ def unlock_user(user_id: int):
 
 
 @users_bp.post("/<int:user_id>/lock")
-@require_auth(roles=["admin"])
+@require_auth(permission="users.manage")
 def lock_user(user_id: int):
     """
     POST /api/users/:id/lock
@@ -86,7 +86,7 @@ def lock_user(user_id: int):
 
 
 @users_bp.put("/<int:user_id>/reset-password")
-@require_auth(roles=["admin"])
+@require_auth(permission="users.manage")
 def reset_password(user_id: int):
     """
     PUT /api/users/:id/reset-password
@@ -119,7 +119,7 @@ def reset_password(user_id: int):
 
 
 @users_bp.put("/<int:user_id>")
-@require_auth(roles=["admin"])
+@require_auth(permission="users.manage")
 def update_user(user_id: int):
     """
     PUT /api/users/:id
@@ -173,7 +173,7 @@ def update_user(user_id: int):
     return {"ok": True, "user": _serialize_user(u)}, 200
 
 @users_bp.post("/")
-@require_auth(roles=["admin"])
+@require_auth(permission="users.manage")
 def create_user():
     """
     POST /api/users

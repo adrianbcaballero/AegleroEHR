@@ -27,7 +27,7 @@ def _parse_date(value):
 
 
 @audit_bp.get("/logs")
-@require_auth(roles=["admin"])
+@require_auth(permission="audit.view")
 def get_audit_logs():
 
     user_id = request.args.get("user_id")
@@ -107,7 +107,7 @@ def get_audit_logs():
 
 
 @audit_bp.get("/stats")
-@require_auth(roles=["admin"])
+@require_auth(permission="audit.view")
 def get_audit_stats():
     """
     GET /api/audit/stats
@@ -155,7 +155,7 @@ def get_audit_stats():
 
 
 @audit_bp.get("/export")
-@require_auth(roles=["admin"])
+@require_auth(permission="audit.view")
 def export_audit_logs():
     """
     GET /api/audit/export?status=...&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD

@@ -80,17 +80,15 @@ def _serialize_patient(p: Patient):
 
 def _apply_rbac(query):
     """
-    technician: only assigned patients
-    psychiatrist/admin: all patients
+    Users without patients.view_all only see their assigned patients.
     """
-    role = g.user.role
-    if role == "technician":
+    if not g.user.has_permission("patients.view_all"):
         return query.filter(Patient.assigned_provider_id == g.user.id)
     return query
 
 
 @patients_bp.get("")
-@require_auth(roles=["technician", "psychiatrist", "admin"])
+@require_auth(permission="patients.view")
 def list_patients():
     """
     GET /api/patients?search=name&status=active&risk_level=high
@@ -126,7 +124,7 @@ def list_patients():
 
 
 @patients_bp.get("/<patient_id>")
-@require_auth(roles=["technician", "psychiatrist", "admin"])
+@require_auth(permission="patients.view")
 def get_patient(patient_id):
     """
     Supports:
@@ -141,7 +139,7 @@ def get_patient(patient_id):
         log_access(g.user.id, "PATIENT_GET", f"patient/{patient_id}", "FAILED", ip, description=f"Patient '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
-    if g.user.role == "technician":
+    if not g.user.has_permission("patients.view_all"):
         if not p.assigned_provider_id or p.assigned_provider_id != g.user.id:
             log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not assigned provider")
             return {"error": "forbidden"}, 403
@@ -153,7 +151,7 @@ def get_patient(patient_id):
 
 
 @patients_bp.post("")
-@require_auth(roles=["psychiatrist", "admin"])
+@require_auth(permission="patients.create")
 def create_patient():
     """
     POST /api/patients
@@ -195,8 +193,8 @@ def create_patient():
     #assigned provider handling
     assigned_provider_id = data.get("assignedProviderId")
 
-    if g.user.role == "technician":
-        # technicians can only assign to themselves (or leave null -> force to self)
+    if not g.user.has_permission("patients.view_all"):
+        # restricted users can only assign to themselves
         assigned_provider_id = g.user.id
 
     # If psychiatrist/admin set it, ensure it's valid if provided
@@ -280,7 +278,7 @@ def create_patient():
 
 
 @patients_bp.put("/<patient_id>")
-@require_auth(roles=["technician", "psychiatrist", "admin"])
+@require_auth(permission="patients.edit")
 def update_patient(patient_id):
     """
     PUT /api/patients/<PT-001 or db id>
@@ -294,8 +292,7 @@ def update_patient(patient_id):
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{patient_id}", "FAILED", ip, description=f"Patient update failed — '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
-    #technician can only update assigned
-    if g.user.role == "technician" and p.assigned_provider_id != g.user.id:
+    if not g.user.has_permission("patients.view_all") and p.assigned_provider_id != g.user.id:
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not assigned provider")
         return {"error": "forbidden"}, 403
 
@@ -342,11 +339,9 @@ def update_patient(patient_id):
             return {"error": f"riskLevel must be one of {sorted(VALID_RISK)}"}, 400
         p.risk_level = risk
 
-    #Provider assignment rules
     if "assignedProviderId" in data:
-        if g.user.role == "technician":
-            #technicians cannot reassign
-            return {"error": "technician cannot change assignedProviderId"}, 403
+        if not g.user.has_permission("patients.view_all"):
+            return {"error": "forbidden — cannot change assignedProviderId"}, 403
 
         apid = data.get("assignedProviderId")
         if apid is None or apid == "":
@@ -435,7 +430,7 @@ VALID_DISCHARGE_REASONS = {"completed", "ama", "transferred", "other"}
 
 
 @patients_bp.post("/<patient_id>/admit")
-@require_auth(roles=["admin", "psychiatrist"])
+@require_auth(permission="patients.admit")
 def admit_patient(patient_id):
     ip = client_ip()
     p = get_patient_by_id_or_code(patient_id)
@@ -477,7 +472,7 @@ def admit_patient(patient_id):
 
 
 @patients_bp.post("/<patient_id>/discharge")
-@require_auth(roles=["admin", "psychiatrist"])
+@require_auth(permission="patients.discharge")
 def discharge_patient(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -545,7 +540,7 @@ def discharge_patient(patient_id):
 # ─── ARCHIVE ───
 
 @patients_bp.get("/archive/search")
-@require_auth(roles=["admin", "psychiatrist", "technician"])
+@require_auth(permission="patients.view")
 def search_archive():
     """
     GET /api/patients/archive/search?q=name&ssn=1234

@@ -74,10 +74,9 @@ def get_patient_by_id_or_code(patient_id: str) -> Patient | None:
 
 def check_patient_access(patient: Patient) -> bool:
     """
-    RBAC check: technicians can only access their assigned patients.
-    Psychiatrists and admins can access any patient.
+    Scoping check: users without patients.view_all can only access their assigned patients.
     """
-    if g.user.role == "technician" and patient.assigned_provider_id != g.user.id:
+    if not g.user.has_permission("patients.view_all") and patient.assigned_provider_id != g.user.id:
         return False
     return True
 

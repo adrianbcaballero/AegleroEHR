@@ -83,7 +83,7 @@ def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler
 # ─── TEMPLATE ENDPOINTS (admin + psychiatrist) ───
 
 @forms_bp.get("/templates")
-@require_auth(roles=["admin", "psychiatrist"])
+@require_auth(permission="templates.view")
 def list_templates():
     ip = client_ip()
     status_filter = (request.args.get("status") or "").strip()
@@ -113,7 +113,7 @@ def list_templates():
 
 
 @forms_bp.get("/templates/<int:template_id>")
-@require_auth(roles=["admin", "psychiatrist"])
+@require_auth(permission="templates.view")
 def get_template(template_id):
     ip = client_ip()
     t = tenant_query(FormTemplate).filter_by(id=template_id).first()
@@ -128,7 +128,7 @@ def get_template(template_id):
 
 
 @forms_bp.post("/templates")
-@require_auth(roles=["admin", "psychiatrist"])
+@require_auth(permission="templates.manage")
 def create_template():
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -184,7 +184,7 @@ def create_template():
 
 
 @forms_bp.put("/templates/<int:template_id>")
-@require_auth(roles=["admin", "psychiatrist"])
+@require_auth(permission="templates.manage")
 def update_template(template_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -243,7 +243,7 @@ def update_template(template_id):
 
 
 @forms_bp.delete("/templates/<int:template_id>")
-@require_auth(roles=["admin", "psychiatrist"])
+@require_auth(permission="templates.manage")
 def delete_template(template_id):
     ip = client_ip()
 
@@ -326,7 +326,7 @@ def _maybe_generate_recurring_forms(p: Patient, user_role: str, tenant_id: int):
 # ─── PATIENT FORM ENDPOINTS ───
 
 @forms_bp.get("/patients/<patient_id>/forms")
-@require_auth(roles=["admin", "psychiatrist", "technician"])
+@require_auth(permission="forms.view")
 def list_patient_forms(patient_id):
     ip = client_ip()
 
@@ -339,7 +339,7 @@ def list_patient_forms(patient_id):
         log_access(g.user.id, "FORM_LIST", f"patient/{p.patient_code}/forms", "FAILED", ip, description=f"Access denied to forms for patient {p.patient_code}")
         return {"error": "forbidden"}, 403
 
-    _maybe_generate_recurring_forms(p, g.user.role, g.tenant_id)
+    _maybe_generate_recurring_forms(p, g.user.role_name, g.tenant_id)
 
     forms = (
         PatientForm.query
@@ -354,7 +354,7 @@ def list_patient_forms(patient_id):
     templates_map = {t.id: t for t in FormTemplate.query.filter(FormTemplate.id.in_(template_ids)).all()} if template_ids else {}
     users_map = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
 
-    user_role = g.user.role
+    user_role = g.user.role_name
     result = []
     for f in forms:
         template = templates_map.get(f.template_id)
@@ -366,7 +366,7 @@ def list_patient_forms(patient_id):
 
 
 @forms_bp.get("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(roles=["admin", "psychiatrist", "technician"])
+@require_auth(permission="forms.view")
 def get_patient_form(patient_id, form_id):
     ip = client_ip()
 
@@ -386,8 +386,8 @@ def get_patient_form(patient_id, form_id):
 
     # Check role visibility
     template = FormTemplate.query.get(f.template_id)
-    if template and g.user.role not in (template.allowed_roles or []):
-        log_access(g.user.id, "FORM_GET", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Role '{g.user.role}' not allowed to view form #{form_id}")
+    if template and g.user.role_name not in (template.allowed_roles or []):
+        log_access(g.user.id, "FORM_GET", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Role '{g.user.role_name}' not allowed to view form #{form_id}")
         return {"error": "forbidden"}, 403
 
     filler = User.query.get(f.filled_by) if f.filled_by else None
@@ -399,7 +399,7 @@ def get_patient_form(patient_id, form_id):
 
 
 @forms_bp.post("/patients/<patient_id>/forms")
-@require_auth(roles=["admin", "psychiatrist", "technician"])
+@require_auth(permission="forms.edit")
 def create_patient_form(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -451,7 +451,7 @@ def create_patient_form(patient_id):
 
 
 @forms_bp.put("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(roles=["admin", "psychiatrist", "technician"])
+@require_auth(permission="forms.edit")
 def update_patient_form(patient_id, form_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -504,7 +504,7 @@ def update_patient_form(patient_id, form_id):
     return _serialize_form(f, template=template, filler=filler), 200
 
 @forms_bp.delete("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(roles=["admin", "psychiatrist", "technician"])
+@require_auth(permission="forms.edit")
 def delete_patient_form(patient_id, form_id):
     ip = client_ip()
 
