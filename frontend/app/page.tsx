@@ -7,6 +7,8 @@ import { LoginPage } from "@/components/login-page"
 import type { UserRole } from "@/components/login-page"
 import { DashboardView } from "@/components/dashboard-view"
 import { PatientsView } from "@/components/patients-view"
+import { FrontDeskView } from "@/components/front-desk-view"
+import { ArchiveView } from "@/components/archive-view"
 import { WorkflowsView } from "@/components/workflows-view"
 import { SystemLogsView } from "@/components/system-logs-view"
 import { ManageUsersView } from "@/components/manage-users-view"
@@ -84,6 +86,10 @@ export default function EHRApp() {
             userRole={userRole}
           />
         )
+      case "Front Desk":
+        return <FrontDeskView userRole={userRole} />
+      case "Archive":
+        return <ArchiveView userRole={userRole} />
       case "Workflows":
         return <WorkflowsView userRole={userRole} />
       case "System Logs":

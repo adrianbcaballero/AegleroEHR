@@ -891,7 +891,7 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
 }
 
 // ------- Patient Profile View -------
-function PatientProfileView({
+export function PatientProfileView({
   patientId,
   onBack,
   userRole,

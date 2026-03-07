@@ -18,6 +18,8 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  ClipboardList,
+  Archive,
 } from "lucide-react"
 import {
   Sidebar,
@@ -229,7 +231,9 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
 
 const allMainNavItems = [
   { title: "Dashboard", icon: LayoutDashboard, roles: ["psychiatrist", "technician", "admin"] },
+  { title: "Front Desk", icon: ClipboardList, roles: ["psychiatrist", "technician", "admin"] },
   { title: "Patients", icon: Users, roles: ["psychiatrist", "technician", "admin"] },
+  { title: "Archive", icon: Archive, roles: ["psychiatrist", "technician", "admin"] },
 ]
 
 const adminNavItems = [
