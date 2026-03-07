@@ -1,14 +1,15 @@
+from datetime import datetime, timezone
 from flask import Blueprint, request, g
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
 from auth_middleware import require_auth
 from extensions import db
-from models import Patient, User
+from models import Patient, User, FormTemplate, PatientForm
 
 import re
 from services.audit_logger import log_access
-from services.helpers import client_ip, parse_date_iso, get_patient_by_id_or_code, check_patient_access, provider_display_name, tenant_query 
+from services.helpers import client_ip, parse_date_iso, get_patient_by_id_or_code, check_patient_access, provider_display_name, tenant_query
 
 
 patients_bp = Blueprint("patients", __name__, url_prefix="/api/patients")
@@ -71,6 +72,9 @@ def _serialize_patient(p: Patient):
         "primaryCarePhysician": p.primary_care_physician,
         "pharmacy": p.pharmacy,
         "currentLoc": p.current_loc,
+        "admittedAt": p.admitted_at.isoformat() if p.admitted_at else None,
+        "dischargedAt": p.discharged_at.isoformat() if p.discharged_at else None,
+        "dischargeReason": p.discharge_reason,
     }
 
 
@@ -422,5 +426,86 @@ def update_patient(patient_id):
 
     updated_fields = [k for k in data.keys() if k != "patientCode"]
     log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "SUCCESS", ip, description=f"Updated patient {p.first_name} {p.last_name} ({p.patient_code}) — fields: {', '.join(updated_fields)}")
+    return _serialize_patient(p), 200
+
+
+# ─── ADMISSION / DISCHARGE ───
+
+VALID_DISCHARGE_REASONS = {"completed", "ama", "transferred", "other"}
+
+
+@patients_bp.post("/<patient_id>/admit")
+@require_auth(roles=["admin", "psychiatrist"])
+def admit_patient(patient_id):
+    ip = client_ip()
+    p = get_patient_by_id_or_code(patient_id)
+    if not p:
+        log_access(g.user.id, "PATIENT_ADMIT", f"patient/{patient_id}", "FAILED", ip, description="Patient not found")
+        return {"error": "patient not found"}, 404
+    if not check_patient_access(p):
+        return {"error": "forbidden"}, 403
+    if p.status == "active" and p.admitted_at:
+        return {"error": "patient is already admitted"}, 409
+
+    is_readmit = p.discharged_at is not None
+    p.admitted_at = datetime.now(timezone.utc)
+    p.discharged_at = None
+    p.discharge_reason = None
+    p.status = "active"
+    db.session.commit()
+
+    action = "PATIENT_READMIT" if is_readmit else "PATIENT_ADMIT"
+    log_access(g.user.id, action, f"patient/{p.patient_code}", "SUCCESS", ip,
+               description=f"{'Readmitted' if is_readmit else 'Admitted'} {p.first_name} {p.last_name} ({p.patient_code})")
+    return _serialize_patient(p), 200
+
+
+@patients_bp.post("/<patient_id>/discharge")
+@require_auth(roles=["admin", "psychiatrist"])
+def discharge_patient(patient_id):
+    ip = client_ip()
+    data = request.get_json(silent=True) or {}
+
+    p = get_patient_by_id_or_code(patient_id)
+    if not p:
+        log_access(g.user.id, "PATIENT_DISCHARGE", f"patient/{patient_id}", "FAILED", ip, description="Patient not found")
+        return {"error": "patient not found"}, 404
+    if not check_patient_access(p):
+        return {"error": "forbidden"}, 403
+    if p.status != "active":
+        return {"error": "patient is not currently admitted"}, 409
+
+    reason = (data.get("reason") or "other").strip().lower()
+    if reason not in VALID_DISCHARGE_REASONS:
+        return {"error": f"reason must be one of {sorted(VALID_DISCHARGE_REASONS)}"}, 400
+
+    p.discharged_at = datetime.now(timezone.utc)
+    p.discharge_reason = reason
+    p.status = "inactive"
+    db.session.commit()
+
+    # Auto-create a Discharge Summary draft if the template exists and no open draft
+    discharge_template = (
+        FormTemplate.query
+        .filter_by(tenant_id=g.tenant_id, name="Discharge Summary", status="active")
+        .first()
+    )
+    if discharge_template:
+        existing_draft = PatientForm.query.filter_by(
+            patient_id=p.id, template_id=discharge_template.id, status="draft"
+        ).first()
+        if not existing_draft:
+            db.session.add(PatientForm(
+                tenant_id=g.tenant_id,
+                patient_id=p.id,
+                template_id=discharge_template.id,
+                form_data={},
+                status="draft",
+            ))
+            db.session.commit()
+
+    reason_labels = {"completed": "Completed Treatment", "ama": "AMA", "transferred": "Transferred", "other": "Other"}
+    log_access(g.user.id, "PATIENT_DISCHARGE", f"patient/{p.patient_code}", "SUCCESS", ip,
+               description=f"Discharged {p.first_name} {p.last_name} ({p.patient_code}) — reason: {reason_labels.get(reason, reason)}")
     return _serialize_patient(p), 200
 

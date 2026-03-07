@@ -108,6 +108,14 @@ export function updatePatient(patientCode: string, data: Record<string, unknown>
   return apiPut<Patient>(`/api/patients/${patientCode}`, data)
 }
 
+export function admitPatient(patientCode: string) {
+  return apiPost<Patient>(`/api/patients/${patientCode}/admit`)
+}
+
+export function dischargePatient(patientCode: string, reason: string) {
+  return apiPost<Patient>(`/api/patients/${patientCode}/discharge`, { reason })
+}
+
 // Shared types
 export interface Patient {
   id: string
@@ -121,6 +129,9 @@ export interface Patient {
   insurance: string | null
   riskLevel: string
   currentLoc: string | null
+  admittedAt: string | null
+  dischargedAt: string | null
+  dischargeReason: string | null
   assignedProvider: string | null
   ssnLast4: string | null
   gender: string | null
