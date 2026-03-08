@@ -12,6 +12,7 @@ import { ArchiveView } from "@/components/archive-view"
 import { WorkflowsView } from "@/components/workflows-view"
 import { SystemLogsView } from "@/components/system-logs-view"
 import { ManageUsersView } from "@/components/manage-users-view"
+import { ManageRolesView } from "@/components/manage-roles-view"
 import { SettingsView } from "@/components/settings-view"
 import { HelpView } from "@/components/help-view"
 import { HIPAAComplianceGuidelines } from "@/components/hipaa-compliance-guidelines"
@@ -96,6 +97,8 @@ export default function EHRApp() {
         return <SystemLogsView />
       case "Manage Users":
         return <ManageUsersView />
+      case "Manage Roles":
+        return <ManageRolesView />
       case "Settings":
         return <SettingsView />
       case "Help & Support":

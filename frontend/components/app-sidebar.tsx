@@ -11,6 +11,7 @@ import {
   HelpCircle,
   LogOut,
   ChevronDown,
+  Shield,
   ShieldCheck,
   GitBranch,
   UserCog,
@@ -239,6 +240,7 @@ const allMainNavItems = [
 const adminNavItems = [
   { title: "Workflows", icon: GitBranch, roles: ["admin", "psychiatrist"] },
   { title: "Manage Users", icon: UserCog, roles: ["admin"] },
+  { title: "Manage Roles", icon: Shield, roles: ["admin"] },
   { title: "System Logs", icon: ScrollText, roles: ["admin"] },
   { title: "Settings", icon: Settings, roles: ["admin"] },
 ]

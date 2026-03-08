@@ -222,7 +222,10 @@ export function getAuditStats() {
 export interface SystemUser {
   id: number
   username: string
-  role: string
+  roleId: number
+  roleName: string
+  roleDisplayName: string
+  credentials: string[]
   full_name: string | null
   failed_attempts: number
   is_locked: boolean
@@ -239,11 +242,11 @@ export function lockUser(userId: number) {
   return apiPost<{ ok: boolean }>(`/api/users/${userId}/lock`, {})
 }
 
-export function updateUser(userId: number, data: { username?: string; role?: string; full_name?: string }) {
+export function updateUser(userId: number, data: { username?: string; roleId?: number; full_name?: string; credentials?: string[] }) {
   return apiPut<{ ok: boolean; user: SystemUser }>(`/api/users/${userId}`, data)
 }
 
-export function createUser(data: { username: string; password: string; role: string; full_name?: string }) {
+export function createUser(data: { username: string; password: string; roleId: number; full_name?: string; credentials?: string[] }) {
   return apiPost<{ ok: boolean; user: SystemUser }>("/api/users", data)
 }
 
@@ -478,6 +481,37 @@ export interface TenantInfo {
 
 export function getTenant() {
   return apiGet<TenantInfo>("/api/tenant")
+}
+
+
+// Role management
+export interface Role {
+  id: number
+  name: string
+  displayName: string
+  isSystemDefault: boolean
+  permissions: string[]
+  userCount: number
+}
+
+export function getRoles() {
+  return apiGet<Role[]>("/api/roles")
+}
+
+export function getPermissions() {
+  return apiGet<{ permissions: string[] }>("/api/roles/permissions")
+}
+
+export function createRole(data: { name: string; displayName: string; permissions: string[] }) {
+  return apiPost<Role>("/api/roles", data)
+}
+
+export function updateRole(roleId: number, data: { displayName?: string; permissions?: string[] }) {
+  return apiPut<Role>(`/api/roles/${roleId}`, data)
+}
+
+export function deleteRole(roleId: number) {
+  return apiDelete<{ ok: boolean }>(`/api/roles/${roleId}`)
 }
 
 

@@ -10,10 +10,10 @@ import {
   Unlock,
   MoreHorizontal,
   Loader2,
-  AlertTriangle,
   KeyRound,
   Pencil,
   Plus,
+  X,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -50,14 +50,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword } from "@/lib/api"
-import type { SystemUser } from "@/lib/api"
+import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword, getRoles } from "@/lib/api"
+import type { SystemUser, Role } from "@/lib/api"
 
-const roleColors: Record<string, string> = {
-  admin: "bg-destructive/10 text-destructive",
-  psychiatrist: "bg-primary/10 text-primary",
-  technician: "bg-accent/10 text-accent",
-}
+// Credentials available for behavioral health facilities in Texas
+const ALL_CREDENTIALS = [
+  "MD", "DO", "PhD", "PsyD", "EdD",
+  "RN", "LVN", "APRN", "NP", "CRNA",
+  "LCSW", "LPC", "LMFT", "LMHC",
+  "LCDC", "LCDC-I", "CADC", "CADC-II",
+  "LAC", "MAC",
+  "PMHNP-BC", "CNS",
+  "MSW", "MFT",
+  "NHA", "LNHA",
+  "BCBA", "BCaBA",
+  "CMA", "CNA",
+  "CCTP", "CCDP",
+  "CHC", "CHW",
+]
 
 function getInitials(user: SystemUser): string {
   if (user.full_name) {
@@ -66,50 +76,135 @@ function getInitials(user: SystemUser): string {
   return user.username.slice(0, 2).toUpperCase()
 }
 
+// ─── Credential selector ───────────────────────────────────────────────────
+
+function CredentialSelector({
+  selected,
+  onChange,
+  disabled,
+}: {
+  selected: string[]
+  onChange: (creds: string[]) => void
+  disabled?: boolean
+}) {
+  const [search, setSearch] = useState("")
+
+  const filtered = ALL_CREDENTIALS.filter(
+    (c) => c.toLowerCase().includes(search.toLowerCase()) && !selected.includes(c)
+  )
+
+  return (
+    <div className="flex flex-col gap-2">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((c) => (
+            <Badge key={c} variant="secondary" className="text-xs bg-primary/10 text-primary gap-1">
+              {c}
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => onChange(selected.filter((x) => x !== c))}
+                  className="ml-0.5 hover:text-destructive transition-colors"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {!disabled && (
+        <div className="flex flex-col gap-1">
+          <Input
+            placeholder="Search credentials..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 text-sm"
+          />
+          {search && filtered.length > 0 && (
+            <div className="rounded-md border border-border bg-card max-h-36 overflow-y-auto">
+              {filtered.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+                  onClick={() => { onChange([...selected, c]); setSearch("") }}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          {search && filtered.length === 0 && (
+            <p className="text-xs text-muted-foreground px-1">No matching credentials</p>
+          )}
+        </div>
+      )}
+      {selected.length === 0 && !search && (
+        <p className="text-xs text-muted-foreground">No credentials added yet. Search above to add.</p>
+      )}
+    </div>
+  )
+}
+
+// ─── Main view ─────────────────────────────────────────────────────────────
+
 export function ManageUsersView() {
   const [users, setUsers] = useState<SystemUser[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [actionLoading, setActionLoading] = useState<number | null>(null)
+
+  // Reset password
   const [resetDialogUser, setResetDialogUser] = useState<SystemUser | null>(null)
-  const [editDialogUser, setEditDialogUser] = useState<SystemUser | null>(null)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [createUsername, setCreateUsername] = useState("")
-  const [createPassword, setCreatePassword] = useState("")
-  const [createRole, setCreateRole] = useState("technician")
-  const [createFullName, setCreateFullName] = useState("")
-  const [createError, setCreateError] = useState("")
-  const [createLoading, setCreateLoading] = useState(false)
-  const [editUsername, setEditUsername] = useState("")
-  const [editRole, setEditRole] = useState("")
-  const [editFullName, setEditFullName] = useState("")
-  const [editError, setEditError] = useState("")
-  const [editLoading, setEditLoading] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const [resetError, setResetError] = useState("")
   const [resetLoading, setResetLoading] = useState(false)
 
-  const fetchUsers = () => {
+  // Edit user
+  const [editDialogUser, setEditDialogUser] = useState<SystemUser | null>(null)
+  const [editUsername, setEditUsername] = useState("")
+  const [editRoleId, setEditRoleId] = useState<number | null>(null)
+  const [editFullName, setEditFullName] = useState("")
+  const [editCredentials, setEditCredentials] = useState<string[]>([])
+  const [editError, setEditError] = useState("")
+  const [editLoading, setEditLoading] = useState(false)
+
+  // Create user
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [createUsername, setCreateUsername] = useState("")
+  const [createPassword, setCreatePassword] = useState("")
+  const [createRoleId, setCreateRoleId] = useState<number | null>(null)
+  const [createFullName, setCreateFullName] = useState("")
+  const [createCredentials, setCreateCredentials] = useState<string[]>([])
+  const [createError, setCreateError] = useState("")
+  const [createLoading, setCreateLoading] = useState(false)
+
+  const fetchAll = () => {
     setLoading(true)
     setError("")
-    getUsers()
-      .then(setUsers)
+    Promise.all([getUsers(), getRoles()])
+      .then(([usersData, rolesData]) => {
+        setUsers(usersData)
+        setRoles(rolesData)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    fetchUsers()
+    fetchAll()
   }, [])
 
   const handleLock = async (userId: number) => {
     setActionLoading(userId)
     try {
       await lockUser(userId)
-      fetchUsers()
+      fetchAll()
     } catch {
-      // silently fail, user can retry
+      // silently fail
     } finally {
       setActionLoading(null)
     }
@@ -119,9 +214,9 @@ export function ManageUsersView() {
     setActionLoading(userId)
     try {
       await unlockUser(userId)
-      fetchUsers()
+      fetchAll()
     } catch {
-      // silently fail, user can retry
+      // silently fail
     } finally {
       setActionLoading(null)
     }
@@ -130,8 +225,9 @@ export function ManageUsersView() {
   const openCreateDialog = () => {
     setCreateUsername("")
     setCreatePassword("")
-    setCreateRole("technician")
+    setCreateRoleId(roles.length > 0 ? roles[0].id : null)
     setCreateFullName("")
+    setCreateCredentials([])
     setCreateError("")
     setShowCreateDialog(true)
   }
@@ -145,6 +241,10 @@ export function ManageUsersView() {
       setCreateError("Password must be at least 8 characters")
       return
     }
+    if (!createRoleId) {
+      setCreateError("Please select a role")
+      return
+    }
 
     setCreateLoading(true)
     setCreateError("")
@@ -153,11 +253,12 @@ export function ManageUsersView() {
       await createUser({
         username: createUsername.trim(),
         password: createPassword,
-        role: createRole,
+        roleId: createRoleId,
         full_name: createFullName.trim() || undefined,
+        credentials: createCredentials,
       })
       setShowCreateDialog(false)
-      fetchUsers()
+      fetchAll()
     } catch (err: unknown) {
       setCreateError(err instanceof Error ? err.message : "Failed to create user")
     } finally {
@@ -168,8 +269,9 @@ export function ManageUsersView() {
   const openEditDialog = (user: SystemUser) => {
     setEditDialogUser(user)
     setEditUsername(user.username)
-    setEditRole(user.role)
+    setEditRoleId(user.roleId)
     setEditFullName(user.full_name || "")
+    setEditCredentials(user.credentials || [])
     setEditError("")
   }
 
@@ -179,14 +281,22 @@ export function ManageUsersView() {
       setEditError("Username must be at least 3 characters")
       return
     }
+    if (!editRoleId) {
+      setEditError("Please select a role")
+      return
+    }
 
     setEditLoading(true)
     setEditError("")
 
-    const updates: { username?: string; role?: string; full_name?: string } = {}
+    const updates: { username?: string; roleId?: number; full_name?: string; credentials?: string[] } = {}
     if (editUsername !== editDialogUser.username) updates.username = editUsername.trim()
-    if (editRole !== editDialogUser.role) updates.role = editRole
+    if (editRoleId !== editDialogUser.roleId) updates.roleId = editRoleId
     if (editFullName !== (editDialogUser.full_name || "")) updates.full_name = editFullName.trim()
+    const credsSame =
+      editCredentials.length === editDialogUser.credentials.length &&
+      editCredentials.every((c) => editDialogUser.credentials.includes(c))
+    if (!credsSame) updates.credentials = editCredentials
 
     if (Object.keys(updates).length === 0) {
       setEditDialogUser(null)
@@ -197,7 +307,7 @@ export function ManageUsersView() {
     try {
       await updateUser(editDialogUser.id, updates)
       setEditDialogUser(null)
-      fetchUsers()
+      fetchAll()
     } catch (err: unknown) {
       setEditError(err instanceof Error ? err.message : "Failed to update user")
     } finally {
@@ -218,7 +328,7 @@ export function ManageUsersView() {
       await resetUserPassword(resetDialogUser.id, newPassword)
       setResetDialogUser(null)
       setNewPassword("")
-      fetchUsers()
+      fetchAll()
     } catch (err: unknown) {
       setResetError(err instanceof Error ? err.message : "Failed to reset password")
     } finally {
@@ -232,13 +342,13 @@ export function ManageUsersView() {
     return (
       user.username.toLowerCase().includes(q) ||
       (user.full_name || "").toLowerCase().includes(q) ||
-      user.role.toLowerCase().includes(q)
+      user.roleDisplayName.toLowerCase().includes(q)
     )
   })
 
   const activeCount = users.filter((u) => !u.is_locked).length
   const lockedCount = users.filter((u) => u.is_locked).length
-  const totalRoles = new Set(users.map((u) => u.role)).size
+  const totalRoles = new Set(users.map((u) => u.roleId)).size
 
   return (
     <div className="flex flex-col gap-6">
@@ -324,7 +434,7 @@ export function ManageUsersView() {
       {error && (
         <div className="text-center py-8">
           <p className="text-sm text-destructive">{error}</p>
-          <Button variant="outline" className="mt-3 bg-transparent text-foreground" onClick={fetchUsers}>
+          <Button variant="outline" className="mt-3 bg-transparent text-foreground" onClick={fetchAll}>
             Retry
           </Button>
         </div>
@@ -344,9 +454,9 @@ export function ManageUsersView() {
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs font-semibold text-muted-foreground">User</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Role</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground hidden lg:table-cell">Credentials</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Failed Attempts</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground hidden lg:table-cell">Locked Until</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
                 </TableRow>
               </TableHeader>
@@ -369,9 +479,22 @@ export function ManageUsersView() {
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <Badge variant="secondary" className={`text-[10px] capitalize ${roleColors[user.role] || "bg-muted text-muted-foreground"}`}>
-                        {user.role}
+                      <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary">
+                        {user.roleDisplayName}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {user.credentials && user.credentials.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {user.credentials.map((c) => (
+                            <Badge key={c} variant="secondary" className="text-[10px] bg-muted text-muted-foreground">
+                              {c}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {user.permanently_locked ? (
@@ -393,11 +516,6 @@ export function ManageUsersView() {
                     <TableCell className="hidden md:table-cell">
                       <span className={`text-sm ${user.failed_attempts > 0 ? "text-chart-4 font-medium" : "text-muted-foreground"}`}>
                         {user.failed_attempts}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <span className="text-xs text-muted-foreground">
-                        {user.locked_until ? new Date(user.locked_until).toLocaleString() : "—"}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -506,9 +624,10 @@ export function ManageUsersView() {
           </div>
         </DialogContent>
       </Dialog>
+
       {/* Edit User Dialog */}
       <Dialog open={!!editDialogUser} onOpenChange={(open) => { if (!open) setEditDialogUser(null) }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Edit User</DialogTitle>
             <DialogDescription>
@@ -536,16 +655,30 @@ export function ManageUsersView() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium text-foreground">Role</Label>
-              <Select value={editRole} onValueChange={setEditRole}>
+              <Select
+                value={editRoleId?.toString() || ""}
+                onValueChange={(v) => { setEditRoleId(Number(v)); setEditError("") }}
+                disabled={editLoading}
+              >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="psychiatrist">Psychiatrist</SelectItem>
-                  <SelectItem value="technician">Technician</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.id.toString()}>
+                      {r.displayName}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium text-foreground">Credentials</Label>
+              <CredentialSelector
+                selected={editCredentials}
+                onChange={setEditCredentials}
+                disabled={editLoading}
+              />
             </div>
             {editError && <p className="text-sm text-destructive">{editError}</p>}
             <div className="flex justify-end gap-2">
@@ -568,9 +701,10 @@ export function ManageUsersView() {
           </div>
         </DialogContent>
       </Dialog>
+
       {/* Create User Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Create User</DialogTitle>
             <DialogDescription>
@@ -608,16 +742,30 @@ export function ManageUsersView() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium text-foreground">Role</Label>
-              <Select value={createRole} onValueChange={setCreateRole}>
+              <Select
+                value={createRoleId?.toString() || ""}
+                onValueChange={(v) => { setCreateRoleId(Number(v)); setCreateError("") }}
+                disabled={createLoading}
+              >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="psychiatrist">Psychiatrist</SelectItem>
-                  <SelectItem value="technician">Technician</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.id.toString()}>
+                      {r.displayName}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium text-foreground">Credentials</Label>
+              <CredentialSelector
+                selected={createCredentials}
+                onChange={setCreateCredentials}
+                disabled={createLoading}
+              />
             </div>
             {createError && <p className="text-sm text-destructive">{createError}</p>}
             <div className="flex justify-end gap-2">

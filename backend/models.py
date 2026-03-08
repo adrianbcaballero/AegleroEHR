@@ -199,6 +199,14 @@ class Patient(db.Model):
 
     assigned_provider_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
+    # Bed assignment — FK to bed.id, null if unassigned
+    assigned_bed_id = db.Column(db.Integer, db.ForeignKey("bed.id"), nullable=True)
+    assigned_bed = db.relationship(
+        "Bed",
+        backref=db.backref("current_patient", uselist=False),
+        foreign_keys=[assigned_bed_id],
+    )
+
     # ASAM Level of Care — updated automatically when ASAM assessment form is completed
     current_loc = db.Column(db.String(10), nullable=True)
 
@@ -217,6 +225,39 @@ class UserSession(db.Model):
     session_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+
+
+class Bed(db.Model):
+    """
+    Physical bed inventory for the tenant.
+    Occupied status is derived: if current_patient (backref from Patient.assigned_bed_id)
+    exists and patient.status == 'active', the bed is occupied.
+    """
+    __tablename__ = "bed"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
+
+    # Physical location hierarchy
+    unit = db.Column(db.String(80), nullable=True)       # e.g. "Men's Detox", "Women's Detox"
+    room = db.Column(db.String(20), nullable=True)       # e.g. "101"
+    bed_label = db.Column(db.String(10), nullable=True)  # e.g. "A", "B"
+
+    # Admin-supplied display label shown on the bed board (e.g. "101-A", "Bed 3")
+    display_name = db.Column(db.String(50), nullable=False)
+
+    # Optional notes for staff (e.g. "medical bed", "isolation room")
+    notes = db.Column(db.String(200), nullable=True)
+
+    # Availability status — "occupied" is derived, not stored here
+    # available | cleaning | out_of_service
+    status = db.Column(db.String(20), nullable=False, default="available")
+
+    # False = decommissioned; excluded from capacity count and active bed board
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    # Display ordering within a unit
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
 
 
 class AuditLog(db.Model):

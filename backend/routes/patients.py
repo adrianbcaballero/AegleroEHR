@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from auth_middleware import require_auth
 from extensions import db
-from models import Patient, User, FormTemplate, PatientForm
+from models import Patient, User, FormTemplate, PatientForm, Bed
 
 import re
 from services.audit_logger import log_access
@@ -72,6 +72,7 @@ def _serialize_patient(p: Patient):
         "primaryCarePhysician": p.primary_care_physician,
         "pharmacy": p.pharmacy,
         "currentLoc": p.current_loc,
+        "assignedBedId": p.assigned_bed_id,
         "admittedAt": p.admitted_at.isoformat() if p.admitted_at else None,
         "dischargedAt": p.discharged_at.isoformat() if p.discharged_at else None,
         "dischargeReason": p.discharge_reason,
@@ -433,6 +434,7 @@ VALID_DISCHARGE_REASONS = {"completed", "ama", "transferred", "other"}
 @require_auth(permission="patients.admit")
 def admit_patient(patient_id):
     ip = client_ip()
+    data = request.get_json(silent=True) or {}
     p = get_patient_by_id_or_code(patient_id)
     if not p:
         log_access(g.user.id, "PATIENT_ADMIT", f"patient/{patient_id}", "FAILED", ip, description="Patient not found")
@@ -463,6 +465,19 @@ def admit_patient(patient_id):
     p.discharged_at = None
     p.discharge_reason = None
     p.status = "active"
+
+    # Optional bed assignment on admit
+    bed_id = data.get("bedId")
+    if bed_id:
+        bed = Bed.query.filter_by(id=bed_id, tenant_id=g.tenant_id, is_active=True).first()
+        if not bed:
+            return {"error": "bed not found"}, 404
+        current = bed.current_patient
+        if current and current.status == "active" and current.id != p.id:
+            return {"error": f"bed is already occupied by {current.first_name} {current.last_name}"}, 409
+        p.assigned_bed_id = bed_id
+        bed.status = "available"
+
     db.session.commit()
 
     action = "PATIENT_READMIT" if is_readmit else "PATIENT_ADMIT"
@@ -509,6 +524,14 @@ def discharge_patient(patient_id):
     p.discharged_at = datetime.now(timezone.utc)
     p.discharge_reason = reason
     p.status = "inactive"
+
+    # Release bed — mark it as cleaning so staff can turn it around
+    if p.assigned_bed_id:
+        bed = Bed.query.get(p.assigned_bed_id)
+        if bed:
+            bed.status = "cleaning"
+        p.assigned_bed_id = None
+
     db.session.commit()
 
     # Auto-create a Discharge Summary draft if the template exists and no open draft
