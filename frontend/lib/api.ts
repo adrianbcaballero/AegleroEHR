@@ -515,6 +515,39 @@ export function deleteRole(roleId: number) {
 }
 
 
+// Bed management
+export interface BedPatient {
+  id: string
+  firstName: string
+  lastName: string
+  admittedAt: string | null
+  primaryDiagnosis: string | null
+  insurance: string | null
+  riskLevel: string
+}
+
+export interface Bed {
+  id: number
+  unit: string | null
+  room: string | null
+  bedLabel: string | null
+  displayName: string
+  notes: string | null
+  status: "available" | "occupied" | "cleaning" | "out_of_service"
+  isActive: boolean
+  sortOrder: number
+  patient: BedPatient | null
+}
+
+export function getBeds() {
+  return apiGet<Bed[]>("/api/beds")
+}
+
+export function assignBed(bedId: number, patientCode: string | null) {
+  return apiPut<Bed>(`/api/beds/${bedId}/assign`, patientCode ? { patientCode } : {})
+}
+
+
 // Category management
 export interface CategoriesResponse {
   categories: string[]

@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from werkzeug.security import generate_password_hash
 from app import create_app
 from extensions import db
-from models import Tenant, User, Patient, AuditLog, FormTemplate, PatientForm
+from models import Tenant, User, Patient, AuditLog, FormTemplate, PatientForm, Role, RolePermission, Bed, SYSTEM_ROLE_PERMISSIONS
 import random
 
 
@@ -63,6 +63,33 @@ def seed():
 
         print(f"Tenants created: '{tenant1.name}' (id={tenant1.id}), '{tenant2.name}' (id={tenant2.id})")
 
+        # ── Roles ──
+        def make_roles(tenant):
+            roles = {}
+            for role_name, perms in SYSTEM_ROLE_PERMISSIONS.items():
+                display = {
+                    "admin": "Administrator",
+                    "psychiatrist": "Psychiatrist",
+                    "technician": "Technician",
+                    "auditor": "Auditor",
+                }.get(role_name, role_name.title())
+                r = Role(
+                    tenant_id=tenant.id,
+                    name=role_name,
+                    display_name=display,
+                    is_system_default=True,
+                )
+                db.session.add(r)
+                db.session.flush()  # get r.id
+                for perm in perms:
+                    db.session.add(RolePermission(role_id=r.id, permission=perm))
+                roles[role_name] = r
+            return roles
+
+        t1_roles = make_roles(tenant1)
+        t2_roles = make_roles(tenant2)
+        db.session.commit()
+
         # ── Users ──
         default_pw = "Password123!"
 
@@ -72,7 +99,8 @@ def seed():
                 tenant_id=tenant1.id,
                 username="psychiatrist1",
                 password_hash=generate_password_hash(default_pw),
-                role="psychiatrist",
+                role_id=t1_roles["psychiatrist"].id,
+                credentials=["MD", "ABPN"],
                 full_name="Dr. Fierro",
                 signature_data=_make_svg_signature("Dr. Fierro"),
             ),
@@ -80,7 +108,8 @@ def seed():
                 tenant_id=tenant1.id,
                 username="technician1",
                 password_hash=generate_password_hash(default_pw),
-                role="technician",
+                role_id=t1_roles["technician"].id,
+                credentials=["LCDC"],
                 full_name="Jordan Kim",
                 signature_data=_make_svg_signature("Jordan Kim"),
             ),
@@ -88,7 +117,8 @@ def seed():
                 tenant_id=tenant1.id,
                 username="admin1",
                 password_hash=generate_password_hash(default_pw),
-                role="admin",
+                role_id=t1_roles["admin"].id,
+                credentials=[],
                 full_name="Morgan Lee",
                 signature_data=_make_svg_signature("Morgan Lee"),
             ),
@@ -100,7 +130,8 @@ def seed():
                 tenant_id=tenant2.id,
                 username="psychiatrist2",
                 password_hash=generate_password_hash(default_pw),
-                role="psychiatrist",
+                role_id=t2_roles["psychiatrist"].id,
+                credentials=["MD", "FASAM"],
                 full_name="Dr. Santos",
                 signature_data=_make_svg_signature("Dr. Santos"),
             ),
@@ -108,7 +139,8 @@ def seed():
                 tenant_id=tenant2.id,
                 username="technician2",
                 password_hash=generate_password_hash(default_pw),
-                role="technician",
+                role_id=t2_roles["technician"].id,
+                credentials=["RN"],
                 full_name="Alex Rivera",
                 signature_data=_make_svg_signature("Alex Rivera"),
             ),
@@ -116,7 +148,8 @@ def seed():
                 tenant_id=tenant2.id,
                 username="admin2",
                 password_hash=generate_password_hash(default_pw),
-                role="admin",
+                role_id=t2_roles["admin"].id,
+                credentials=[],
                 full_name="Casey Zhang",
                 signature_data=_make_svg_signature("Casey Zhang"),
             ),
@@ -131,9 +164,23 @@ def seed():
         # ── Patients ──
         seed_now = datetime.now(timezone.utc)
 
-        # Tenant 1: 10 patients — mix of pending (2), active (6), inactive (2)
+        # Realistic patient data for a detox facility
+        t1_patient_data = [
+            # (first, last, dob_year, dob_month, dob_day, diagnosis, insurance, risk)
+            ("Maria",   "Gonzalez",  1988,  3, 14, "F10.239 Alcohol use disorder, severe",    "Medicaid",      "high"),
+            ("James",   "Carter",    1995,  7, 22, "F12.20 Cannabis use disorder, moderate",  "Blue Shield",   "moderate"),
+            ("Emily",   "Tran",      1990, 11,  5, "F14.20 Cocaine use disorder, moderate",   "Aetna",         "high"),
+            ("Robert",  "Kim",       1983,  2, 28, "F11.20 Opioid use disorder, severe",      "United Health", "high"),
+            ("Sandra",  "Williams",  2000,  9,  3, "F13.20 Sedative use disorder, moderate",  "Cigna",         "moderate"),
+            ("Carlos",  "Mendez",    1979,  5, 19, "F10.239 Alcohol use disorder, severe",    "Kaiser",        "high"),
+            ("Ashley",  "Johnson",   1992,  8, 11, "F15.20 Stimulant use disorder, mild",     "Blue Shield",   "low"),
+            ("Marcus",  "Davis",     1986, 12,  1, "F11.20 Opioid use disorder, severe",      "Medicaid",      "high"),
+            ("Rachel",  "Lee",       1997,  4, 17, "F17.210 Nicotine dependence, cigarettes", "Aetna",         "low"),
+            ("Thomas",  "Brown",     1974,  1, 30, "F10.239 Alcohol use disorder, severe",    "Kaiser",        "moderate"),
+        ]
+
         t1_patients = []
-        for i in range(1, 11):
+        for i, (first, last, yr, mo, dy, diag, ins, risk) in enumerate(t1_patient_data, start=1):
             if i <= 2:
                 pt_status = "pending"
                 pt_admitted_at = None
@@ -153,15 +200,15 @@ def seed():
             p = Patient(
                 tenant_id=tenant1.id,
                 patient_code=f"PT-{i:03d}",
-                first_name=f"Test{i}",
-                last_name="Patient",
-                date_of_birth=date(1990, 1, min(i, 28)),
-                phone=f"555-010{i:02d}",
-                email=f"pt{i:03d}@example.com",
+                first_name=first,
+                last_name=last,
+                date_of_birth=date(yr, mo, dy),
+                phone=f"(512) 555-{i:04d}",
+                email=f"{first.lower()}.{last.lower()}@example.com",
                 status=pt_status,
-                risk_level="low" if i <= 6 else ("moderate" if i <= 8 else "high"),
-                primary_diagnosis="General Anxiety" if i <= 5 else "Depression",
-                insurance="Blue Shield" if i % 2 == 0 else "Kaiser",
+                risk_level=risk,
+                primary_diagnosis=diag,
+                insurance=ins,
                 assigned_provider_id=t1_tech.id if t1_tech else None,
                 admitted_at=pt_admitted_at,
                 discharged_at=pt_discharged_at,
@@ -169,26 +216,72 @@ def seed():
             )
             t1_patients.append(p)
 
-        # Tenant 2: 5 patients (different clinic, different data)
+        # Tenant 2: 5 patients
         t2_patients = []
-        for i in range(1, 6):
+        t2_data = [
+            ("Luis",    "Reyes",    1990,  6, 10, "F11.20 Opioid use disorder, severe",    "Medi-Cal", "high"),
+            ("Tanya",   "Nguyen",   1985,  3, 22, "F10.239 Alcohol use disorder, severe",  "Aetna",    "high"),
+            ("Derek",   "Patel",    1993,  9,  5, "F14.20 Cocaine use disorder, moderate", "Medi-Cal", "moderate"),
+            ("Monica",  "Torres",   1978, 12, 15, "F11.20 Opioid use disorder, severe",    "Aetna",    "high"),
+            ("Kevin",   "Okafor",   2001,  1, 28, "F12.20 Cannabis use disorder, mild",    "Medi-Cal", "low"),
+        ]
+        for i, (first, last, yr, mo, dy, diag, ins, risk) in enumerate(t2_data, start=1):
             p = Patient(
                 tenant_id=tenant2.id,
                 patient_code=f"PT-{i:03d}",
-                first_name=f"Harbor{i}",
-                last_name="Client",
-                date_of_birth=date(1985, 6, min(i * 5, 28)),
-                phone=f"555-020{i:02d}",
-                email=f"harbor{i}@example.com",
+                first_name=first,
+                last_name=last,
+                date_of_birth=date(yr, mo, dy),
+                phone=f"(713) 555-{i:04d}",
+                email=f"{first.lower()}.{last.lower()}@harbor.example.com",
                 status="active",
-                risk_level="moderate" if i <= 3 else "high",
-                primary_diagnosis="Opioid Use Disorder" if i <= 3 else "Alcohol Use Disorder",
-                insurance="Medi-Cal" if i % 2 == 0 else "Aetna",
+                risk_level=risk,
+                primary_diagnosis=diag,
+                insurance=ins,
                 assigned_provider_id=t2_tech.id if t2_tech else None,
+                admitted_at=seed_now - timedelta(days=i + 1),
             )
             t2_patients.append(p)
 
         db.session.add_all(t1_patients + t2_patients)
+        db.session.commit()
+
+        # ── Beds (Tenant 1 — Sunrise Detox) ──
+        t1_bed_data = [
+            # (display_name, unit, room, bed_label, sort_order, status)
+            ("Bed A-1", "Detox Unit A", "101", "1", 1, "available"),
+            ("Bed A-2", "Detox Unit A", "102", "2", 2, "available"),
+            ("Bed A-3", "Detox Unit A", "103", "3", 3, "available"),
+            ("Bed A-4", "Detox Unit A", "104", "4", 4, "available"),
+            ("Bed B-1", "Detox Unit B", "201", "1", 1, "available"),
+            ("Bed B-2", "Detox Unit B", "202", "2", 2, "available"),
+            ("Bed B-3", "Detox Unit B", "203", "3", 3, "cleaning"),
+            ("Bed B-4", "Detox Unit B", "204", "4", 4, "out_of_service"),
+        ]
+        t1_beds = []
+        for display_name, unit, room, label, sort_order, status in t1_bed_data:
+            b = Bed(
+                tenant_id=tenant1.id,
+                display_name=display_name,
+                unit=unit,
+                room=room,
+                bed_label=label,
+                sort_order=sort_order,
+                status=status,
+                is_active=True,
+            )
+            db.session.add(b)
+            t1_beds.append(b)
+
+        db.session.flush()  # get bed IDs before assigning
+
+        # Assign active patients (PT-003 through PT-008) to the first 6 beds
+        active_t1 = [p for p in t1_patients if p.status == "active"]
+        available_beds = [b for b in t1_beds if b.status == "available"]
+        for patient, bed in zip(active_t1, available_beds):
+            patient.assigned_bed_id = bed.id
+            bed.status = "available"  # occupied is derived from patient FK
+
         db.session.commit()
 
         # ── Audit Logs ──
@@ -654,6 +747,11 @@ def seed():
         print(f"  Harbor:   admin2 / psychiatrist2 / technician2")
         print()
         print(f"Patients: {len(t1_patients)} (Sunrise) + {len(t2_patients)} (Harbor)")
+        print(f"  Sunrise — 2 pending, 6 active, 2 discharged")
+        print(f"  Harbor  — 5 active")
+        print()
+        occupied = sum(1 for b in t1_beds if any(p.assigned_bed_id == b.id for p in t1_patients))
+        print(f"Beds (Sunrise): {len(t1_beds)} total — {occupied} occupied, 1 cleaning, 1 out of service")
         print("Form templates and sample forms created for both tenants.")
 
 

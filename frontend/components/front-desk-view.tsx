@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Loader2, UserPlus, ClipboardList } from "lucide-react"
+import { Plus, Loader2, UserPlus, ClipboardList, BedDouble, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,8 +16,15 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { getPatients, createPatient } from "@/lib/api"
-import type { Patient } from "@/lib/api"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { getPatients, createPatient, getBeds, assignBed } from "@/lib/api"
+import type { Patient, Bed } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
 
 const riskColors: Record<string, string> = {
@@ -26,17 +33,20 @@ const riskColors: Record<string, string> = {
   high: "bg-destructive/10 text-destructive border-destructive/20",
 }
 
+const bedStatusConfig: Record<string, { label: string; border: string; bg: string; dot: string }> = {
+  occupied:       { label: "Occupied",       border: "border-primary/40",     bg: "bg-primary/5",     dot: "bg-primary" },
+  available:      { label: "Available",      border: "border-accent/40",      bg: "bg-accent/5",      dot: "bg-accent" },
+  cleaning:       { label: "Cleaning",       border: "border-chart-4/40",     bg: "bg-chart-4/5",     dot: "bg-chart-4" },
+  out_of_service: { label: "Out of Service", border: "border-muted-foreground/30", bg: "bg-muted/40", dot: "bg-muted-foreground" },
+}
+
 const EMPTY_FORM = {
-  // Basic
   firstName: "", lastName: "", dateOfBirth: "", ssnLast4: "",
   gender: "", pronouns: "", maritalStatus: "", ethnicity: "",
   preferredLanguage: "", employmentStatus: "",
-  // Contact
   phone: "", email: "",
   addressStreet: "", addressCity: "", addressState: "", addressZip: "",
-  // Emergency
   emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelationship: "",
-  // Clinical
   primaryDiagnosis: "", insurance: "",
   referringProvider: "", primaryCarePhysician: "", pharmacy: "",
   currentMedications: "", allergies: "",
@@ -44,18 +54,42 @@ const EMPTY_FORM = {
 
 type FormData = typeof EMPTY_FORM
 
+function daysSince(isoDate: string | null): string {
+  if (!isoDate) return ""
+  const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 86_400_000)
+  return diff === 0 ? "Today" : `Day ${diff + 1}`
+}
+
+function groupBedsByUnit(unitBeds: Bed[]): [string, Bed[]][] {
+  const map = new Map<string, Bed[]>()
+  for (const bed of unitBeds) {
+    const key = bed.unit || "Unassigned"
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(bed)
+  }
+  return Array.from(map.entries())
+}
+
 export function FrontDeskView({ userRole }: { userRole?: string }) {
   const [patients, setPatients] = useState<Patient[]>([])
+  const [beds, setBeds] = useState<Bed[]>([])
   const [loading, setLoading] = useState(true)
+  const [bedsLoading, setBedsLoading] = useState(true)
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+
+  // Assign bed dialog
+  const [assignDialog, setAssignDialog] = useState<{ bed: Bed } | null>(null)
+  const [assignPatientCode, setAssignPatientCode] = useState("")
+  const [assigning, setAssigning] = useState(false)
+  const [assignError, setAssignError] = useState("")
 
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState("")
 
   const sf = (field: keyof FormData) => (e: { target: { value: string } }) =>
-    setFormData((prev) => ({ ...prev, [field]: e.target.value }))
+    setFormData((prev: FormData) => ({ ...prev, [field]: e.target.value }))
 
   const fetchPending = useCallback(() => {
     setLoading(true)
@@ -65,14 +99,20 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
       .finally(() => setLoading(false))
   }, [])
 
+  const fetchBeds = useCallback(() => {
+    setBedsLoading(true)
+    getBeds()
+      .then(setBeds)
+      .catch(() => {})
+      .finally(() => setBedsLoading(false))
+  }, [])
+
   useEffect(() => {
     fetchPending()
-  }, [fetchPending])
+    fetchBeds()
+  }, [fetchPending, fetchBeds])
 
-  const resetForm = () => {
-    setFormData(EMPTY_FORM)
-    setAddError("")
-  }
+  const resetForm = () => { setFormData(EMPTY_FORM); setAddError("") }
 
   const handleAdd = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -83,7 +123,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
     setAddError("")
     try {
       const payload: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(formData)) {
+      for (const [k, v] of Object.entries(formData) as [string, string][]) {
         if (v.trim()) payload[k] = v.trim()
       }
       await createPatient(payload)
@@ -97,11 +137,45 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
     }
   }
 
+  const handleAssign = async () => {
+    if (!assignDialog) return
+    setAssigning(true)
+    setAssignError("")
+    try {
+      await assignBed(assignDialog.bed.id, assignPatientCode || null)
+      setAssignDialog(null)
+      setAssignPatientCode("")
+      fetchBeds()
+    } catch (e: unknown) {
+      setAssignError(e instanceof Error ? e.message : "Failed to assign bed")
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  const handleUnassign = async (bed: Bed) => {
+    try {
+      await assignBed(bed.id, null)
+      fetchBeds()
+    } catch { /* ignore */ }
+  }
+
+  // Active (admitted) patients without a bed assigned — candidates for assignment
+  const [activePatients, setActivePatients] = useState<Patient[]>([])
+  useEffect(() => {
+    getPatients()
+      .then((all) => setActivePatients(all.filter((p) => p.status === "active")))
+      .catch(() => {})
+  }, [beds]) // re-fetch when beds change to keep list fresh
+
+  const occupiedCount = beds.filter((b) => b.status === "occupied").length
+  const totalCount = beds.length
+
   if (selectedPatientId) {
     return (
       <PatientProfileView
         patientId={selectedPatientId}
-        onBack={() => { setSelectedPatientId(null); fetchPending() }}
+        onBack={() => { setSelectedPatientId(null); fetchPending(); fetchBeds() }}
         userRole={userRole}
       />
     )
@@ -122,6 +196,109 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
           </Button>
         )}
       </div>
+
+      {/* Bed Board */}
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-heading font-semibold text-foreground flex items-center gap-2">
+              <BedDouble className="size-4 text-muted-foreground" />
+              Bed Board
+              {!bedsLoading && totalCount > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {occupiedCount}/{totalCount} occupied
+                </Badge>
+              )}
+            </CardTitle>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={fetchBeds}>
+              <RefreshCw className="size-3.5 text-muted-foreground" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {bedsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : beds.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <BedDouble className="size-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">No beds configured</p>
+              <p className="text-xs text-muted-foreground/60">Add beds in Settings → Bed Management</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-5">
+              {groupBedsByUnit(beds).map(([unit, unitBeds]) => (
+                <div key={unit}>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{unit}</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                    {unitBeds.map((bed) => {
+                      const cfg = bedStatusConfig[bed.status] ?? bedStatusConfig.available
+                      return (
+                        <div
+                          key={bed.id}
+                          className={`relative rounded-lg border ${cfg.border} ${cfg.bg} p-3 flex flex-col gap-2 transition-colors ${
+                            bed.status === "occupied"
+                              ? "cursor-pointer hover:bg-primary/10"
+                              : bed.status === "available"
+                              ? "cursor-pointer hover:bg-accent/10"
+                              : ""
+                          }`}
+                          onClick={() => {
+                            if (bed.status === "occupied" && bed.patient) {
+                              setSelectedPatientId(bed.patient.id)
+                            } else if (bed.status === "available") {
+                              setAssignPatientCode("")
+                              setAssignError("")
+                              setAssignDialog({ bed })
+                            }
+                          }}
+                        >
+                          {/* Bed label + status dot */}
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-xs font-semibold text-foreground truncate">{bed.displayName}</span>
+                            <span className={`shrink-0 size-2 rounded-full ${cfg.dot}`} title={cfg.label} />
+                          </div>
+
+                          {/* Status or patient info */}
+                          {bed.status === "occupied" && bed.patient ? (
+                            <div className="flex flex-col gap-0.5">
+                              <p className="text-xs font-medium text-foreground leading-tight">
+                                {bed.patient.firstName} {bed.patient.lastName}
+                              </p>
+                              {bed.patient.primaryDiagnosis && (
+                                <p className="text-[10px] text-muted-foreground truncate">{bed.patient.primaryDiagnosis}</p>
+                              )}
+                              <div className="flex items-center justify-between mt-0.5">
+                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${riskColors[bed.patient.riskLevel] ?? ""}`}>
+                                  {bed.patient.riskLevel}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">{daysSince(bed.patient.admittedAt)}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground">{cfg.label}</p>
+                          )}
+
+                          {/* Unassign button for occupied beds */}
+                          {bed.status === "occupied" && userRole !== "technician" && (
+                            <button
+                              className="text-[10px] text-muted-foreground hover:text-destructive transition-colors text-left"
+                              onClick={(e: { stopPropagation: () => void }) => { e.stopPropagation(); handleUnassign(bed) }}
+                            >
+                              Unassign
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Pending patients */}
       <Card className="border-border/60">
@@ -147,7 +324,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {patients.map((p) => (
+              {patients.map((p: Patient) => (
                 <button
                   key={p.id}
                   onClick={() => setSelectedPatientId(p.id)}
@@ -171,6 +348,50 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Assign Bed Dialog */}
+      <Dialog open={!!assignDialog} onOpenChange={(v) => { if (!v) { setAssignDialog(null); setAssignPatientCode(""); setAssignError("") } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">
+              Assign Bed — {assignDialog?.bed.displayName}
+            </DialogTitle>
+            <DialogDescription>
+              Select an admitted patient to assign to this bed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 pt-1">
+            <div className="flex flex-col gap-1.5">
+              <Label>Patient</Label>
+              <Select value={assignPatientCode} onValueChange={setAssignPatientCode}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select patient…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activePatients.length === 0 ? (
+                    <SelectItem value="_none" disabled>No admitted patients</SelectItem>
+                  ) : (
+                    activePatients.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.firstName} {p.lastName} ({p.id})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            {assignError && <p className="text-sm text-destructive">{assignError}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => { setAssignDialog(null); setAssignPatientCode("") }} disabled={assigning}>
+                Cancel
+              </Button>
+              <Button onClick={handleAssign} disabled={assigning || !assignPatientCode}>
+                {assigning ? <Loader2 className="size-4 animate-spin" /> : "Assign"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Patient Dialog */}
       <Dialog open={showAdd} onOpenChange={(v) => { if (!v) { setShowAdd(false); resetForm() } }}>
