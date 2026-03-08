@@ -61,6 +61,8 @@ def login():
 
     user.failed_login_attempts = 0
     user.locked_until = None
+    is_first_login = user.last_login is None
+    user.last_login = datetime.now(timezone.utc)
     db.session.commit()
 
     session_id = secrets.token_urlsafe(32)
@@ -92,7 +94,27 @@ def login():
         "tenant_id": t_id,
         "tenant_name": tenant.name,
         "session_id": session_id,
+        "is_first_login": is_first_login,
+        "requires_terms_agreement": user.agreed_to_terms_at is None,
     }, 200
+
+
+@auth_bp.post("/accept-terms")
+def accept_terms():
+    """
+    POST /api/auth/accept-terms
+    Records that the authenticated user has agreed to the terms.
+    """
+    session_id = _get_session_id()
+    user, _ = _validate_session(session_id)
+    if not user:
+        return {"error": "not authenticated"}, 401
+
+    if user.agreed_to_terms_at is None:
+        user.agreed_to_terms_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+    return {"ok": True}, 200
 
 
 @auth_bp.get("/me")

@@ -17,8 +17,9 @@ import { SettingsView } from "@/components/settings-view"
 import { HelpView } from "@/components/help-view"
 import { HIPAAComplianceGuidelines } from "@/components/hipaa-compliance-guidelines"
 import { Separator } from "@/components/ui/separator"
-import { setSessionToken, logout as apiLogout } from "@/lib/api"
+import { setSessionToken, logout as apiLogout, acceptTerms } from "@/lib/api"
 import { SessionTimeout } from "@/components/session-timeout"
+import { FirstLoginModal } from "@/components/first-login-modal"
 
 import {
   Breadcrumb,
@@ -39,6 +40,8 @@ export default function EHRApp() {
   })
   const [activeItem, setActiveItem] = useState("Dashboard")
   const [navOptions, setNavOptions] = useState<{ filter?: string; patientId?: string } | null>(null)
+  const [showFirstLoginModal, setShowFirstLoginModal] = useState(false)
+  const [isFirstLogin, setIsFirstLogin] = useState(false)
 
   const handleSignOut = () => {
     apiLogout().catch(() => {})
@@ -61,6 +64,8 @@ export default function EHRApp() {
           setTenantName(session.tenant_name)
           setCurrentUser({ username: session.username, fullName: session.full_name })
           setIsLoggedIn(true)
+          setIsFirstLogin(session.is_first_login)
+          if (session.requires_terms_agreement) setShowFirstLoginModal(true)
         }}
       />
     )
@@ -79,7 +84,7 @@ export default function EHRApp() {
   const renderView = () => {
     switch (activeItem) {
       case "Dashboard":
-        return <DashboardView onNavigate={handleNavigate} userRole={userRole} />
+        return <DashboardView onNavigate={handleNavigate} userPermissions={userPermissions} userName={currentUser.fullName || currentUser.username} isFirstLogin={isFirstLogin} />
       case "Patients":
         return (
           <PatientsView
@@ -109,12 +114,13 @@ export default function EHRApp() {
       case "HIPAA Compliance Guidelines":
         return <HIPAAComplianceGuidelines />
       default:
-        return <DashboardView onNavigate={handleNavigate} userRole={userRole} />
+        return <DashboardView onNavigate={handleNavigate} userPermissions={userPermissions} userName={currentUser.fullName || currentUser.username} isFirstLogin={isFirstLogin} />
     }
   }
 
   return (
     <SidebarProvider>
+      <FirstLoginModal open={showFirstLoginModal} onAccept={() => setShowFirstLoginModal(false)} />
       <SessionTimeout
         timeoutMinutes={15}
         warningSeconds={60}

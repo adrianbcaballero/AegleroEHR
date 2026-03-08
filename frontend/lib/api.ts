@@ -73,6 +73,8 @@ export interface LoginResponse {
   tenant_id: number;
   tenant_name: string;
   session_id: string;
+  is_first_login: boolean;
+  requires_terms_agreement: boolean;
 }
 
 export function login(username: string, password: string) {
@@ -81,6 +83,10 @@ export function login(username: string, password: string) {
 
 export function logout() {
   return apiPost<{ ok: boolean }>("/api/auth/logout");
+}
+
+export function acceptTerms() {
+  return apiPost<{ ok: boolean }>("/api/auth/accept-terms");
 }
 
 export function getMe() {

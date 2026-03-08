@@ -109,6 +109,9 @@ class User(db.Model):
 
     full_name = db.Column(db.String(120), nullable=True)
 
+    last_login = db.Column(db.DateTime(timezone=True), nullable=True)
+    agreed_to_terms_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
     failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
     locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
     permanently_locked = db.Column(db.Boolean, default=False, nullable=False)
