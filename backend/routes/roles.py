@@ -38,6 +38,14 @@ def list_roles():
     return [_serialize_role(r, counts.get(r.id, 0)) for r in roles], 200
 
 
+@roles_bp.get("/picker")
+@require_auth(permission="users.manage")
+def list_roles_picker():
+    """GET /api/roles/picker — minimal role list for user create/edit forms."""
+    roles = tenant_query(Role).order_by(Role.is_system_default.desc(), Role.name.asc()).all()
+    return [{"id": r.id, "name": r.name, "displayName": r.display_name} for r in roles], 200
+
+
 @roles_bp.get("/permissions")
 @require_auth(permission="roles.manage")
 def list_permissions():

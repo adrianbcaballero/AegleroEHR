@@ -50,8 +50,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword, getRoles } from "@/lib/api"
-import type { SystemUser, Role } from "@/lib/api"
+import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword, getRolesPicker } from "@/lib/api"
+import type { SystemUser } from "@/lib/api"
+
+type PickerRole = { id: number; name: string; displayName: string }
 
 // Credentials available for behavioral health facilities in Texas
 const ALL_CREDENTIALS = [
@@ -151,7 +153,7 @@ function CredentialSelector({
 
 export function ManageUsersView() {
   const [users, setUsers] = useState<SystemUser[]>([])
-  const [roles, setRoles] = useState<Role[]>([])
+  const [roles, setRoles] = useState<PickerRole[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -185,7 +187,7 @@ export function ManageUsersView() {
   const fetchAll = () => {
     setLoading(true)
     setError("")
-    Promise.all([getUsers(), getRoles()])
+    Promise.all([getUsers(), getRolesPicker()])
       .then(([usersData, rolesData]) => {
         setUsers(usersData)
         setRoles(rolesData)

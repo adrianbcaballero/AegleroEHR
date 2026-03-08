@@ -499,6 +499,10 @@ export function getRoles() {
   return apiGet<Role[]>("/api/roles")
 }
 
+export function getRolesPicker() {
+  return apiGet<{ id: number; name: string; displayName: string }[]>("/api/roles/picker")
+}
+
 export function getPermissions() {
   return apiGet<{ permissions: string[] }>("/api/roles/permissions")
 }

@@ -33,53 +33,139 @@ import {
 } from "@/components/ui/dialog"
 import {
   getRoles,
-  getPermissions,
   createRole,
   updateRole,
   deleteRole,
 } from "@/lib/api"
 import type { Role } from "@/lib/api"
 
-// ─── Permission display metadata ───────────────────────────────────────────
+// ─── Page bundle definitions ────────────────────────────────────────────────
+// Each bundle maps to the exact permissions a page/feature needs.
+// Granting a bundle grants all its permissions; revoking removes all.
 
-const PERMISSION_GROUPS: { label: string; permissions: { key: string; label: string; description: string }[] }[] = [
+type Bundle = { key: string; label: string; description: string; permissions: string[] }
+type BundleGroup = { label: string; bundles: Bundle[] }
+
+const BUNDLE_GROUPS: BundleGroup[] = [
   {
-    label: "Patients",
-    permissions: [
-      { key: "patients.view", label: "View Patients", description: "View patient list and records (scoped to assigned if no view_all)" },
-      { key: "patients.view_all", label: "View All Patients", description: "View all patients regardless of assignment" },
-      { key: "patients.create", label: "Create Patients", description: "Create new patient records" },
-      { key: "patients.edit", label: "Edit Patients", description: "Update patient demographics and fields" },
-      { key: "patients.admit", label: "Admit Patients", description: "Admit a patient to the facility" },
-      { key: "patients.discharge", label: "Discharge Patients", description: "Discharge a patient from the facility" },
+    label: "Clinical Pages",
+    bundles: [
+      {
+        key: "clinical.base",
+        label: "Dashboard, Front Desk & Patients",
+        description: "Access the main clinical pages, patient list, and bed board",
+        permissions: ["patients.view"],
+      },
+      {
+        key: "clinical.archive",
+        label: "Archive",
+        description: "View all patients regardless of assignment (archive page)",
+        permissions: ["patients.view_all"],
+      },
+      {
+        key: "clinical.create",
+        label: "Create Patients",
+        description: "Create new patient intake records",
+        permissions: ["patients.create"],
+      },
+      {
+        key: "clinical.edit",
+        label: "Edit Patient Records",
+        description: "Update patient demographics, notes, and assignments",
+        permissions: ["patients.edit"],
+      },
+      {
+        key: "clinical.admit",
+        label: "Admit Patients",
+        description: "Admit patients to the facility and assign beds",
+        permissions: ["patients.admit"],
+      },
+      {
+        key: "clinical.discharge",
+        label: "Discharge Patients",
+        description: "Discharge patients from the facility",
+        permissions: ["patients.discharge"],
+      },
     ],
   },
   {
     label: "Forms",
-    permissions: [
-      { key: "forms.view", label: "View Forms", description: "View patient form instances" },
-      { key: "forms.edit", label: "Fill Out Forms", description: "Fill out and save draft forms" },
-      { key: "forms.sign", label: "Sign & Complete Forms", description: "Complete and sign forms — makes them legal records" },
+    bundles: [
+      {
+        key: "forms.view",
+        label: "View Forms",
+        description: "Read patient form instances",
+        permissions: ["forms.view"],
+      },
+      {
+        key: "forms.edit",
+        label: "Fill Out Forms",
+        description: "Fill and save draft forms",
+        permissions: ["forms.edit"],
+      },
+      {
+        key: "forms.sign",
+        label: "Sign & Complete Forms",
+        description: "Electronically sign forms — creates legal records",
+        permissions: ["forms.sign"],
+      },
     ],
   },
   {
-    label: "Templates",
-    permissions: [
-      { key: "templates.view", label: "View Templates", description: "View form templates" },
-      { key: "templates.manage", label: "Manage Templates", description: "Create, edit, and delete form templates" },
-    ],
-  },
-  {
-    label: "Administration",
-    permissions: [
-      { key: "users.manage", label: "Manage Users", description: "Create, edit, lock, and unlock user accounts" },
-      { key: "roles.manage", label: "Manage Roles", description: "Create, edit, and delete custom roles" },
-      { key: "categories.manage", label: "Manage Categories", description: "Manage form categories for the tenant" },
-      { key: "consent.manage", label: "Manage 42 CFR Part 2 Consents", description: "Create and revoke patient consent records" },
-      { key: "audit.view", label: "View Audit Logs", description: "View system access logs and security stats" },
+    label: "Administration Pages",
+    bundles: [
+      {
+        key: "admin.workflows",
+        label: "Workflows & Templates",
+        description: "View and manage form templates (Workflows sidebar page)",
+        permissions: ["templates.view", "templates.manage"],
+      },
+      {
+        key: "admin.users",
+        label: "Manage Users",
+        description: "Create, edit, lock, and unlock user accounts (sidebar page)",
+        permissions: ["users.manage"],
+      },
+      {
+        key: "admin.roles",
+        label: "Manage Roles & Settings",
+        description: "Create and edit custom roles; access Settings page",
+        permissions: ["roles.manage"],
+      },
+      {
+        key: "admin.logs",
+        label: "System Logs",
+        description: "View audit logs and security stats (sidebar page)",
+        permissions: ["audit.view"],
+      },
+      {
+        key: "admin.categories",
+        label: "Manage Categories",
+        description: "Manage form categories for the clinic",
+        permissions: ["categories.manage"],
+      },
+      {
+        key: "admin.consent",
+        label: "Consent Management",
+        description: "Create and revoke 42 CFR Part 2 patient consent records",
+        permissions: ["consent.manage"],
+      },
     ],
   },
 ]
+
+// Flatten all bundles to derive selected/toggle state
+function bundleIsChecked(bundle: Bundle, selected: string[]): boolean {
+  return bundle.permissions.every((p) => selected.includes(p))
+}
+
+function toggleBundle(bundle: Bundle, selected: string[]): string[] {
+  if (bundleIsChecked(bundle, selected)) {
+    return selected.filter((p) => !bundle.permissions.includes(p))
+  }
+  const merged = new Set([...selected, ...bundle.permissions])
+  return Array.from(merged)
+}
 
 // ─── Permission Checkboxes ──────────────────────────────────────────────────
 
@@ -92,32 +178,24 @@ function PermissionCheckboxes({
   onChange: (perms: string[]) => void
   disabled?: boolean
 }) {
-  const toggle = (key: string) => {
-    if (selected.includes(key)) {
-      onChange(selected.filter((p) => p !== key))
-    } else {
-      onChange([...selected, key])
-    }
-  }
-
   return (
     <div className="flex flex-col gap-5">
-      {PERMISSION_GROUPS.map((group) => (
+      {BUNDLE_GROUPS.map((group) => (
         <div key={group.label}>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{group.label}</p>
           <div className="flex flex-col gap-2">
-            {group.permissions.map((perm) => (
-              <div key={perm.key} className="flex items-start gap-3">
+            {group.bundles.map((bundle) => (
+              <div key={bundle.key} className="flex items-start gap-3">
                 <Checkbox
-                  id={perm.key}
-                  checked={selected.includes(perm.key)}
-                  onCheckedChange={() => toggle(perm.key)}
+                  id={bundle.key}
+                  checked={bundleIsChecked(bundle, selected)}
+                  onCheckedChange={() => onChange(toggleBundle(bundle, selected))}
                   disabled={disabled}
                   className="mt-0.5"
                 />
-                <label htmlFor={perm.key} className="flex flex-col gap-0.5 cursor-pointer">
-                  <span className="text-sm font-medium text-foreground leading-none">{perm.label}</span>
-                  <span className="text-xs text-muted-foreground">{perm.description}</span>
+                <label htmlFor={bundle.key} className="flex flex-col gap-0.5 cursor-pointer">
+                  <span className="text-sm font-medium text-foreground leading-none">{bundle.label}</span>
+                  <span className="text-xs text-muted-foreground">{bundle.description}</span>
                 </label>
               </div>
             ))}
@@ -132,7 +210,6 @@ function PermissionCheckboxes({
 
 export function ManageRolesView() {
   const [roles, setRoles] = useState<Role[]>([])
-  const [allPermissions, setAllPermissions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -157,10 +234,9 @@ export function ManageRolesView() {
   const fetchAll = () => {
     setLoading(true)
     setError("")
-    Promise.all([getRoles(), getPermissions()])
-      .then(([rolesData, permsData]) => {
+    getRoles()
+      .then((rolesData) => {
         setRoles(rolesData)
-        setAllPermissions(permsData.permissions)
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -352,7 +428,7 @@ export function ManageRolesView() {
                       )}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <span className="text-sm text-muted-foreground">{role.permissions.length} / {allPermissions.length}</span>
+                      <span className="text-sm text-muted-foreground">{role.permissions.length} permissions</span>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <span className="text-sm text-muted-foreground">{role.userCount}</span>
