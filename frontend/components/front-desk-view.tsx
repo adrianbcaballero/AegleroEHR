@@ -26,6 +26,7 @@ import {
 import { getPatients, createPatient, getBeds, assignBed } from "@/lib/api"
 import type { Patient, Bed } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
+import { ManageBedsView } from "@/components/manage-beds-view"
 
 const riskColors: Record<string, string> = {
   low: "bg-accent/10 text-accent border-accent/20",
@@ -77,6 +78,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
   const [bedsLoading, setBedsLoading] = useState(true)
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [showManageBeds, setShowManageBeds] = useState(false)
 
   // Assign bed dialog
   const [assignDialog, setAssignDialog] = useState<{ bed: Bed } | null>(null)
@@ -171,6 +173,19 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
   const occupiedCount = beds.filter((b) => b.status === "occupied").length
   const totalCount = beds.length
 
+  if (showManageBeds) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div>
+          <Button variant="outline" size="sm" className="bg-transparent text-foreground" onClick={() => { setShowManageBeds(false); fetchBeds() }}>
+            ← Done
+          </Button>
+        </div>
+        <ManageBedsView />
+      </div>
+    )
+  }
+
   if (selectedPatientId) {
     return (
       <PatientProfileView
@@ -197,6 +212,55 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
         )}
       </div>
 
+      {/* Pending patients */}
+      <Card className="border-border/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-heading font-semibold text-foreground flex items-center gap-2">
+            <ClipboardList className="size-4 text-muted-foreground" />
+            Pending Admission
+            {!loading && (
+              <Badge variant="secondary" className="ml-1 text-xs">{patients.length}</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : patients.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
+              <UserPlus className="size-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">No patients pending admission</p>
+              <p className="text-xs text-muted-foreground/60">New patients will appear here after registration</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {patients.map((p: Patient) => (
+                <button
+                  key={p.id}
+                  onClick={() => setSelectedPatientId(p.id)}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border/60 hover:bg-muted/40 transition-colors text-left w-full"
+                >
+                  <Avatar className="size-9 shrink-0">
+                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                      {p.firstName[0]}{p.lastName[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-foreground">{p.firstName} {p.lastName}</p>
+                    <p className="text-xs text-muted-foreground">{p.id} &middot; {p.insurance || "No insurance on file"}</p>
+                  </div>
+                  <Badge variant="secondary" className={`text-xs shrink-0 ${riskColors[p.riskLevel] || ""}`}>
+                    {p.riskLevel} risk
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Bed Board */}
       <Card className="border-border/60">
         <CardHeader className="pb-3">
@@ -210,9 +274,16 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
                 </Badge>
               )}
             </CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={fetchBeds}>
-              <RefreshCw className="size-3.5 text-muted-foreground" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {userRole === "admin" && (
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowManageBeds(true)}>
+                  Manage Beds
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={fetchBeds}>
+                <RefreshCw className="size-3.5 text-muted-foreground" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -294,55 +365,6 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
                     })}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Pending patients */}
-      <Card className="border-border/60">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-heading font-semibold text-foreground flex items-center gap-2">
-            <ClipboardList className="size-4 text-muted-foreground" />
-            Pending Admission
-            {!loading && (
-              <Badge variant="secondary" className="ml-1 text-xs">{patients.length}</Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : patients.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-              <UserPlus className="size-8 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">No patients pending admission</p>
-              <p className="text-xs text-muted-foreground/60">New patients will appear here after registration</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {patients.map((p: Patient) => (
-                <button
-                  key={p.id}
-                  onClick={() => setSelectedPatientId(p.id)}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/60 hover:bg-muted/40 transition-colors text-left w-full"
-                >
-                  <Avatar className="size-9 shrink-0">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                      {p.firstName[0]}{p.lastName[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-foreground">{p.firstName} {p.lastName}</p>
-                    <p className="text-xs text-muted-foreground">{p.id} &middot; {p.insurance || "No insurance on file"}</p>
-                  </div>
-                  <Badge variant="secondary" className={`text-xs shrink-0 ${riskColors[p.riskLevel] || ""}`}>
-                    {p.riskLevel} risk
-                  </Badge>
-                </button>
               ))}
             </div>
           )}

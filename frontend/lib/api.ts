@@ -547,6 +547,38 @@ export function assignBed(bedId: number, patientCode: string | null) {
   return apiPut<Bed>(`/api/beds/${bedId}/assign`, patientCode ? { patientCode } : {})
 }
 
+export function getAllBeds() {
+  return apiGet<Bed[]>("/api/beds/all")
+}
+
+export function createBed(data: {
+  unit?: string
+  room?: string
+  bedLabel?: string
+  displayName: string
+  notes?: string
+  sortOrder?: number
+}) {
+  return apiPost<Bed>("/api/beds", data)
+}
+
+export function updateBed(bedId: number, data: {
+  unit?: string
+  room?: string
+  bedLabel?: string
+  displayName?: string
+  notes?: string
+  sortOrder?: number
+  status?: string
+  isActive?: boolean
+}) {
+  return apiPut<Bed>(`/api/beds/${bedId}`, data)
+}
+
+export function deleteBed(bedId: number) {
+  return apiDelete<{ ok: boolean }>(`/api/beds/${bedId}`)
+}
+
 
 // Category management
 export interface CategoriesResponse {
