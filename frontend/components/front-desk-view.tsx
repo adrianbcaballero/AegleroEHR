@@ -325,7 +325,10 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
                             }
                           }}
                         >
-                          {/* Bed label + status dot */}
+                          {/* Room + bed label + status dot */}
+                          {bed.room && (
+                            <p className="text-[10px] text-muted-foreground/70 -mb-1">{bed.room}</p>
+                          )}
                           <div className="flex items-center justify-between gap-1">
                             <span className="text-xs font-semibold text-foreground truncate">{bed.displayName}</span>
                             <span className={`shrink-0 size-2 rounded-full ${cfg.dot}`} title={cfg.label} />

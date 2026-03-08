@@ -9,8 +9,12 @@ import {
   Loader2,
   PowerOff,
   Power,
+  ChevronUp,
+  ChevronDown,
+  Check,
+  X,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -24,26 +28,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  getAllBeds,
-  createBed,
-  updateBed,
-  deleteBed,
-} from "@/lib/api"
+import { getAllBeds, createBed, updateBed, deleteBed } from "@/lib/api"
 import type { Bed } from "@/lib/api"
 
 const STATUS_LABELS: Record<string, string> = {
@@ -60,39 +51,47 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   out_of_service: "bg-red-500/15 text-red-700 border-red-200",
 }
 
-interface BedFormData {
-  unit: string
-  room: string
+interface BedForm {
   bedLabel: string
   displayName: string
+  room: string
   notes: string
-  sortOrder: string
   status: string
 }
 
-const EMPTY_FORM: BedFormData = {
-  unit: "",
-  room: "",
+const EMPTY_BED_FORM: BedForm = {
   bedLabel: "",
   displayName: "",
+  room: "",
   notes: "",
-  sortOrder: "0",
   status: "available",
 }
 
 export function ManageBedsView() {
   const [beds, setBeds] = useState<Bed[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
 
-  // Dialog state
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editBed, setEditBed] = useState<Bed | null>(null)
-  const [form, setForm] = useState<BedFormData>(EMPTY_FORM)
+  // Locally tracked unit names that have no beds yet
+  const [emptyUnits, setEmptyUnits] = useState<string[]>([])
+
+  // Inline unit rename
+  const [editingUnit, setEditingUnit] = useState<{ original: string; value: string } | null>(null)
+  const [renamingUnit, setRenamingUnit] = useState(false)
+
+  // Add unit dialog
+  const [addUnitOpen, setAddUnitOpen] = useState(false)
+  const [newUnitName, setNewUnitName] = useState("")
+  const [addUnitError, setAddUnitError] = useState("")
+
+  // Bed add/edit dialog
+  const [bedDialogOpen, setBedDialogOpen] = useState(false)
+  const [bedDialogUnit, setBedDialogUnit] = useState("")
+  const [editingBed, setEditingBed] = useState<Bed | null>(null)
+  const [bedForm, setBedForm] = useState<BedForm>(EMPTY_BED_FORM)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState("")
 
-  // Delete confirm
+  // Delete bed
   const [deleteTarget, setDeleteTarget] = useState<Bed | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
@@ -101,57 +100,125 @@ export function ManageBedsView() {
     setLoading(true)
     getAllBeds()
       .then(setBeds)
-      .catch(() => setError("Failed to load beds"))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
 
-  const openCreate = () => {
-    setEditBed(null)
-    setForm(EMPTY_FORM)
-    setFormError("")
-    setDialogOpen(true)
+  // ── Derived data ────────────────────────────────────────────────────────────
+  const bedLabel = (b: Bed) => b.unit || "Unassigned"
+
+  const activeBedsForUnit = (unit: string) =>
+    beds.filter((b: Bed) => bedLabel(b) === unit && b.isActive).sort((a: Bed, b: Bed) => a.sortOrder - b.sortOrder)
+
+  const decommissionedBedsForUnit = (unit: string) =>
+    beds.filter((b: Bed) => bedLabel(b) === unit && !b.isActive).sort((a: Bed, b: Bed) => a.sortOrder - b.sortOrder)
+
+  const derivedUnits = Array.from(new Set(beds.map(bedLabel)))
+  const allUnits = [...derivedUnits, ...emptyUnits.filter((u: string) => !derivedUnits.includes(u))]
+
+  // ── Unit actions ─────────────────────────────────────────────────────────────
+  const handleAddUnit = () => {
+    const name = newUnitName.trim()
+    if (!name) { setAddUnitError("Unit name is required."); return }
+    if (allUnits.includes(name)) { setAddUnitError("A unit with this name already exists."); return }
+    setEmptyUnits((prev: string[]) => [...prev, name])
+    setNewUnitName("")
+    setAddUnitError("")
+    setAddUnitOpen(false)
   }
 
-  const openEdit = (bed: Bed) => {
-    setEditBed(bed)
-    setForm({
-      unit: bed.unit || "",
-      room: bed.room || "",
+  const handleRenameUnit = async () => {
+    if (!editingUnit) return
+    const newName = editingUnit.value.trim()
+    if (!newName || newName === editingUnit.original) { setEditingUnit(null); return }
+
+    // Empty unit — just update local state
+    if (emptyUnits.includes(editingUnit.original)) {
+      setEmptyUnits((prev: string[]) => prev.map((u: string) => (u === editingUnit.original ? newName : u)))
+      setEditingUnit(null)
+      return
+    }
+
+    // Rename all beds in this unit
+    setRenamingUnit(true)
+    const unitBeds = beds.filter((b: Bed) => bedLabel(b) === editingUnit.original)
+    try {
+      await Promise.all(unitBeds.map((b: Bed) => updateBed(b.id, { unit: newName })))
+      setEditingUnit(null)
+      load()
+    } catch {
+      setEditingUnit(null)
+    } finally {
+      setRenamingUnit(false)
+    }
+  }
+
+  // ── Bed order ────────────────────────────────────────────────────────────────
+  const moveBed = async (unit: string, bedId: number, direction: "up" | "down") => {
+    const unitBeds = activeBedsForUnit(unit)
+    const idx = unitBeds.findIndex((b: Bed) => b.id === bedId)
+    if (idx === -1) return
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= unitBeds.length) return
+    const a = unitBeds[idx]
+    const b = unitBeds[swapIdx]
+    await Promise.all([
+      updateBed(a.id, { sortOrder: b.sortOrder }),
+      updateBed(b.id, { sortOrder: a.sortOrder }),
+    ])
+    load()
+  }
+
+  // ── Bed CRUD ─────────────────────────────────────────────────────────────────
+  const openAddBed = (unit: string) => {
+    setEditingBed(null)
+    setBedDialogUnit(unit)
+    setBedForm(EMPTY_BED_FORM)
+    setFormError("")
+    setBedDialogOpen(true)
+  }
+
+  const openEditBed = (bed: Bed) => {
+    setEditingBed(bed)
+    setBedDialogUnit(bedLabel(bed))
+    setBedForm({
       bedLabel: bed.bedLabel || "",
       displayName: bed.displayName,
+      room: bed.room || "",
       notes: bed.notes || "",
-      sortOrder: String(bed.sortOrder),
       status: bed.status === "occupied" ? "available" : bed.status,
     })
     setFormError("")
-    setDialogOpen(true)
+    setBedDialogOpen(true)
   }
 
-  const handleSave = async () => {
-    if (!form.displayName.trim()) {
-      setFormError("Display name is required.")
-      return
-    }
+  const handleSaveBed = async () => {
+    if (!bedForm.displayName.trim()) { setFormError("Display name is required."); return }
     setSaving(true)
     setFormError("")
     try {
+      const unit = bedDialogUnit === "Unassigned" ? undefined : bedDialogUnit
+      const nextSort = activeBedsForUnit(bedDialogUnit).length
       const payload = {
-        unit: form.unit || undefined,
-        room: form.room || undefined,
-        bedLabel: form.bedLabel || undefined,
-        displayName: form.displayName.trim(),
-        notes: form.notes || undefined,
-        sortOrder: parseInt(form.sortOrder) || 0,
-        ...(editBed ? { status: form.status } : {}),
+        unit,
+        room: bedForm.room || undefined,
+        bedLabel: bedForm.bedLabel || undefined,
+        displayName: bedForm.displayName.trim(),
+        notes: bedForm.notes || undefined,
+        ...(editingBed
+          ? { status: bedForm.status }
+          : { sortOrder: nextSort }),
       }
-      if (editBed) {
-        await updateBed(editBed.id, payload)
+      if (editingBed) {
+        await updateBed(editingBed.id, payload)
       } else {
         await createBed(payload)
+        // Remove from emptyUnits once first bed is added
+        setEmptyUnits((prev: string[]) => prev.filter((u: string) => u !== bedDialogUnit))
       }
-      setDialogOpen(false)
+      setBedDialogOpen(false)
       load()
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Save failed")
@@ -160,16 +227,12 @@ export function ManageBedsView() {
     }
   }
 
-  const handleToggleActive = async (bed: Bed) => {
-    try {
-      await updateBed(bed.id, { isActive: !bed.isActive })
-      load()
-    } catch {
-      // ignore
-    }
+  const toggleActive = async (bed: Bed) => {
+    await updateBed(bed.id, { isActive: !bed.isActive })
+    load()
   }
 
-  const handleDelete = async () => {
+  const handleDeleteBed = async () => {
     if (!deleteTarget) return
     setDeleting(true)
     setDeleteError("")
@@ -184,87 +247,190 @@ export function ManageBedsView() {
     }
   }
 
-  const activeBeds = beds.filter((b) => b.isActive)
-  const decommissionedBeds = beds.filter((b) => !b.isActive)
+  // ── Render ───────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground text-sm py-10">
+        <Loader2 className="size-4 animate-spin" /> Loading...
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl">
+    <div className="flex flex-col gap-6 max-w-4xl">
+
+      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Manage Beds</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure bed inventory — add, edit, or decommission beds
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Configure bed inventory by unit</p>
         </div>
-        <Button onClick={openCreate} className="bg-primary text-primary-foreground hover:bg-primary/90">
-          <Plus className="mr-2 size-4" /> Add Bed
+        <Button
+          variant="outline"
+          className="bg-transparent text-foreground gap-2"
+          onClick={() => { setNewUnitName(""); setAddUnitError(""); setAddUnitOpen(true) }}
+        >
+          <Plus className="size-4" /> Add Unit
         </Button>
       </div>
 
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
+      {/* Empty state */}
+      {allUnits.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center border-2 border-dashed border-border rounded-xl">
+          <BedDouble className="size-10 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">
+            No units configured. Click &ldquo;Add Unit&rdquo; to get started.
+          </p>
+        </div>
       )}
 
-      {/* Active beds */}
-      <Card className="border-border/60">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <BedDouble className="size-4 text-primary" />
-            <CardTitle className="text-base font-heading font-semibold text-foreground">
-              Active Beds
-              <span className="ml-2 text-sm font-normal text-muted-foreground">({activeBeds.length})</span>
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm p-6">
-              <Loader2 className="size-4 animate-spin" /> Loading…
-            </div>
-          ) : activeBeds.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-6">No active beds. Click "Add Bed" to get started.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/60">
-                  <TableHead className="text-xs text-muted-foreground">Display Name</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Unit</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Room</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Bed Label</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Status</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Patient</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Sort</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {activeBeds.map((bed) => (
-                  <TableRow key={bed.id} className="border-border/40">
-                    <TableCell className="font-medium text-sm text-foreground">{bed.displayName}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{bed.unit || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{bed.room || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{bed.bedLabel || "—"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${STATUS_BADGE_CLASSES[bed.status] || ""}`}
+      {/* Unit cards */}
+      {allUnits.map((unit) => {
+        const activeBeds = activeBedsForUnit(unit)
+        const decommissioned = decommissionedBedsForUnit(unit)
+        const isEmptyUnit = emptyUnits.includes(unit) && activeBeds.length === 0 && decommissioned.length === 0
+        const isEditing = editingUnit?.original === unit
+
+        return (
+          <Card key={unit} className="border-border/60">
+            <CardHeader className="pb-3 pt-4 px-5">
+              <div className="flex items-center justify-between gap-2">
+                {/* Unit name (inline editable) */}
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <BedDouble className="size-4 text-muted-foreground shrink-0" />
+                  {isEditing ? (
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <Input
+                        autoFocus
+                        value={editingUnit.value}
+                        onChange={(e) => setEditingUnit({ ...editingUnit, value: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleRenameUnit()
+                          if (e.key === "Escape") setEditingUnit(null)
+                        }}
+                        className="h-7 text-sm font-semibold max-w-xs"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-emerald-600 hover:text-emerald-700"
+                        onClick={handleRenameUnit}
+                        disabled={renamingUnit}
                       >
-                        {STATUS_LABELS[bed.status] || bed.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {bed.patient
-                        ? `${bed.patient.firstName} ${bed.patient.lastName}`
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{bed.sortOrder}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 justify-end">
+                        {renamingUnit ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground"
+                        onClick={() => setEditingUnit(null)}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        className="text-sm font-semibold text-foreground hover:text-primary transition-colors cursor-text truncate"
+                        onClick={() => setEditingUnit({ original: unit, value: unit })}
+                        title="Click to rename"
+                      >
+                        {unit}
+                      </button>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {activeBeds.length} bed{activeBeds.length !== 1 ? "s" : ""}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Header actions */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {isEmptyUnit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-muted-foreground hover:text-destructive"
+                      title="Delete unit"
+                      onClick={() => setEmptyUnits((prev: string[]) => prev.filter((u: string) => u !== unit))}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => openAddBed(unit)}
+                  >
+                    <Plus className="size-3.5 mr-1" /> Add Bed
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="px-5 pb-4">
+              {activeBeds.length === 0 && decommissioned.length === 0 ? (
+                <div className="flex items-center justify-center py-6 border border-dashed border-border rounded-lg">
+                  <p className="text-xs text-muted-foreground">
+                    No beds yet. Click &ldquo;Add Bed&rdquo; to add one.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {/* Active beds */}
+                  {activeBeds.map((bed: Bed, idx: number) => (
+                    <div
+                      key={bed.id}
+                      className="flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-muted/40 transition-colors group"
+                    >
+                      {/* Reorder arrows */}
+                      <div className="flex flex-col shrink-0">
+                        <button
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:cursor-not-allowed"
+                          onClick={() => moveBed(unit, bed.id, "up")}
+                          disabled={idx === 0}
+                        >
+                          <ChevronUp className="size-3.5" />
+                        </button>
+                        <button
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:cursor-not-allowed"
+                          onClick={() => moveBed(unit, bed.id, "down")}
+                          disabled={idx === activeBeds.length - 1}
+                        >
+                          <ChevronDown className="size-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Bed info */}
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        {bed.room && (
+                          <span className="text-[10px] text-muted-foreground/60 shrink-0">{bed.room}</span>
+                        )}
+                        <span className="text-sm font-medium text-foreground truncate">{bed.displayName}</span>
+                        {bed.bedLabel && (
+                          <span className="text-xs text-muted-foreground shrink-0">{bed.bedLabel}</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className={`text-xs shrink-0 ${STATUS_BADGE_CLASSES[bed.status] || ""}`}
+                        >
+                          {STATUS_LABELS[bed.status] || bed.status}
+                        </Badge>
+                        {bed.patient && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            {bed.patient.firstName} {bed.patient.lastName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Row actions (reveal on hover) */}
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="size-7 text-muted-foreground hover:text-foreground"
-                          onClick={() => openEdit(bed)}
+                          onClick={() => openEditBed(bed)}
                         >
                           <Pencil className="size-3.5" />
                         </Button>
@@ -273,7 +439,7 @@ export function ManageBedsView() {
                           size="icon"
                           className="size-7 text-muted-foreground hover:text-amber-600"
                           title="Decommission"
-                          onClick={() => handleToggleActive(bed)}
+                          onClick={() => toggleActive(bed)}
                         >
                           <PowerOff className="size-3.5" />
                         </Button>
@@ -281,167 +447,160 @@ export function ManageBedsView() {
                           variant="ghost"
                           size="icon"
                           className="size-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => { setDeleteError(""); setDeleteTarget(bed) }}
                           disabled={!!bed.patient}
                           title={bed.patient ? "Cannot delete — bed is occupied" : "Delete"}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Decommissioned beds */}
-      {decommissionedBeds.length > 0 && (
-        <Card className="border-border/60 opacity-70">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <PowerOff className="size-4 text-muted-foreground" />
-              <CardTitle className="text-base font-heading font-semibold text-muted-foreground">
-                Decommissioned
-                <span className="ml-2 text-sm font-normal">({decommissionedBeds.length})</span>
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border/60">
-                  <TableHead className="text-xs text-muted-foreground">Display Name</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Unit</TableHead>
-                  <TableHead className="text-xs text-muted-foreground">Room</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {decommissionedBeds.map((bed) => (
-                  <TableRow key={bed.id} className="border-border/40">
-                    <TableCell className="text-sm text-muted-foreground line-through">{bed.displayName}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{bed.unit || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{bed.room || "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground hover:text-emerald-600"
-                          title="Reactivate"
-                          onClick={() => handleToggleActive(bed)}
-                        >
-                          <Power className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground hover:text-destructive"
                           onClick={() => { setDeleteError(""); setDeleteTarget(bed) }}
                         >
                           <Trash2 className="size-3.5" />
                         </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                    </div>
+                  ))}
 
-      {/* Create / Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) setDialogOpen(false) }}>
+                  {/* Decommissioned beds */}
+                  {decommissioned.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/40">
+                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground/50 px-2 mb-1 font-medium">
+                        Decommissioned
+                      </p>
+                      {decommissioned.map((bed: Bed) => (
+                        <div
+                          key={bed.id}
+                          className="flex items-center gap-2 py-1.5 px-2 rounded-lg opacity-50"
+                        >
+                          <div className="w-5 shrink-0" />
+                          <span className="text-sm text-muted-foreground line-through flex-1 truncate">
+                            {bed.displayName}
+                          </span>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-muted-foreground hover:text-emerald-600"
+                              title="Reactivate"
+                              onClick={() => toggleActive(bed)}
+                            >
+                              <Power className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => { setDeleteError(""); setDeleteTarget(bed) }}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )
+      })}
+
+      {/* ── Add Unit Dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={addUnitOpen} onOpenChange={(v) => { if (!v) setAddUnitOpen(false) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">Add Unit</DialogTitle>
+            <DialogDescription>Enter a name for the new unit.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 pt-1">
+            <div className="flex flex-col gap-1.5">
+              <Label>Unit Name</Label>
+              <Input
+                autoFocus
+                placeholder="e.g. Detox Unit A"
+                value={newUnitName}
+                onChange={(e) => setNewUnitName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddUnit() }}
+              />
+              {addUnitError && <p className="text-xs text-destructive">{addUnitError}</p>}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setAddUnitOpen(false)}>
+                Cancel
+              </Button>
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleAddUnit}>
+                Add Unit
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add / Edit Bed Dialog ───────────────────────────────────────────── */}
+      <Dialog open={bedDialogOpen} onOpenChange={(v) => { if (!v) setBedDialogOpen(false) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">
-              {editBed ? "Edit Bed" : "Add Bed"}
+              {editingBed ? "Edit Bed" : `Add Bed — ${bedDialogUnit}`}
             </DialogTitle>
             <DialogDescription>
-              {editBed
-                ? "Update the bed's details and status."
-                : "Enter the details for the new bed."}
+              {editingBed ? "Update bed details and status." : "Fill in the details for the new bed."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-4 pt-1">
             <div className="flex flex-col gap-1.5">
-              <Label>Display Name <span className="text-destructive">*</span></Label>
+              <Label>
+                Display Name <span className="text-destructive">*</span>
+              </Label>
               <Input
                 placeholder="e.g. Detox A-1"
-                value={form.displayName}
-                onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+                value={bedForm.displayName}
+                onChange={(e) => setBedForm({ ...bedForm, displayName: e.target.value })}
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label>Unit</Label>
+                <Label>Bed Label</Label>
                 <Input
-                  placeholder="e.g. Detox A"
-                  value={form.unit}
-                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                  placeholder="e.g. A"
+                  value={bedForm.bedLabel}
+                  onChange={(e) => setBedForm({ ...bedForm, bedLabel: e.target.value })}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>Room</Label>
                 <Input
                   placeholder="e.g. 101"
-                  value={form.room}
-                  onChange={(e) => setForm({ ...form, room: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Bed Label</Label>
-                <Input
-                  placeholder="e.g. A"
-                  value={form.bedLabel}
-                  onChange={(e) => setForm({ ...form, bedLabel: e.target.value })}
+                  value={bedForm.room}
+                  onChange={(e) => setBedForm({ ...bedForm, room: e.target.value })}
                 />
               </div>
             </div>
 
-            {editBed && (
+            {editingBed && (
               <div className="flex flex-col gap-1.5">
                 <Label>Status</Label>
-                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={bedForm.status} onValueChange={(v) => setBedForm({ ...bedForm, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="available">Available</SelectItem>
                     <SelectItem value="cleaning">Cleaning</SelectItem>
                     <SelectItem value="out_of_service">Out of Service</SelectItem>
                   </SelectContent>
                 </Select>
-                {editBed.status === "occupied" && (
-                  <p className="text-xs text-muted-foreground">Bed is currently occupied — status is managed via patient assignment.</p>
+                {editingBed.status === "occupied" && (
+                  <p className="text-xs text-muted-foreground">
+                    Bed is occupied — status is managed via patient assignment.
+                  </p>
                 )}
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label>Sort Order</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={form.sortOrder}
-                  onChange={(e) => setForm({ ...form, sortOrder: e.target.value })}
-                />
-              </div>
-            </div>
-
             <div className="flex flex-col gap-1.5">
               <Label>Notes</Label>
               <Textarea
-                placeholder="Optional notes about this bed…"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="Optional notes about this bed..."
+                value={bedForm.notes}
+                onChange={(e) => setBedForm({ ...bedForm, notes: e.target.value })}
                 rows={2}
               />
             </div>
@@ -449,30 +608,32 @@ export function ManageBedsView() {
             {formError && <p className="text-sm text-destructive">{formError}</p>}
 
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setDialogOpen(false)}>
+              <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setBedDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={handleSave}
+                onClick={handleSaveBed}
                 disabled={saving}
               >
-                {saving ? <><Loader2 className="mr-2 size-4 animate-spin" />Saving…</> : editBed ? "Save Changes" : "Add Bed"}
+                {saving
+                  ? <><Loader2 className="mr-2 size-4 animate-spin" />Saving...</>
+                  : editingBed ? "Save Changes" : "Add Bed"}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm Dialog */}
+      {/* ── Delete Confirm Dialog ───────────────────────────────────────────── */}
       <Dialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Delete Bed</DialogTitle>
             <DialogDescription>
-              Are you sure you want to permanently delete{" "}
+              Permanently delete{" "}
               <span className="font-medium text-foreground">{deleteTarget?.displayName}</span>?
-              This cannot be undone.
+              {" "}This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
@@ -480,12 +641,8 @@ export function ManageBedsView() {
             <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? <><Loader2 className="mr-2 size-4 animate-spin" />Deleting…</> : "Delete"}
+            <Button variant="destructive" onClick={handleDeleteBed} disabled={deleting}>
+              {deleting ? <><Loader2 className="mr-2 size-4 animate-spin" />Deleting...</> : "Delete"}
             </Button>
           </div>
         </DialogContent>
