@@ -30,6 +30,14 @@ def _serialize_user(u: User):
     }
 
 
+@users_bp.get("/picker")
+@require_auth(permission="audit.view")
+def list_users_picker():
+    """GET /api/users/picker — minimal user list for audit log filter dropdown."""
+    users = tenant_query(User).order_by(User.id.asc()).all()
+    return [{"id": u.id, "username": u.username, "full_name": u.full_name} for u in users], 200
+
+
 @users_bp.get("")
 @require_auth(permission="users.manage")
 def list_users():

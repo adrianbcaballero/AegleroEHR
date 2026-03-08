@@ -28,8 +28,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { getAuditLogs, getAuditStats, exportAuditLogs, getUsers } from "@/lib/api"
-import type { AuditLogEntry, AuditStats, SystemUser } from "@/lib/api"
+import { getAuditLogs, getAuditStats, exportAuditLogs, getUsersPicker } from "@/lib/api"
+import type { AuditLogEntry, AuditStats } from "@/lib/api"
+
+type UserPickerItem = { id: number; username: string; full_name: string | null }
 
 // Map action/status to visual styles
 function getLogLevel(entry: AuditLogEntry): "success" | "error" | "warning" | "info" {
@@ -187,7 +189,7 @@ export function SystemLogsView() {
   const [dateTo, setDateTo] = useState("")
   const [exporting, setExporting] = useState(false)
   const [userFilter, setUserFilter] = useState<string>("")
-  const [usersList, setUsersList] = useState<SystemUser[]>([])
+  const [usersList, setUsersList] = useState<UserPickerItem[]>([])
 
   const handleExport = () => {
     setExporting(true)
@@ -229,7 +231,7 @@ export function SystemLogsView() {
   }, [])
   
   useEffect(() => {
-    getUsers().then(setUsersList).catch(() => {})
+    getUsersPicker().then(setUsersList).catch(() => {})
   }, [])
 
   useEffect(() => {

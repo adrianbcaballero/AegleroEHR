@@ -239,6 +239,10 @@ export function getUsers() {
   return apiGet<SystemUser[]>("/api/users")
 }
 
+export function getUsersPicker() {
+  return apiGet<{ id: number; username: string; full_name: string | null }[]>("/api/users/picker")
+}
+
 export function lockUser(userId: number) {
   return apiPost<{ ok: boolean }>(`/api/users/${userId}/lock`, {})
 }
