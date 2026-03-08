@@ -31,6 +31,7 @@ import {
 export default function EHRApp() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userRole, setUserRole] = useState<UserRole>("psychiatrist")
+  const [userPermissions, setUserPermissions] = useState<string[]>([])
   const [tenantName, setTenantName] = useState("")
   const [currentUser, setCurrentUser] = useState<{ username: string; fullName: string | null }>({
     username: "",
@@ -43,6 +44,7 @@ export default function EHRApp() {
     apiLogout().catch(() => {})
     setSessionToken(null)
     setIsLoggedIn(false)
+    setUserPermissions([])
     setTenantName("")
     setCurrentUser({ username: "", fullName: null })
     setActiveItem("Dashboard")
@@ -55,6 +57,7 @@ export default function EHRApp() {
         onLogin={(role, session) => {
           setSessionToken(session.session_id)
           setUserRole(role)
+          setUserPermissions(session.permissions || [])
           setTenantName(session.tenant_name)
           setCurrentUser({ username: session.username, fullName: session.full_name })
           setIsLoggedIn(true)
@@ -117,6 +120,7 @@ export default function EHRApp() {
         warningSeconds={60}
         onTimeout={() => {
           setIsLoggedIn(false)
+          setUserPermissions([])
           setTenantName("")
           setCurrentUser({ username: "", fullName: null })
           setActiveItem("Dashboard")
@@ -128,6 +132,7 @@ export default function EHRApp() {
         onNavigate={handleSidebarNavigate}
         onSignOut={handleSignOut}
         userRole={userRole}
+        userPermissions={userPermissions}
         tenantName={tenantName}
         currentUser={currentUser}
       />

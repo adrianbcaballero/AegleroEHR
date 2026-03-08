@@ -231,18 +231,18 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
 }
 
 const allMainNavItems = [
-  { title: "Dashboard", icon: LayoutDashboard, roles: ["psychiatrist", "technician", "admin"] },
-  { title: "Front Desk", icon: ClipboardList, roles: ["psychiatrist", "technician", "admin"] },
-  { title: "Patients", icon: Users, roles: ["psychiatrist", "technician", "admin"] },
-  { title: "Archive", icon: Archive, roles: ["psychiatrist", "admin"] },
+  { title: "Dashboard", icon: LayoutDashboard, permission: "patients.view" },
+  { title: "Front Desk", icon: ClipboardList, permission: "patients.view" },
+  { title: "Patients", icon: Users, permission: "patients.view" },
+  { title: "Archive", icon: Archive, permission: "patients.view_all" },
 ]
 
 const adminNavItems = [
-  { title: "Workflows", icon: GitBranch, roles: ["admin", "psychiatrist"] },
-  { title: "Manage Users", icon: UserCog, roles: ["admin"] },
-  { title: "Manage Roles", icon: Shield, roles: ["admin"] },
-  { title: "System Logs", icon: ScrollText, roles: ["admin"] },
-  { title: "Settings", icon: Settings, roles: ["admin"] },
+  { title: "Workflows", icon: GitBranch, permission: "templates.manage" },
+  { title: "Manage Users", icon: UserCog, permission: "users.manage" },
+  { title: "Manage Roles", icon: Shield, permission: "roles.manage" },
+  { title: "System Logs", icon: ScrollText, permission: "audit.view" },
+  { title: "Settings", icon: Settings, permission: "roles.manage" },
 ]
 
 const supportNavItems = [
@@ -270,15 +270,16 @@ interface AppSidebarProps {
   onNavigate: (item: string) => void
   onSignOut: () => void
   userRole: UserRole
+  userPermissions: string[]
   tenantName: string
   currentUser: { username: string; fullName: string | null }
 }
 
-export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, tenantName, currentUser }: AppSidebarProps) {
+export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, userPermissions, tenantName, currentUser }: AppSidebarProps) {
   const [sigDialogOpen, setSigDialogOpen] = useState(false)
   const [sigOpenCount, setSigOpenCount] = useState(0)
-  const mainNavItems = allMainNavItems.filter((item) => item.roles.includes(userRole))
-  const filteredAdminItems = adminNavItems.filter((item) => item.roles.includes(userRole))
+  const mainNavItems = allMainNavItems.filter((item) => userPermissions.includes(item.permission))
+  const filteredAdminItems = adminNavItems.filter((item) => userPermissions.includes(item.permission))
   const showAdmin = filteredAdminItems.length > 0
   const displayName = currentUser.fullName || currentUser.username
   const initials = getInitials(currentUser.fullName, currentUser.username)

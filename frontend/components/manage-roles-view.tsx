@@ -188,7 +188,7 @@ export function ManageRolesView() {
     try {
       await updateRole(editRole.id, {
         displayName: editDisplayName.trim(),
-        permissions: editPermissions,
+        ...(editRole.name !== "admin" ? { permissions: editPermissions } : {}),
       })
       setEditRole(null)
       fetchAll()
@@ -430,12 +430,19 @@ export function ManageRolesView() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">Permissions</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-foreground">Permissions</Label>
+                {editRole?.name === "admin" && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <ShieldCheck className="size-3" /> Locked — admin always has full access
+                  </span>
+                )}
+              </div>
               <div className="rounded-lg border border-border p-4 bg-muted/20">
                 <PermissionCheckboxes
                   selected={editPermissions}
                   onChange={setEditPermissions}
-                  disabled={editLoading}
+                  disabled={editLoading || editRole?.name === "admin"}
                 />
               </div>
             </div>

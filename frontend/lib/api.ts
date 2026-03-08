@@ -69,6 +69,7 @@ export interface LoginResponse {
   username: string;
   full_name: string | null;
   role: "psychiatrist" | "technician" | "admin";
+  permissions: string[];
   tenant_id: number;
   tenant_name: string;
   session_id: string;
