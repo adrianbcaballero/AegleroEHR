@@ -17,7 +17,7 @@ import { SettingsView } from "@/components/settings-view"
 import { HelpView } from "@/components/help-view"
 import { HIPAAComplianceGuidelines } from "@/components/hipaa-compliance-guidelines"
 import { Separator } from "@/components/ui/separator"
-import { setSessionToken, logout as apiLogout, acceptTerms } from "@/lib/api"
+import { setSessionToken, logout as apiLogout } from "@/lib/api"
 import { SessionTimeout } from "@/components/session-timeout"
 import { FirstLoginModal } from "@/components/first-login-modal"
 
