@@ -115,38 +115,40 @@ function TemplateEditorDialog({
 
   useEffect(() => {
     if (open && availableRoles.length > 0) {
-      if (existing) {
-        // Build access map from existing roleAccess, default unset roles to "none"
-        const map: Record<number, AccessLevel> = {}
-        availableRoles.forEach((r) => { map[r.id] = "none" })
-        ;(existing.roleAccess || []).forEach((ra: RoleAccess) => {
-          map[ra.roleId] = ra.accessLevel as AccessLevel
-        })
-        setRoleAccess(map)
-        setName(existing.name)
-        setCategory(existing.category)
-        setDescription(existing.description || "")
-        setFields(existing.fields.length > 0 ? existing.fields : [{ label: "", type: "text" }])
-        setIsRecurring(existing.isRecurring)
-        const storedHours = existing.recurrenceValue || 8
-        if (storedHours % 168 === 0) {
-          setRecurrenceValue(String(storedHours / 168))
-          setRecurrenceUnit("weeks")
-        } else if (storedHours % 24 === 0) {
-          setRecurrenceValue(String(storedHours / 24))
-          setRecurrenceUnit("days")
+      Promise.resolve().then(() => {
+        if (existing) {
+          // Build access map from existing roleAccess, default unset roles to "none"
+          const map: Record<number, AccessLevel> = {}
+          availableRoles.forEach((r: { id: number; name: string; displayName: string }) => { map[r.id] = "none" })
+          ;(existing.roleAccess || []).forEach((ra: RoleAccess) => {
+            map[ra.roleId] = ra.accessLevel as AccessLevel
+          })
+          setRoleAccess(map)
+          setName(existing.name)
+          setCategory(existing.category)
+          setDescription(existing.description || "")
+          setFields(existing.fields.length > 0 ? existing.fields : [{ label: "", type: "text" }])
+          setIsRecurring(existing.isRecurring)
+          const storedHours = existing.recurrenceValue || 8
+          if (storedHours % 168 === 0) {
+            setRecurrenceValue(String(storedHours / 168))
+            setRecurrenceUnit("weeks")
+          } else if (storedHours % 24 === 0) {
+            setRecurrenceValue(String(storedHours / 24))
+            setRecurrenceUnit("days")
+          } else {
+            setRecurrenceValue(String(storedHours))
+            setRecurrenceUnit("hours")
+          }
+          setRequiredForAdmission(existing.requiredForAdmission)
+          setRequiredForDischarge(existing.requiredForDischarge)
         } else {
-          setRecurrenceValue(String(storedHours))
-          setRecurrenceUnit("hours")
+          // New template — default all roles to "sign" (full access)
+          const map: Record<number, AccessLevel> = {}
+          availableRoles.forEach((r: { id: number; name: string; displayName: string }) => { map[r.id] = "sign" })
+          setRoleAccess(map)
         }
-        setRequiredForAdmission(existing.requiredForAdmission)
-        setRequiredForDischarge(existing.requiredForDischarge)
-      } else {
-        // New template — default all roles to "sign" (full access)
-        const map: Record<number, AccessLevel> = {}
-        availableRoles.forEach((r) => { map[r.id] = "sign" })
-        setRoleAccess(map)
-      }
+      })
     }
   }, [open, existing, availableRoles])
 

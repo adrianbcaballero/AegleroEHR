@@ -353,6 +353,8 @@ function FormDetailView({
   const fields = form.templateFields || []
   const cfg = formStatusConfig[form.status] || formStatusConfig["draft"]
   const StatusIcon = cfg.icon
+  const canEdit = form.accessLevel === "edit" || form.accessLevel === "sign"
+  const canSign = form.accessLevel === "sign"
 
   return (
     <div className="flex flex-col gap-6">
@@ -386,7 +388,7 @@ function FormDetailView({
                 field={field}
                 value={formData[field.label]}
                 onChange={(val) => { setFormData((p) => ({ ...p, [field.label]: val })); setSaveMsg(""); setValidationErrors([]) }}
-                disabled={form.status === "completed"}
+                disabled={form.status === "completed" || !canEdit}
               />
             </div>
           ))}
@@ -397,12 +399,12 @@ function FormDetailView({
           <Separator />
 
           <div className="flex items-center gap-3">
-            {form.status !== "completed" && (
+            {form.status !== "completed" && canEdit && (
               <Button variant="outline" className="bg-transparent text-foreground" onClick={handleSave} disabled={saving}>
                 {saving ? "Saving…" : "Save Draft"}
               </Button>
             )}
-            {form.status !== "completed" && (
+            {form.status !== "completed" && canSign && (
               <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => {
                 const errors = validateFields()
                 setValidationErrors(errors)
