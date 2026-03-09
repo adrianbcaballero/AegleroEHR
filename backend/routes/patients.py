@@ -83,7 +83,7 @@ def _apply_rbac(query):
     """
     Users without patients.view_all only see their assigned patients.
     """
-    if not g.user.has_permission("patients.view_all"):
+    if not g.user.has_permission("patients.view.all"):
         return query.filter(Patient.assigned_provider_id == g.user.id)
     return query
 
@@ -140,7 +140,7 @@ def get_patient(patient_id):
         log_access(g.user.id, "PATIENT_GET", f"patient/{patient_id}", "FAILED", ip, description=f"Patient '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
-    if not g.user.has_permission("patients.view_all"):
+    if not g.user.has_permission("patients.view.all"):
         if not p.assigned_provider_id or p.assigned_provider_id != g.user.id:
             log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not assigned provider")
             return {"error": "forbidden"}, 403
@@ -194,7 +194,7 @@ def create_patient():
     #assigned provider handling
     assigned_provider_id = data.get("assignedProviderId")
 
-    if not g.user.has_permission("patients.view_all"):
+    if not g.user.has_permission("patients.view.all"):
         # restricted users can only assign to themselves
         assigned_provider_id = g.user.id
 
@@ -293,7 +293,7 @@ def update_patient(patient_id):
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{patient_id}", "FAILED", ip, description=f"Patient update failed — '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
-    if not g.user.has_permission("patients.view_all") and p.assigned_provider_id != g.user.id:
+    if not g.user.has_permission("patients.view.all") and p.assigned_provider_id != g.user.id:
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not assigned provider")
         return {"error": "forbidden"}, 403
 
@@ -341,7 +341,7 @@ def update_patient(patient_id):
         p.risk_level = risk
 
     if "assignedProviderId" in data:
-        if not g.user.has_permission("patients.view_all"):
+        if not g.user.has_permission("patients.view.all"):
             return {"error": "forbidden — cannot change assignedProviderId"}, 403
 
         apid = data.get("assignedProviderId")
@@ -431,7 +431,7 @@ VALID_DISCHARGE_REASONS = {"completed", "ama", "transferred", "other"}
 
 
 @patients_bp.post("/<patient_id>/admit")
-@require_auth(permission="patients.admit")
+@require_auth(permission="frontdesk.patients.pending")
 def admit_patient(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -487,7 +487,7 @@ def admit_patient(patient_id):
 
 
 @patients_bp.post("/<patient_id>/discharge")
-@require_auth(permission="patients.discharge")
+@require_auth(permission="archive.manage")
 def discharge_patient(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -563,7 +563,7 @@ def discharge_patient(patient_id):
 # ─── ARCHIVE ───
 
 @patients_bp.get("/archive/search")
-@require_auth(permission="patients.view")
+@require_auth(permission="archive.view")
 def search_archive():
     """
     GET /api/patients/archive/search?q=name&ssn=1234

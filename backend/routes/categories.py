@@ -46,7 +46,7 @@ def get_categories():
 
 
 @categories_bp.put("/categories")
-@require_auth(permission="categories.manage")
+@require_auth(permission="workflows.manage")
 def update_categories():
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -92,7 +92,7 @@ def update_categories():
 
 
 @categories_bp.delete("/categories/<string:category>")
-@require_auth(permission="categories.manage")
+@require_auth(permission="workflows.manage")
 def delete_category(category):
     ip = client_ip()
     category = category.strip().lower()

@@ -7,47 +7,67 @@ from extensions import db
 # Roles are tenant-scoped bundles of these permissions.
 
 ALL_PERMISSIONS = [
-    "patients.view",       # list / get patient records (scoped to assigned if no view_all)
-    "patients.view_all",   # view all patients regardless of assignment
-    "patients.create",     # create new patient
-    "patients.edit",       # update patient demographics / fields
-    "patients.admit",      # admit a patient
-    "patients.discharge",  # discharge a patient
-    "forms.view",          # view patient form instances
-    "forms.edit",          # fill out / save draft forms
-    "forms.sign",          # complete / sign forms (makes them legal records)
-    "templates.view",      # view form templates
-    "templates.manage",    # create / edit / delete form templates
-    "categories.manage",   # manage form categories on the tenant
-    "consent.manage",      # create / revoke 42 CFR Part 2 consents
-    "users.manage",        # create / edit / lock / unlock users
-    "roles.manage",        # create / edit / delete custom roles
-    "audit.view",          # view audit logs and stats
+    # Patients
+    "patients.view",                 # access the patients page
+    "patients.view.all",             # see all patients regardless of care team
+    "patients.edit",                 # edit patient record
+    "patients.create",               # register new patient
+    "patients.delete",               # delete / merge patients
+
+    # Front Desk
+    "frontdesk.view",                # see the front desk page
+    "frontdesk.admissions.view",     # see pending admissions card
+    "frontdesk.beds.manage",         # manage beds (create / edit / delete)
+    "frontdesk.bedboard.view",       # see bed board card
+    "frontdesk.patients.create",     # add patient via front desk
+    "frontdesk.patients.pending",    # work on pending patients (admit / reject)
+
+    # Archive
+    "archive.view",                  # access archive page
+    "archive.export",                # export records from archive
+    "archive.manage",                # discharge, reactivate patients
+
+    # Workflows
+    "workflows.view",                # access workflows page
+    "workflows.manage",              # create / edit / delete templates and categories
+
+    # Care Teams
+    "careteam.manage",               # create and assign care teams
+
+    # System
+    "audit.view",                    # access audit logs
+    "users.view",                    # view user list
+    "users.manage",                  # create / edit / lock / unlock users
+    "roles.manage",                  # manage roles and permissions
+
+    # Consent (42 CFR Part 2)
+    "consent.manage",                # create / revoke patient consent records
 ]
 
 # Default permissions granted to each system role on creation
 SYSTEM_ROLE_PERMISSIONS = {
     "admin": ALL_PERMISSIONS,
     "psychiatrist": [
-        "patients.view", "patients.view_all",
+        "patients.view", "patients.view.all",
         "patients.create", "patients.edit",
-        "patients.admit", "patients.discharge",
-        "forms.view", "forms.edit", "forms.sign",
-        "templates.view", "templates.manage",
-        "categories.manage",
+        "frontdesk.view", "frontdesk.admissions.view",
+        "frontdesk.bedboard.view", "frontdesk.patients.pending",
+        "archive.view", "archive.manage",
+        "workflows.view", "workflows.manage",
         "consent.manage",
         "audit.view",
+        "users.view",
     ],
     "technician": [
-        "patients.view",   # scoped to assigned (no view_all)
+        "patients.view",
         "patients.edit",
-        "forms.view", "forms.edit", "forms.sign",
+        "frontdesk.view", "frontdesk.bedboard.view",
         "consent.manage",
     ],
     "auditor": [
-        "patients.view", "patients.view_all",
-        "forms.view",
-        "templates.view",
+        "patients.view", "patients.view.all",
+        "archive.view",
+        "workflows.view",
         "audit.view",
     ],
 }

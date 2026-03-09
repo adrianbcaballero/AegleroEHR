@@ -50,7 +50,7 @@ def list_beds():
 
 
 @beds_bp.get("/all")
-@require_auth(permission="roles.manage")
+@require_auth(permission="frontdesk.beds.manage")
 def list_all_beds():
     """GET /api/beds/all — all beds including decommissioned. Admin/settings use."""
     beds = (
@@ -62,7 +62,7 @@ def list_all_beds():
 
 
 @beds_bp.post("")
-@require_auth(permission="roles.manage")
+@require_auth(permission="frontdesk.beds.manage")
 def create_bed():
     """POST /api/beds — create a new bed in the tenant's inventory."""
     ip = client_ip()
@@ -91,7 +91,7 @@ def create_bed():
 
 
 @beds_bp.put("/<int:bed_id>")
-@require_auth(permission="roles.manage")
+@require_auth(permission="frontdesk.beds.manage")
 def update_bed(bed_id):
     """PUT /api/beds/<id> — update bed config or status."""
     ip = client_ip()
@@ -147,7 +147,7 @@ def update_bed(bed_id):
 
 
 @beds_bp.delete("/<int:bed_id>")
-@require_auth(permission="roles.manage")
+@require_auth(permission="frontdesk.beds.manage")
 def delete_bed(bed_id):
     """DELETE /api/beds/<id> — delete a bed if it is not occupied."""
     ip = client_ip()
@@ -169,7 +169,7 @@ def delete_bed(bed_id):
 
 
 @beds_bp.put("/<int:bed_id>/assign")
-@require_auth(permission="patients.admit")
+@require_auth(permission="frontdesk.patients.pending")
 def assign_bed(bed_id):
     """
     PUT /api/beds/<id>/assign

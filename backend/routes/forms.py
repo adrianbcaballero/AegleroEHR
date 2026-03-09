@@ -121,7 +121,7 @@ def _get_access_level(template: FormTemplate, user) -> str | None:
 # ─── TEMPLATE ENDPOINTS (admin + psychiatrist) ───
 
 @forms_bp.get("/templates")
-@require_auth(permission="templates.view")
+@require_auth(permission="workflows.view")
 def list_templates():
     ip = client_ip()
     status_filter = (request.args.get("status") or "active").strip()
@@ -151,7 +151,7 @@ def list_templates():
 
 
 @forms_bp.get("/templates/<int:template_id>")
-@require_auth(permission="templates.view")
+@require_auth(permission="workflows.view")
 def get_template(template_id):
     ip = client_ip()
     t = tenant_query(FormTemplate).filter_by(id=template_id).first()
@@ -166,7 +166,7 @@ def get_template(template_id):
 
 
 @forms_bp.post("/templates")
-@require_auth(permission="templates.manage")
+@require_auth(permission="workflows.manage")
 def create_template():
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -239,7 +239,7 @@ def create_template():
 
 
 @forms_bp.put("/templates/<int:template_id>")
-@require_auth(permission="templates.manage")
+@require_auth(permission="workflows.manage")
 def update_template(template_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -314,7 +314,7 @@ def update_template(template_id):
 
 
 @forms_bp.delete("/templates/<int:template_id>")
-@require_auth(permission="templates.manage")
+@require_auth(permission="workflows.manage")
 def delete_template(template_id):
     ip = client_ip()
 
@@ -399,7 +399,7 @@ def _maybe_generate_recurring_forms(p: Patient, user, tenant_id: int):
 # ─── PATIENT FORM ENDPOINTS ───
 
 @forms_bp.get("/patients/<patient_id>/forms")
-@require_auth(permission="forms.view")
+@require_auth(permission="patients.view")
 def list_patient_forms(patient_id):
     ip = client_ip()
 
@@ -442,7 +442,7 @@ def list_patient_forms(patient_id):
 
 
 @forms_bp.get("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(permission="forms.view")
+@require_auth(permission="patients.view")
 def get_patient_form(patient_id, form_id):
     ip = client_ip()
 
@@ -474,7 +474,7 @@ def get_patient_form(patient_id, form_id):
 
 
 @forms_bp.post("/patients/<patient_id>/forms")
-@require_auth(permission="forms.edit")
+@require_auth(permission="patients.view")
 def create_patient_form(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -526,7 +526,7 @@ def create_patient_form(patient_id):
 
 
 @forms_bp.put("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(permission="forms.edit")
+@require_auth(permission="patients.view")
 def update_patient_form(patient_id, form_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -567,10 +567,7 @@ def update_patient_form(patient_id, form_id):
         status = (data["status"] or "").strip()
         if status not in {"draft", "completed"}:
             return {"error": "status must be draft or completed"}, 400
-        if status == "completed" and not g.user.has_permission("forms.sign"):
-            log_access(g.user.id, "FORM_SIGN", f"patient/{p.patient_code}/forms/{f.id}", "FAILED", ip,
-                       description=f"Signing denied — missing forms.sign permission")
-            return {"error": "forbidden — you do not have permission to sign forms"}, 403
+        # Signing is gated per-template by FormTemplateAccess (access_level == "sign")
         f.status = status
         if status == "completed" and not f.signed_at:
             f.signed_by_name = g.user.full_name or g.user.username
@@ -590,7 +587,7 @@ def update_patient_form(patient_id, form_id):
     return _serialize_form(f, template=template, filler=filler, access_level=level), 200
 
 @forms_bp.delete("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(permission="forms.edit")
+@require_auth(permission="patients.view")
 def delete_patient_form(patient_id, form_id):
     ip = client_ip()
 
