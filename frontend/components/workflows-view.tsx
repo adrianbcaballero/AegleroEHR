@@ -820,10 +820,17 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
 // ------- Main Workflows View -------
 export function WorkflowsView({ userRole }: { userRole?: string }) {
   const [templates, setTemplates] = useState<FormTemplate[]>([])
+  const [allCategories, setAllCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+
+  const fetchCategories = useCallback(async () => {
+    getCategories()
+      .then((r) => setAllCategories(r.categories))
+      .catch(() => {})
+  }, [])
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true)
@@ -835,8 +842,8 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
   }, [])
 
   useEffect(() => {
-    Promise.resolve().then(() => fetchTemplates())
-  }, [fetchTemplates])
+    Promise.resolve().then(() => { fetchTemplates(); fetchCategories() })
+  }, [fetchTemplates, fetchCategories])
 
   if (selectedTemplateId) {
     return (
@@ -871,10 +878,10 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
         <div className="flex items-center gap-2">
           {(userRole === "admin" || userRole === "psychiatrist") && (
             <>
-              <CategoryManager onChanged={fetchTemplates} />
+              <CategoryManager onChanged={() => { fetchTemplates(); fetchCategories() }} />
               <TemplateEditorDialog
                 onSaved={fetchTemplates}
-                existingCategories={[...new Set(templates.map((t: FormTemplate) => t.category))] as string[]}
+                existingCategories={allCategories}
                 trigger={
                   <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
                     <Plus className="mr-2 size-4" /> Template

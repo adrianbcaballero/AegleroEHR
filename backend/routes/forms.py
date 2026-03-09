@@ -586,7 +586,8 @@ def update_patient_form(patient_id, form_id):
     else:
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Saved draft of '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
     filler = User.query.get(f.filled_by) if f.filled_by else None
-    return _serialize_form(f, template=template, filler=filler), 200
+    level = _get_access_level(template, g.user) if template else None
+    return _serialize_form(f, template=template, filler=filler, access_level=level), 200
 
 @forms_bp.delete("/patients/<patient_id>/forms/<int:form_id>")
 @require_auth(permission="forms.edit")
