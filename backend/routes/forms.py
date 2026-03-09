@@ -33,6 +33,19 @@ def _maybe_score_asam(f: PatientForm, p: Patient, template: FormTemplate, ip: st
 
 
 def _serialize_template(t: FormTemplate):
+    access_entries = FormTemplateAccess.query.filter_by(template_id=t.id).all()
+    role_ids = [e.role_id for e in access_entries]
+    roles_map = {r.id: r for r in Role.query.filter(Role.id.in_(role_ids)).all()} if role_ids else {}
+    role_access = [
+        {
+            "roleId": e.role_id,
+            "roleName": roles_map[e.role_id].name,
+            "roleDisplayName": roles_map[e.role_id].display_name,
+            "accessLevel": e.access_level,
+        }
+        for e in access_entries
+        if e.role_id in roles_map
+    ]
     return {
         "id": t.id,
         "name": t.name,
@@ -40,6 +53,7 @@ def _serialize_template(t: FormTemplate):
         "description": t.description,
         "fields": t.fields or [],
         "allowedRoles": t.allowed_roles or [],
+        "roleAccess": role_access,
         "status": t.status,
         "isRecurring": t.is_recurring,
         "recurrenceValue": t.recurrence_value,
@@ -52,7 +66,7 @@ def _serialize_template(t: FormTemplate):
     }
 
 
-def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler: User | None = None):
+def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler: User | None = None, access_level: str | None = None):
     if template is None:
         template = FormTemplate.query.get(f.template_id)
     if filler is None and f.filled_by:
@@ -77,7 +91,31 @@ def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler
         "signedAt": f.signed_at.isoformat() if f.signed_at else None,
         "createdAt": f.created_at.isoformat() if f.created_at else None,
         "updatedAt": f.updated_at.isoformat() if f.updated_at else None,
+        "accessLevel": access_level,
     }
+
+
+def _get_access_level(template: FormTemplate, user) -> str | None:
+    """
+    Returns the effective access level string ("view", "edit", "sign") for a user
+    on a given template, or None if the user has no access.
+
+    Priority:
+      1. FormTemplateAccess row (new per-role system)
+      2. Legacy allowed_roles string list (falls back to "sign" = full access)
+    """
+    if user.role_id:
+        entry = FormTemplateAccess.query.filter_by(
+            template_id=template.id, role_id=user.role_id
+        ).first()
+        if entry:
+            return entry.access_level
+
+    # Legacy fallback: role name in allowed_roles means full access
+    if user.role_name in (template.allowed_roles or []):
+        return "sign"
+
+    return None
 
 
 # ─── TEMPLATE ENDPOINTS (admin + psychiatrist) ───
@@ -149,10 +187,14 @@ def create_template():
         log_access(g.user.id, "TEMPLATE_CREATE", "templates", "FAILED", ip, description="Template creation failed — fields must be a list")
         return {"error": "fields must be a list"}, 400
 
-    allowed_roles = data.get("allowedRoles", ["admin", "psychiatrist", "technician"])
+    allowed_roles = data.get("allowedRoles", [])
     if not isinstance(allowed_roles, list):
         log_access(g.user.id, "TEMPLATE_CREATE", "templates", "FAILED", ip, description="Template creation failed — allowedRoles must be a list")
         return {"error": "allowedRoles must be a list"}, 400
+
+    role_access_input = data.get("roleAccess", [])
+    if not isinstance(role_access_input, list):
+        return {"error": "roleAccess must be a list"}, 400
 
     is_recurring = bool(data.get("isRecurring", False))
     recurrence_value = int(data["recurrenceValue"]) if data.get("recurrenceValue") else None
@@ -177,6 +219,19 @@ def create_template():
     )
 
     db.session.add(t)
+    db.session.flush()  # get t.id before committing
+
+    valid_levels = {"view", "edit", "sign"}
+    for ra in role_access_input:
+        role_id = ra.get("roleId")
+        level = ra.get("accessLevel", "sign")
+        if role_id and level in valid_levels:
+            db.session.add(FormTemplateAccess(
+                template_id=t.id,
+                role_id=role_id,
+                access_level=level,
+            ))
+
     db.session.commit()
 
     log_access(g.user.id, "TEMPLATE_CREATE", f"template/{t.id}", "SUCCESS", ip, description=f"Created form template '{t.name}' ({t.category})")
@@ -217,6 +272,22 @@ def update_template(template_id):
             return {"error": "allowedRoles must be a list"}, 400
         t.allowed_roles = data["allowedRoles"]
         flag_modified(t, "allowed_roles")
+
+    if "roleAccess" in data:
+        if not isinstance(data["roleAccess"], list):
+            return {"error": "roleAccess must be a list"}, 400
+        # Replace all access entries for this template
+        FormTemplateAccess.query.filter_by(template_id=t.id).delete()
+        valid_levels = {"view", "edit", "sign"}
+        for ra in data["roleAccess"]:
+            role_id = ra.get("roleId")
+            level = ra.get("accessLevel", "sign")
+            if role_id and level in valid_levels:
+                db.session.add(FormTemplateAccess(
+                    template_id=t.id,
+                    role_id=role_id,
+                    access_level=level,
+                ))
 
     if "status" in data:
         status = (data["status"] or "").strip()
@@ -265,7 +336,7 @@ def delete_template(template_id):
     return {"ok": True}, 200
 
 
-def _maybe_generate_recurring_forms(p: Patient, user_role: str, tenant_id: int):
+def _maybe_generate_recurring_forms(p: Patient, user, tenant_id: int):
     """Lazily create draft forms for any overdue recurring templates."""
     now = datetime.now(timezone.utc)
 
@@ -277,7 +348,9 @@ def _maybe_generate_recurring_forms(p: Patient, user_role: str, tenant_id: int):
 
     created_any = False
     for template in recurring_templates:
-        if user_role not in (template.allowed_roles or []):
+        level = _get_access_level(template, user)
+        # Only generate if the user's role can at least edit (view-only can't fill forms)
+        if level not in ("edit", "sign"):
             continue
         if not template.recurrence_value:
             continue
@@ -339,7 +412,7 @@ def list_patient_forms(patient_id):
         log_access(g.user.id, "FORM_LIST", f"patient/{p.patient_code}/forms", "FAILED", ip, description=f"Access denied to forms for patient {p.patient_code}")
         return {"error": "forbidden"}, 403
 
-    _maybe_generate_recurring_forms(p, g.user.role_name, g.tenant_id)
+    _maybe_generate_recurring_forms(p, g.user, g.tenant_id)
 
     forms = (
         PatientForm.query
@@ -354,13 +427,16 @@ def list_patient_forms(patient_id):
     templates_map = {t.id: t for t in FormTemplate.query.filter(FormTemplate.id.in_(template_ids)).all()} if template_ids else {}
     users_map = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
 
-    user_role = g.user.role_name
     result = []
     for f in forms:
         template = templates_map.get(f.template_id)
-        if template and user_role in (template.allowed_roles or []):
-            filler = users_map.get(f.filled_by) if f.filled_by else None
-            result.append(_serialize_form(f, template=template, filler=filler))
+        if not template:
+            continue
+        level = _get_access_level(template, g.user)
+        if not level:
+            continue
+        filler = users_map.get(f.filled_by) if f.filled_by else None
+        result.append(_serialize_form(f, template=template, filler=filler, access_level=level))
 
     return result, 200
 
@@ -384,15 +460,14 @@ def get_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_GET", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Form #{form_id} not found for patient {p.patient_code}")
         return {"error": "form not found"}, 404
 
-    # Check role visibility
     template = FormTemplate.query.get(f.template_id)
-    if template and g.user.role_name not in (template.allowed_roles or []):
+    level = _get_access_level(template, g.user) if template else None
+    if not level:
         log_access(g.user.id, "FORM_GET", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Role '{g.user.role_name}' not allowed to view form #{form_id}")
         return {"error": "forbidden"}, 403
 
     filler = User.query.get(f.filled_by) if f.filled_by else None
-    data = _serialize_form(f, template=template, filler=filler)
-    # Include template fields so frontend can render the form
+    data = _serialize_form(f, template=template, filler=filler, access_level=level)
     data["templateFields"] = template.fields if template else []
 
     return data, 200
