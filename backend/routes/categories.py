@@ -2,7 +2,7 @@ from flask import Blueprint, request, g
 
 from auth_middleware import require_auth
 from extensions import db
-from models import Tenant
+from models import Tenant, FormTemplate
 from services.audit_logger import log_access
 from services.helpers import client_ip
 from sqlalchemy.orm.attributes import flag_modified
@@ -89,3 +89,35 @@ def update_categories():
         "categories": clean,
         "defaultCategories": DEFAULT_CATEGORIES,
     }, 200
+
+
+@categories_bp.delete("/categories/<string:category>")
+@require_auth(permission="categories.manage")
+def delete_category(category):
+    ip = client_ip()
+    category = category.strip().lower()
+
+    if category in DEFAULT_CATEGORIES:
+        return {"error": f"'{category}' is a default category and cannot be deleted"}, 400
+
+    templates = FormTemplate.query.filter_by(tenant_id=g.tenant_id, category=category).all()
+    if templates:
+        return {
+            "error": f"Cannot delete '{category}' — {len(templates)} template(s) are assigned to it",
+            "templates": [{"id": t.id, "name": t.name} for t in templates],
+        }, 409
+
+    tenant = Tenant.query.get(g.tenant_id)
+    if not tenant:
+        return {"error": "tenant not found"}, 404
+
+    current = list(tenant.category_order or [])
+    if category in current:
+        current.remove(category)
+        tenant.category_order = current
+        flag_modified(tenant, "category_order")
+        db.session.commit()
+
+    log_access(g.user.id, "CATEGORY_DELETE", f"categories/{category}", "SUCCESS", ip,
+               description=f"Deleted custom category '{category}'")
+    return {"categories": current, "defaultCategories": DEFAULT_CATEGORIES}, 200

@@ -54,8 +54,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getTemplates, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories, getRolesPicker } from "@/lib/api"
-import type { FormTemplate, TemplateField, RoleAccess } from "@/lib/api"
+import { getTemplates, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories, deleteCategory, getRolesPicker } from "@/lib/api"
+import type { FormTemplate, TemplateField, RoleAccess, DeleteCategoryError } from "@/lib/api"
 
 type AccessLevel = "none" | "view" | "edit" | "sign"
 
@@ -692,6 +692,8 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
   const [newCat, setNewCat] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [removeBlocked, setRemoveBlocked] = useState<{ cat: string; templates: { id: number; name: string }[] } | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -718,9 +720,24 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
     setError("")
   }
 
-  const removeCat = (cat: string) => {
-    setCategories(categories.filter((c: string) => c !== cat))
+  const handleRemoveCat = (cat: string) => {
+    setRemoving(cat)
+    setRemoveBlocked(null)
     setError("")
+    deleteCategory(cat)
+      .then(() => {
+        setCategories((prev: string[]) => prev.filter((c: string) => c !== cat))
+        onChanged()
+      })
+      .catch((e: unknown) => {
+        const err = e as DeleteCategoryError
+        if (err.templates && err.templates.length > 0) {
+          setRemoveBlocked({ cat, templates: err.templates })
+        } else {
+          setError(err.message || "Failed to delete category")
+        }
+      })
+      .finally(() => setRemoving(null))
   }
 
   const handleSave = () => {
@@ -733,7 +750,7 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v: boolean) => { setOpen(v); setRemoveBlocked(null); setError("") }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="bg-transparent text-foreground">
           <Settings2 className="mr-2 size-4" /> Manage Categories
@@ -751,37 +768,53 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
         <div className="flex flex-col gap-2 max-h-72 overflow-y-auto py-1">
           {categories.map((cat: string, idx: number) => {
             const isDefault = defaultCategories.includes(cat)
+            const isRemoving = removing === cat
             return (
-              <div key={cat} className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
-                    onClick={() => move(idx, -1)}
-                    disabled={idx === 0}
-                  >
-                    <ChevronUp className="size-3.5 text-muted-foreground" />
-                  </button>
-                  <button
-                    type="button"
-                    className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
-                    onClick={() => move(idx, 1)}
-                    disabled={idx === categories.length - 1}
-                  >
-                    <ChevronDown className="size-3.5 text-muted-foreground" />
-                  </button>
+              <div key={cat} className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
+                      onClick={() => move(idx, -1)}
+                      disabled={idx === 0}
+                    >
+                      <ChevronUp className="size-3.5 text-muted-foreground" />
+                    </button>
+                    <button
+                      type="button"
+                      className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
+                      onClick={() => move(idx, 1)}
+                      disabled={idx === categories.length - 1}
+                    >
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                  <span className="flex-1 text-sm capitalize text-foreground">{cat}</span>
+                  {isDefault ? (
+                    <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">default</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                      onClick={() => handleRemoveCat(cat)}
+                      disabled={isRemoving || removing !== null}
+                    >
+                      {isRemoving ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                    </button>
+                  )}
                 </div>
-                <span className="flex-1 text-sm capitalize text-foreground">{cat}</span>
-                {isDefault ? (
-                  <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">default</span>
-                ) : (
-                  <button
-                    type="button"
-                    className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                    onClick={() => removeCat(cat)}
-                  >
-                    <X className="size-3.5" />
-                  </button>
+                {removeBlocked?.cat === cat && (
+                  <div className="ml-2 p-2 rounded-md bg-destructive/10 border border-destructive/20">
+                    <p className="text-xs font-medium text-destructive mb-1">
+                      Cannot delete — {removeBlocked.templates.length} template(s) use this category:
+                    </p>
+                    <ul className="text-xs text-destructive/80 list-disc list-inside">
+                      {removeBlocked.templates.map((t) => (
+                        <li key={t.id}>{t.name}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             )
@@ -968,38 +1001,50 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
 
           {/* Template Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTemplates.map((template) => (
-              <Card
-                key={template.id}
-                className="border-border/60 cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
-                onClick={() => setSelectedTemplateId(template.id)}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <GitBranch className="size-4 text-primary shrink-0" />
-                      <Badge variant="secondary" className="text-[10px] capitalize">{template.category}</Badge>
+            {filteredTemplates.map((template) => {
+              const signers = (template.roleAccess || []).filter((ra: RoleAccess) => ra.accessLevel === "sign")
+              return (
+                <Card
+                  key={template.id}
+                  className="border-border/60 cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
+                  onClick={() => setSelectedTemplateId(template.id)}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="size-4 text-primary shrink-0" />
+                        <Badge variant="secondary" className="text-[10px] capitalize">{template.category}</Badge>
+                      </div>
+                      <ChevronRight className="size-4 text-muted-foreground" />
                     </div>
-                    <ChevronRight className="size-4 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-foreground mt-2">{template.name}</h3>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{template.description}</p>
-                  <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
-                    <span>{template.fields.length} fields</span>
-                    <span>&middot;</span>
-                    <span>{template.instanceCount || 0} instances</span>
-                    {template.allowedRoles.length < 3 && (
-                      <>
-                        <span>&middot;</span>
-                        <span className="flex items-center gap-1">
-                          <Shield className="size-3" /> Restricted
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <h3 className="text-sm font-semibold text-foreground mt-2">{template.name}</h3>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{template.description}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border">
+                      {template.isRecurring && (
+                        <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
+                          <Clock className="size-2.5 mr-1" />Recurring
+                        </Badge>
+                      )}
+                      {template.requiredForAdmission && (
+                        <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Admission Required</Badge>
+                      )}
+                      {template.requiredForDischarge && (
+                        <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Discharge Required</Badge>
+                      )}
+                      {signers.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent border-0">
+                          <Shield className="size-2.5 mr-1" />
+                          {signers.map((s: RoleAccess) => s.roleDisplayName).join(", ")}
+                        </Badge>
+                      )}
+                      {!template.isRecurring && !template.requiredForAdmission && !template.requiredForDischarge && signers.length === 0 && (
+                        <span className="text-[10px] text-muted-foreground">No restrictions</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
             {filteredTemplates.length === 0 && (
               <Card className="border-border/60 col-span-full">
                 <CardContent className="p-8 text-center">

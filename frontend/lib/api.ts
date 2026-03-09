@@ -618,3 +618,21 @@ export function updateCategories(categories: string[]) {
   return apiPut<CategoriesResponse>("/api/categories", { categories })
 }
 
+export interface DeleteCategoryError extends Error {
+  templates?: { id: number; name: string }[]
+}
+
+export async function deleteCategory(category: string): Promise<CategoriesResponse> {
+  const res = await fetch(`${API_BASE_URL}/api/categories/${encodeURIComponent(category)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(body.error || `DELETE /api/categories/${category} failed: ${res.status}`) as DeleteCategoryError
+    if (body.templates) err.templates = body.templates
+    throw err
+  }
+  return body
+}
+
