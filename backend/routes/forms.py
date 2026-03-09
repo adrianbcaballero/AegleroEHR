@@ -545,6 +545,13 @@ def update_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Form #{form_id} not found for patient {p.patient_code}")
         return {"error": "form not found"}, 404
 
+    # Check per-template access level
+    template = FormTemplate.query.get(f.template_id)
+    access_level = _get_access_level(template, g.user) if template else None
+    if access_level not in ("edit", "sign"):
+        log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Access denied — insufficient template access level for form #{form_id}")
+        return {"error": "forbidden — insufficient access to this form template"}, 403
+
     # Completed forms are legal records and must be immutable
     if f.status == "completed":
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Attempted to modify completed form #{form_id} for patient {p.patient_code}")
@@ -572,7 +579,6 @@ def update_patient_form(patient_id, form_id):
 
     db.session.commit()
 
-    template = FormTemplate.query.get(f.template_id)
     tpl_name = template.name if template else f"form #{f.id}"
     if "status" in data and data["status"] == "completed":
         log_access(g.user.id, "FORM_SIGN", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Signed and completed '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
@@ -601,7 +607,12 @@ def delete_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip)
         return {"error": "form not found"}, 404
 
-    template = FormTemplate.query.get(f.template_id) if f else None
+    template = FormTemplate.query.get(f.template_id)
+    access_level = _get_access_level(template, g.user) if template else None
+    if access_level not in ("edit", "sign"):
+        log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Access denied — insufficient template access level for form #{form_id}")
+        return {"error": "forbidden — insufficient access to this form template"}, 403
+
     tpl_name = template.name if template else f"form #{form_id}"
 
     db.session.delete(f)

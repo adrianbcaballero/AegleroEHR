@@ -191,6 +191,7 @@ function FormDetailView({
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [userName, setUserName] = useState("")
 
   useEffect(() => {
@@ -413,14 +414,21 @@ function FormDetailView({
                 <PenLine className="mr-2 size-4" />Sign & Complete
               </Button>
             )}
+            {form.status !== "completed" && canEdit && (
+              <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setShowClearConfirm(true)} disabled={saving}>
+                Clear Fields
+              </Button>
+            )}
             <Button variant="outline" className="bg-transparent text-foreground" onClick={handlePrint}>
               <Printer className="mr-2 size-4" />Print
             </Button>
             {saveMsg && <span className="text-sm text-accent">{saveMsg}</span>}
             <div className="ml-auto">
-              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)} disabled={saving || deleting}>
-                <Trash2 className="mr-1.5 size-3.5" /> Delete
-              </Button>
+              {canEdit && (
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)} disabled={saving || deleting}>
+                  <Trash2 className="mr-1.5 size-3.5" /> Delete
+                </Button>
+              )}
             </div>
           </div>
 
@@ -461,6 +469,26 @@ function FormDetailView({
                 </Button>
                 <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
                   {deleting ? "Deleting…" : "Delete Form"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Clear Fields Confirmation Dialog */}
+          <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="font-heading text-foreground">Clear Form Fields</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to clear all fields on <span className="font-semibold text-foreground">{form.templateName}</span>? All entered data will be removed.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShowClearConfirm(false)} className="bg-transparent text-foreground">
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={() => { setFormData({}); setSaveMsg(""); setValidationErrors([]); setShowClearConfirm(false) }}>
+                  Clear Fields
                 </Button>
               </div>
             </DialogContent>
