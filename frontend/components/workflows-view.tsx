@@ -54,10 +54,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getTemplates, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories } from "@/lib/api"
-import type { FormTemplate, TemplateField } from "@/lib/api"
+import { getTemplates, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories, getRolesPicker } from "@/lib/api"
+import type { FormTemplate, TemplateField, RoleAccess } from "@/lib/api"
 
-const ALL_ROLES = ["admin", "psychiatrist", "technician"]
+type AccessLevel = "none" | "view" | "edit" | "sign"
+
+const ACCESS_LEVEL_OPTIONS: { value: AccessLevel; label: string }[] = [
+  { value: "none", label: "No Access" },
+  { value: "view", label: "View + Print" },
+  { value: "edit", label: "View + Edit + Save" },
+  { value: "sign", label: "Full (View + Edit + Save + Sign + Print)" },
+]
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -90,7 +97,8 @@ function TemplateEditorDialog({
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
   const [fields, setFields] = useState<TemplateField[]>([{ label: "", type: "text" }])
-  const [allowedRoles, setAllowedRoles] = useState<string[]>(["admin", "psychiatrist", "technician"])
+  const [roleAccess, setRoleAccess] = useState<Record<number, AccessLevel>>({})
+  const [availableRoles, setAvailableRoles] = useState<{ id: number; name: string; displayName: string }[]>([])
   const [isRecurring, setIsRecurring] = useState(false)
   const [recurrenceValue, setRecurrenceValue] = useState("8")
   const [recurrenceUnit, setRecurrenceUnit] = useState("hours")
@@ -100,14 +108,26 @@ function TemplateEditorDialog({
   const [error, setError] = useState("")
 
   useEffect(() => {
-    if (open && existing) {
-      Promise.resolve().then(() => {
+    if (open) {
+      getRolesPicker().then(setAvailableRoles).catch(() => {})
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (open && availableRoles.length > 0) {
+      if (existing) {
+        // Build access map from existing roleAccess, default unset roles to "none"
+        const map: Record<number, AccessLevel> = {}
+        availableRoles.forEach((r) => { map[r.id] = "none" })
+        ;(existing.roleAccess || []).forEach((ra: RoleAccess) => {
+          map[ra.roleId] = ra.accessLevel as AccessLevel
+        })
+        setRoleAccess(map)
         setName(existing.name)
         setCategory(existing.category)
         setDescription(existing.description || "")
         setFields(existing.fields.length > 0 ? existing.fields : [{ label: "", type: "text" }])
         setIsRecurring(existing.isRecurring)
-        // stored value is always total hours — decode back to best unit
         const storedHours = existing.recurrenceValue || 8
         if (storedHours % 168 === 0) {
           setRecurrenceValue(String(storedHours / 168))
@@ -121,9 +141,14 @@ function TemplateEditorDialog({
         }
         setRequiredForAdmission(existing.requiredForAdmission)
         setRequiredForDischarge(existing.requiredForDischarge)
-      })
+      } else {
+        // New template — default all roles to "sign" (full access)
+        const map: Record<number, AccessLevel> = {}
+        availableRoles.forEach((r) => { map[r.id] = "sign" })
+        setRoleAccess(map)
+      }
     }
-  }, [open, existing])
+  }, [open, existing, availableRoles])
 
   const updateField = (index: number, key: string, value: unknown) => {
     const updated = [...fields]
@@ -136,17 +161,10 @@ function TemplateEditorDialog({
     setFields(fields.filter((_, i) => i !== index))
   }
 
-  const toggleRole = (role: string) => {
-    setAllowedRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    )
-  }
-
   const handleSave = () => {
     if (!name.trim()) { setError("Name is required"); return }
     if (!category) { setError("Category is required"); return }
     if (fields.some((f) => !f.label.trim())) { setError("All fields need a label"); return }
-    if (allowedRoles.length === 0) { setError("At least one role must be selected"); return }
     if (isRecurring && (!recurrenceValue || parseInt(recurrenceValue) < 1)) { setError("Recurring interval must be at least 1"); return }
 
     setLoading(true)
@@ -165,12 +183,17 @@ function TemplateEditorDialog({
     const hoursMap: Record<string, number> = { hours: 1, days: 24, weeks: 168 }
     const totalHours = isRecurring ? parseInt(recurrenceValue) * (hoursMap[recurrenceUnit] ?? 1) : null
 
+    // Build roleAccess payload — exclude "none" entries (no access = not present)
+    const roleAccessPayload = Object.entries(roleAccess)
+      .filter(([, level]) => level !== "none")
+      .map(([roleId, level]) => ({ roleId: Number(roleId), accessLevel: level as string }))
+
     const payload = {
       name: name.trim(),
       category,
       description: description.trim() || undefined,
       fields: cleanFields,
-      allowedRoles,
+      roleAccess: roleAccessPayload,
       isRecurring,
       recurrenceValue: totalHours,
       recurrenceUnit: isRecurring ? "hours" : null,
@@ -285,23 +308,37 @@ function TemplateEditorDialog({
             <p className="text-xs text-muted-foreground">If checked, this form must be completed before a patient can be admitted or discharged.</p>
           </div>
 
-          {/* Role Visibility */}
+          {/* Role Access Levels */}
           <div className="flex flex-col gap-2">
             <Label className="text-sm font-medium text-foreground flex items-center gap-1.5">
-              <Shield className="size-3.5" /> Visible To
+              <Shield className="size-3.5" /> Role Access
             </Label>
-            <div className="flex gap-3">
-              {ALL_ROLES.map((role) => (
-                <label key={role} className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                  <Checkbox
-                    checked={allowedRoles.includes(role)}
-                    onCheckedChange={() => toggleRole(role)}
-                  />
-                  <span className="capitalize">{role}</span>
-                </label>
+            <div className="flex flex-col gap-2">
+              {availableRoles.length === 0 && (
+                <p className="text-xs text-muted-foreground">Loading roles...</p>
+              )}
+              {availableRoles.map((role: { id: number; name: string; displayName: string }) => (
+                <div key={role.id} className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border bg-muted/30">
+                  <span className="text-sm text-foreground">{role.displayName}</span>
+                  <Select
+                    value={roleAccess[role.id] ?? "none"}
+                    onValueChange={(val: string) => setRoleAccess((prev: Record<number, AccessLevel>) => ({ ...prev, [role.id]: val as AccessLevel }))}
+                  >
+                    <SelectTrigger className="w-56 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACCESS_LEVEL_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">Only selected roles can see forms created from this template.</p>
+            <p className="text-xs text-muted-foreground">Set what each role can do with forms created from this template.</p>
           </div>
 
           <Separator />
@@ -577,29 +614,28 @@ function TemplateDetailPage({
         </Card>
       )}
 
-      {/* Role Visibility */}
+      {/* Role Access */}
       <Card className="border-border/60">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-heading font-semibold text-foreground flex items-center gap-2">
-            <Shield className="size-4" /> Role Visibility
+            <Shield className="size-4" /> Role Access
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
-            {ALL_ROLES.map((role) => (
-              <Badge
-                key={role}
-                variant="secondary"
-                className={`text-xs capitalize ${
-                  template.allowedRoles.includes(role)
-                    ? "bg-accent/10 text-accent"
-                    : "bg-muted text-muted-foreground line-through"
-                }`}
-              >
-                {role}
-              </Badge>
-            ))}
-          </div>
+          {(template.roleAccess || []).length === 0 ? (
+            <p className="text-xs text-muted-foreground">No role access configured.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {(template.roleAccess || []).map((ra: RoleAccess) => (
+                <div key={ra.roleId} className="flex items-center justify-between">
+                  <span className="text-sm text-foreground">{ra.roleDisplayName}</span>
+                  <Badge variant="secondary" className="text-xs capitalize">
+                    {ra.accessLevel === "sign" ? "Full Access" : ra.accessLevel === "edit" ? "View + Edit + Save" : "View + Print"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

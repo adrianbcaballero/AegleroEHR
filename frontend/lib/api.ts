@@ -324,6 +324,13 @@ export interface TemplateField {
   note?: string
 }
 
+export interface RoleAccess {
+  roleId: number
+  roleName: string
+  roleDisplayName: string
+  accessLevel: "view" | "edit" | "sign"
+}
+
 export interface FormTemplate {
   id: number
   name: string
@@ -331,6 +338,7 @@ export interface FormTemplate {
   description: string | null
   fields: TemplateField[]
   allowedRoles: string[]
+  roleAccess: RoleAccess[]
   status: string
   isRecurring: boolean
   recurrenceValue: number | null
@@ -359,6 +367,7 @@ export interface PatientFormEntry {
   templateFields?: TemplateField[]
   createdAt: string | null
   updatedAt: string | null
+  accessLevel: "view" | "edit" | "sign" | null
 }
 
 export function getTemplates() {
@@ -374,7 +383,7 @@ export function createTemplate(data: {
   category: string
   description?: string
   fields: TemplateField[]
-  allowedRoles: string[]
+  roleAccess: { roleId: number; accessLevel: string }[]
   isRecurring?: boolean
   recurrenceValue?: number | null
   recurrenceUnit?: string | null
@@ -389,7 +398,7 @@ export function updateTemplate(templateId: number, data: {
   category?: string
   description?: string
   fields?: TemplateField[]
-  allowedRoles?: string[]
+  roleAccess?: { roleId: number; accessLevel: string }[]
   status?: string
   isRecurring?: boolean
   recurrenceValue?: number | null
