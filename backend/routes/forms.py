@@ -4,7 +4,7 @@ from sqlalchemy import func
 
 from auth_middleware import require_auth
 from extensions import db
-from models import FormTemplate, PatientForm, Patient, User
+from models import FormTemplate, FormTemplateAccess, PatientForm, Patient, User, Role
 from services.audit_logger import log_access
 from services.helpers import client_ip, get_patient_by_id_or_code, check_patient_access, tenant_query
 from services.asam_scorer import ASAM_TEMPLATE_NAME, DIMENSION_LABELS, LOC_OVERRIDE_LABEL, compute_loc

@@ -326,6 +326,37 @@ class FormTemplate(db.Model):
     )
 
 
+class FormTemplateAccess(db.Model):
+    """
+    Per-template, per-role access level. Controls which actions each role
+    can take when opening a form created from this template.
+
+    access_level:
+      "view" — read-only + Print
+      "edit" — view + fill + Save Draft + Print
+      "sign" — view + fill + Save Draft + Sign & Complete + Print
+    """
+    __tablename__ = "form_template_access"
+
+    id = db.Column(db.Integer, primary_key=True)
+    template_id = db.Column(
+        db.Integer,
+        db.ForeignKey("form_template.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role_id = db.Column(
+        db.Integer,
+        db.ForeignKey("role.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    access_level = db.Column(db.String(10), nullable=False, default="sign")
+
+    __table_args__ = (
+        db.UniqueConstraint("template_id", "role_id", name="uq_template_role_access"),
+    )
+
+
 class Part2Consent(db.Model):
     """
     42 CFR Part 2 consent record. Federal law requires written patient consent
