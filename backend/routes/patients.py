@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from auth_middleware import require_auth
 from extensions import db
-from models import Patient, User, FormTemplate, PatientForm, Bed
+from models import Patient, User, FormTemplate, PatientForm, Bed, CareTeamMember
 
 import re
 from services.audit_logger import log_access
@@ -76,16 +76,27 @@ def _serialize_patient(p: Patient):
         "admittedAt": p.admitted_at.isoformat() if p.admitted_at else None,
         "dischargedAt": p.discharged_at.isoformat() if p.discharged_at else None,
         "dischargeReason": p.discharge_reason,
+        "careTeamId": p.care_team_id,
+        "careTeamName": p.care_team.name if p.care_team else None,
     }
 
 
 def _apply_rbac(query):
     """
-    Users without patients.view_all only see their assigned patients.
+    Users without patients.view.all only see:
+    - patients with no care team (NULL = open to everyone)
+    - patients whose care team they belong to
     """
-    if not g.user.has_permission("patients.view.all"):
-        return query.filter(Patient.assigned_provider_id == g.user.id)
-    return query
+    if g.user.has_permission("patients.view.all"):
+        return query
+    member_team_ids = (
+        db.session.query(CareTeamMember.care_team_id)
+        .filter_by(user_id=g.user.id)
+        .subquery()
+    )
+    return query.filter(
+        or_(Patient.care_team_id == None, Patient.care_team_id.in_(member_team_ids))
+    )
 
 
 @patients_bp.get("")
@@ -140,10 +151,9 @@ def get_patient(patient_id):
         log_access(g.user.id, "PATIENT_GET", f"patient/{patient_id}", "FAILED", ip, description=f"Patient '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
-    if not g.user.has_permission("patients.view.all"):
-        if not p.assigned_provider_id or p.assigned_provider_id != g.user.id:
-            log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not assigned provider")
-            return {"error": "forbidden"}, 403
+    if not check_patient_access(p):
+        log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not in care team")
+        return {"error": "forbidden"}, 403
 
     log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "SUCCESS", ip, description=f"Viewed patient record for {p.first_name} {p.last_name} ({p.patient_code})")
 
@@ -293,8 +303,8 @@ def update_patient(patient_id):
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{patient_id}", "FAILED", ip, description=f"Patient update failed — '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
-    if not g.user.has_permission("patients.view.all") and p.assigned_provider_id != g.user.id:
-        log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not assigned provider")
+    if not check_patient_access(p):
+        log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not in care team")
         return {"error": "forbidden"}, 403
 
     #Update allowed fields

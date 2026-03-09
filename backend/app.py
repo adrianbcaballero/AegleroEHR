@@ -55,6 +55,9 @@ def create_app():
     from routes.beds import beds_bp
     app.register_blueprint(beds_bp)
 
+    from routes.careteams import careteams_bp
+    app.register_blueprint(careteams_bp)
+
     # Import models so Alembic can detect
     import models
 

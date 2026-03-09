@@ -230,6 +230,10 @@ class Patient(db.Model):
         foreign_keys=[assigned_bed_id],
     )
 
+    # Care team — null means any authenticated user can view this patient ("Everyone")
+    care_team_id = db.Column(db.Integer, db.ForeignKey("care_team.id"), nullable=True)
+    care_team = db.relationship("CareTeam", foreign_keys=[care_team_id])
+
     # ASAM Level of Care — updated automatically when ASAM assessment form is completed
     current_loc = db.Column(db.String(10), nullable=True)
 
@@ -281,6 +285,34 @@ class Bed(db.Model):
 
     # Display ordering within a unit
     sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
+class CareTeam(db.Model):
+    """A named group of users who share access to assigned patients."""
+    __tablename__ = "care_team"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+
+    members = db.relationship("CareTeamMember", backref="care_team", cascade="all, delete-orphan", lazy="joined")
+
+    __table_args__ = (
+        db.UniqueConstraint("tenant_id", "name", name="uq_tenant_care_team_name"),
+    )
+
+
+class CareTeamMember(db.Model):
+    """Maps a user to a care team."""
+    __tablename__ = "care_team_member"
+
+    id = db.Column(db.Integer, primary_key=True)
+    care_team_id = db.Column(db.Integer, db.ForeignKey("care_team.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("care_team_id", "user_id", name="uq_care_team_member"),
+    )
 
 
 class AuditLog(db.Model):

@@ -6,7 +6,7 @@ Created to help eliminate duplication
 import os
 from datetime import date
 from flask import request, g
-from models import Patient, User
+from models import Patient, User, CareTeamMember
 
 # Hosts that indicate local development — fall back to DEV_TENANT_SLUG env var
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "backend"}
@@ -74,11 +74,18 @@ def get_patient_by_id_or_code(patient_id: str) -> Patient | None:
 
 def check_patient_access(patient: Patient) -> bool:
     """
-    Scoping check: users without patients.view_all can only access their assigned patients.
+    Allow if:
+    - user has patients.view.all
+    - patient has no care team (care_team_id is NULL — visible to everyone)
+    - user is a member of the patient's care team
     """
-    if not g.user.has_permission("patients.view_all") and patient.assigned_provider_id != g.user.id:
-        return False
-    return True
+    if g.user.has_permission("patients.view.all"):
+        return True
+    if patient.care_team_id is None:
+        return True
+    return CareTeamMember.query.filter_by(
+        care_team_id=patient.care_team_id, user_id=g.user.id
+    ).first() is not None
 
 
 def provider_display_name(provider_id: int) -> str | None:
