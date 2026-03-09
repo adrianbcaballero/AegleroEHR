@@ -124,10 +124,10 @@ def _get_access_level(template: FormTemplate, user) -> str | None:
 @require_auth(permission="templates.view")
 def list_templates():
     ip = client_ip()
-    status_filter = (request.args.get("status") or "").strip()
+    status_filter = (request.args.get("status") or "active").strip()
 
     q = tenant_query(FormTemplate)
-    if status_filter:
+    if status_filter != "all":
         q = q.filter(FormTemplate.status == status_filter)
 
     templates = q.order_by(FormTemplate.name.asc()).all()

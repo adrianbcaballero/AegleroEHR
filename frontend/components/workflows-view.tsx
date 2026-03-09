@@ -19,6 +19,7 @@ import {
   X,
   Settings2,
   Trash2,
+  Archive,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -462,6 +463,8 @@ function TemplateDetailPage({
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState("")
+  const [archiving, setArchiving] = useState(false)
+  const [archiveError, setArchiveError] = useState("")
 
   const fetchTemplate = useCallback(async () => {
     setLoading(true)
@@ -489,6 +492,16 @@ function TemplateDetailPage({
       .then(() => { onRefresh(); onBack() })
       .catch((e: unknown) => setDeleteError(e instanceof Error ? e.message : "Delete failed"))
       .finally(() => setDeleting(false))
+  }
+
+  const handleArchive = () => {
+    if (!template) return
+    setArchiving(true)
+    setArchiveError("")
+    updateTemplate(template.id, { status: "archived" })
+      .then(() => { onRefresh(); onBack() })
+      .catch((e: unknown) => setArchiveError(e instanceof Error ? e.message : "Archive failed"))
+      .finally(() => setArchiving(false))
   }
 
   if (loading) {
@@ -533,26 +546,48 @@ function TemplateDetailPage({
                 </Button>
               }
             />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" className="bg-transparent text-destructive border-destructive/40 hover:bg-destructive/10" disabled={deleting}>
-                  <Trash2 className="mr-1.5 size-3.5" /> Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="font-heading text-foreground">Delete Template?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete <strong>{template.name}</strong>.
-                    {(template.instanceCount ?? 0) > 0
-                      ? ` This template has ${template.instanceCount} form instance(s) and cannot be deleted — archive it instead.`
-                      : " This action cannot be undone."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                {deleteError && <p className="text-sm text-destructive px-1">{deleteError}</p>}
-                <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-transparent text-foreground">Cancel</AlertDialogCancel>
-                  {(template.instanceCount ?? 0) === 0 && (
+            {(template.instanceCount ?? 0) > 0 ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="bg-transparent text-foreground border-border/60 hover:bg-muted/40" disabled={archiving}>
+                    <Archive className="mr-1.5 size-3.5" /> Archive
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-heading text-foreground">Archive Template?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <strong>{template.name}</strong> has {template.instanceCount} form instance(s) and cannot be deleted.
+                      Archiving will hide it from new patient forms but preserve all existing records.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {archiveError && <p className="text-sm text-destructive px-1">{archiveError}</p>}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="bg-transparent text-foreground">Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleArchive}>
+                      {archiving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                      Archive Template
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="bg-transparent text-destructive border-destructive/40 hover:bg-destructive/10" disabled={deleting}>
+                    <Trash2 className="mr-1.5 size-3.5" /> Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-heading text-foreground">Delete Template?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete <strong>{template.name}</strong>. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {deleteError && <p className="text-sm text-destructive px-1">{deleteError}</p>}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="bg-transparent text-foreground">Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={handleDelete}
@@ -560,10 +595,10 @@ function TemplateDetailPage({
                       {deleting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
                       Delete Template
                     </AlertDialogAction>
-                  )}
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </>
         )}
       </div>
@@ -697,8 +732,17 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
 
   useEffect(() => {
     if (open) {
-      getCategories()
-        .then((r) => { setCategories(r.categories); setDefaultCategories(r.defaultCategories) })
+      Promise.all([getCategories(), getTemplates()])
+        .then(([catResp, templates]) => {
+          const merged = [...catResp.categories]
+          for (const t of templates) {
+            if (t.category && !merged.includes(t.category)) {
+              merged.push(t.category)
+            }
+          }
+          setCategories(merged)
+          setDefaultCategories(catResp.defaultCategories)
+        })
         .catch(() => {})
     }
   }, [open])

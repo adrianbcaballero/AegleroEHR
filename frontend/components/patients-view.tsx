@@ -1386,12 +1386,9 @@ export function PatientProfileView({
 
       {/* Category Tabs */}
       {(() => {
-        const PENDING_ALLOWED = ["consent", "intake", "assessment"]
         // Use tenant-configured order from API; append any template categories not yet in the list
         const allCategories = [...new Set([...categories, ...templates.map((t: FormTemplate) => t.category)])]
-        const visibleCategories = patient.status === "pending"
-          ? allCategories.filter((c: string) => PENDING_ALLOWED.includes(c.toLowerCase()))
-          : allCategories
+        const visibleCategories = allCategories
         return (
           <Tabs value={activeTab || visibleCategories[0] || ""} onValueChange={setActiveTab}>
             <TabsList className="flex flex-wrap h-auto gap-1.5 bg-transparent p-0 border-b border-border pb-2">
