@@ -16,7 +16,7 @@ def create_app():
     if isinstance(origins, str):
         origins = [o.strip() for o in origins.split(",") if o.strip()]
 
-    CORS(app, origins=origins)
+    CORS(app, origins=origins, supports_credentials=True)
 
 
     db.init_app(app)

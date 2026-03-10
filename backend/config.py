@@ -10,3 +10,6 @@ CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 SESSION_TIMEOUT_MINUTES = int(os.getenv("SESSION_TIMEOUT_MINUTES", "15"))
 MAX_FAILED_LOGINS = int(os.getenv("MAX_FAILED_LOGINS", "5"))
 ACCOUNT_LOCKOUT_MINUTES = int(os.getenv("ACCOUNT_LOCKOUT_MINUTES", "30"))
+
+# In production set COOKIE_SECURE=true (requires HTTPS)
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"

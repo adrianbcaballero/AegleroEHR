@@ -1,28 +1,18 @@
 // frontend/lib/api.ts
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
 
-let sessionToken: string | null = null;
+// Session is managed via httpOnly cookie — no client-side token storage needed.
+// These are kept as no-ops so call sites don't need to change.
+export function setSessionToken(_token: string | null) {}
+export function getSessionToken(): string | null { return null; }
 
-export function setSessionToken(token: string | null) {
-  sessionToken = token;
-}
-
-export function getSessionToken(): string | null {
-  return sessionToken;
-}
-
-function authHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (sessionToken) {
-    headers["Authorization"] = `Bearer ${sessionToken}`;
-  }
-  return headers;
-}
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "GET",
-    headers: authHeaders(),
+    headers: JSON_HEADERS,
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -36,7 +26,8 @@ export async function apiGet<T>(path: string): Promise<T> {
 export async function apiPost<T>(path: string, data?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: JSON_HEADERS,
+    credentials: "include",
     body: data ? JSON.stringify(data) : undefined,
   });
 
@@ -51,7 +42,8 @@ export async function apiPost<T>(path: string, data?: unknown): Promise<T> {
 export async function apiPut<T>(path: string, data?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "PUT",
-    headers: authHeaders(),
+    headers: JSON_HEADERS,
+    credentials: "include",
     body: data ? JSON.stringify(data) : undefined,
   })
 
@@ -72,7 +64,6 @@ export interface LoginResponse {
   permissions: string[];
   tenant_id: number;
   tenant_name: string;
-  session_id: string;
   is_first_login: boolean;
   requires_terms_agreement: boolean;
 }
@@ -90,7 +81,7 @@ export function acceptTerms() {
 }
 
 export function getMe() {
-  return apiGet<{ user_id: number; username: string; full_name: string | null; role: string; signature_data: string | null }>("/api/auth/me");
+  return apiGet<{ user_id: number; username: string; full_name: string | null; role: string; permissions: string[]; tenant_name: string; signature_data: string | null }>("/api/auth/me");
 }
 
 export function saveSignature(signatureData: string | null) {
@@ -290,10 +281,10 @@ export async function exportAuditLogs(params?: {
   const qs = query.toString()
   const url = `${API_BASE_URL}/api/audit/export${qs ? `?${qs}` : ""}`
 
-  // Use fetch with auth header, then trigger download
   return fetch(url, {
     method: "GET",
-    headers: authHeaders(),
+    headers: JSON_HEADERS,
+    credentials: "include",
   }).then(async (res) => {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
@@ -439,7 +430,8 @@ export function updatePatientForm(patientCode: string, formId: number, data: {
 export async function apiDelete<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    headers: JSON_HEADERS,
+    credentials: "include",
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -625,7 +617,8 @@ export interface DeleteCategoryError extends Error {
 export async function deleteCategory(category: string): Promise<CategoriesResponse> {
   const res = await fetch(`${API_BASE_URL}/api/categories/${encodeURIComponent(category)}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    headers: JSON_HEADERS,
+    credentials: "include",
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {

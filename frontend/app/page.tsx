@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { LoginPage } from "@/components/login-page"
@@ -17,7 +17,7 @@ import { SettingsView } from "@/components/settings-view"
 import { HelpView } from "@/components/help-view"
 import { HIPAAComplianceGuidelines } from "@/components/hipaa-compliance-guidelines"
 import { Separator } from "@/components/ui/separator"
-import { setSessionToken, logout as apiLogout } from "@/lib/api"
+import { setSessionToken, logout as apiLogout, getMe } from "@/lib/api"
 import { SessionTimeout } from "@/components/session-timeout"
 import { FirstLoginModal } from "@/components/first-login-modal"
 
@@ -42,6 +42,23 @@ export default function EHRApp() {
   const [navOptions, setNavOptions] = useState<{ filter?: string; patientId?: string } | null>(null)
   const [showFirstLoginModal, setShowFirstLoginModal] = useState(false)
   const [isFirstLogin, setIsFirstLogin] = useState(false)
+  const [sessionLoading, setSessionLoading] = useState(true)
+
+  // On mount, check if there's already a valid session cookie
+  useEffect(() => {
+    getMe()
+      .then((me) => {
+        setUserRole((me.role as UserRole) || "psychiatrist")
+        setUserPermissions(me.permissions || [])
+        setTenantName(me.tenant_name || "")
+        setCurrentUser({ username: me.username, fullName: me.full_name })
+        setIsLoggedIn(true)
+      })
+      .catch(() => {})
+      .finally(() => setSessionLoading(false))
+  }, [])
+
+  if (sessionLoading) return null
 
   const handleSignOut = () => {
     apiLogout().catch(() => {})
@@ -58,7 +75,6 @@ export default function EHRApp() {
     return (
       <LoginPage
         onLogin={(role, session) => {
-          setSessionToken(session.session_id)
           setUserRole(role)
           setUserPermissions(session.permissions || [])
           setTenantName(session.tenant_name)

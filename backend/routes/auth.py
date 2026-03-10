@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 
-from flask import Blueprint, request
+from flask import Blueprint, request, make_response
 from werkzeug.security import check_password_hash
 
 from extensions import db
@@ -82,7 +82,7 @@ def login():
     if stale:
         db.session.commit()
 
-    return {
+    resp = make_response({
         "user_id": user.id,
         "username": user.username,
         "full_name": user.full_name,
@@ -93,10 +93,18 @@ def login():
         "credentials": user.credentials or [],
         "tenant_id": t_id,
         "tenant_name": tenant.name,
-        "session_id": session_id,
         "is_first_login": is_first_login,
         "requires_terms_agreement": user.agreed_to_terms_at is None,
-    }, 200
+    }, 200)
+    resp.set_cookie(
+        "session",
+        session_id,
+        httponly=True,
+        secure=config.COOKIE_SECURE,
+        samesite="Lax",
+        max_age=config.SESSION_TIMEOUT_MINUTES * 60,
+    )
+    return resp
 
 
 @auth_bp.post("/accept-terms")
@@ -191,4 +199,6 @@ def logout():
     db.session.commit()
 
     log_access(user.id, "LOGOUT", "auth", "SUCCESS", ip, description=f"User '{user.username}' logged out", tenant_id=tenant_id)
-    return {"ok": True}, 200
+    resp = make_response({"ok": True}, 200)
+    resp.set_cookie("session", "", httponly=True, secure=config.COOKIE_SECURE, samesite="Lax", max_age=0)
+    return resp

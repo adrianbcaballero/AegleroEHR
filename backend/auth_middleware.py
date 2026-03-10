@@ -10,6 +10,10 @@ from services.helpers import client_ip
 
 
 def _get_session_id():
+    # Prefer httpOnly cookie; fall back to Authorization header for API clients
+    cookie = request.cookies.get("session")
+    if cookie:
+        return cookie
     auth = request.headers.get("Authorization", "")
     if auth.lower().startswith("bearer "):
         return auth.split(" ", 1)[1].strip()
