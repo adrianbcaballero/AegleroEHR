@@ -224,6 +224,7 @@ export interface SystemUser {
   roleName: string
   roleDisplayName: string
   credentials: string[]
+  careTeamIds: number[]
   full_name: string | null
   failed_attempts: number
   is_locked: boolean
@@ -250,6 +251,10 @@ export function updateUser(userId: number, data: { username?: string; roleId?: n
 
 export function createUser(data: { username: string; password: string; roleId: number; full_name?: string; credentials?: string[] }) {
   return apiPost<{ ok: boolean; user: SystemUser }>("/api/users", data)
+}
+
+export function setUserCareTeams(userId: number, teamIds: number[]) {
+  return apiPut<{ ok: boolean }>(`/api/users/${userId}/careteams`, { teamIds })
 }
 
 export function unlockUser(userId: number) {
@@ -613,6 +618,37 @@ export function updateCategories(categories: string[]) {
 export interface DeleteCategoryError extends Error {
   templates?: { id: number; name: string }[]
 }
+
+// Care team management
+export interface CareTeamMember {
+  userId: number
+  username: string | null
+  fullName: string | null
+}
+
+export interface CareTeam {
+  id: number
+  name: string
+  members: CareTeamMember[]
+  patientCount: number
+}
+
+export function listCareTeams() {
+  return apiGet<CareTeam[]>("/api/careteams")
+}
+
+export function createCareTeam(data: { name: string; memberIds?: number[] }) {
+  return apiPost<CareTeam>("/api/careteams", data)
+}
+
+export function updateCareTeam(teamId: number, data: { name?: string; memberIds?: number[] }) {
+  return apiPut<CareTeam>(`/api/careteams/${teamId}`, data)
+}
+
+export function deleteCareTeam(teamId: number) {
+  return apiDelete<Record<string, never>>(`/api/careteams/${teamId}`)
+}
+
 
 export async function deleteCategory(category: string): Promise<CategoriesResponse> {
   const res = await fetch(`${API_BASE_URL}/api/categories/${encodeURIComponent(category)}`, {

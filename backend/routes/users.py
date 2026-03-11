@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from auth_middleware import require_auth
 from extensions import db
-from models import User, Role
+from models import User, Role, CareTeam, CareTeamMember
 from services.audit_logger import log_access
 from services.helpers import client_ip, tenant_query
 from werkzeug.security import generate_password_hash
@@ -14,6 +14,7 @@ users_bp = Blueprint("users", __name__, url_prefix="/api/users")
 
 def _serialize_user(u: User):
     is_temp_locked = bool(u.locked_until and u.locked_until > datetime.now(timezone.utc))
+    care_team_ids = [m.care_team_id for m in CareTeamMember.query.filter_by(user_id=u.id).all()]
     return {
         "id": u.id,
         "username": u.username,
@@ -27,13 +28,14 @@ def _serialize_user(u: User):
         "permanently_locked": u.permanently_locked,
         "locked_until": u.locked_until.isoformat() if u.locked_until else None,
         "last_login": None,
+        "careTeamIds": care_team_ids,
     }
 
 
 @users_bp.get("/picker")
-@require_auth(permission="audit.view")
+@require_auth()
 def list_users_picker():
-    """GET /api/users/picker — minimal user list for audit log filter dropdown."""
+    """GET /api/users/picker — minimal user list for dropdowns (care teams, audit filter, etc.)."""
     users = tenant_query(User).order_by(User.id.asc()).all()
     return [{"id": u.id, "username": u.username, "full_name": u.full_name} for u in users], 200
 
@@ -247,3 +249,30 @@ def create_user():
     log_access(g.user.id, "USER_CREATE", f"user/{u.id}", "SUCCESS", ip,
                description=f"Created user '{u.username}' ({role.display_name}){' — ' + u.full_name if u.full_name else ''}")
     return {"ok": True, "user": _serialize_user(u)}, 201
+
+
+@users_bp.put("/<int:user_id>/careteams")
+@require_auth(permission="users.manage")
+def update_user_careteams(user_id: int):
+    """
+    PUT /api/users/:id/careteams
+    Body: { "teamIds": [1, 2, 3] }
+    Atomically sets the user's care team memberships.
+    """
+    u = tenant_query(User).filter_by(id=user_id).first()
+    if not u:
+        return {"error": "user not found"}, 404
+
+    data = request.get_json(silent=True) or {}
+    team_ids = data.get("teamIds", [])
+    if not isinstance(team_ids, list):
+        return {"error": "teamIds must be a list"}, 400
+
+    CareTeamMember.query.filter_by(user_id=u.id).delete()
+    for tid in team_ids:
+        team = tenant_query(CareTeam).filter_by(id=tid).first()
+        if team:
+            db.session.add(CareTeamMember(care_team_id=tid, user_id=u.id))
+
+    db.session.commit()
+    return {"ok": True}, 200

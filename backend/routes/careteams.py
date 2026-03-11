@@ -105,4 +105,4 @@ def delete_careteam(team_id):
 
     db.session.delete(team)
     db.session.commit()
-    return {}, 204
+    return {"ok": True}, 200

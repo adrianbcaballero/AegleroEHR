@@ -50,10 +50,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword, getRolesPicker } from "@/lib/api"
-import type { SystemUser } from "@/lib/api"
+import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword, getRolesPicker, listCareTeams, setUserCareTeams } from "@/lib/api"
+import type { SystemUser, CareTeam } from "@/lib/api"
 
 type PickerRole = { id: number; name: string; displayName: string }
+type PickerCareTeam = { id: number; name: string }
 
 // Credentials available for behavioral health facilities in Texas
 const ALL_CREDENTIALS = [
@@ -154,6 +155,7 @@ function CredentialSelector({
 export function ManageUsersView() {
   const [users, setUsers] = useState<SystemUser[]>([])
   const [roles, setRoles] = useState<PickerRole[]>([])
+  const [careTeams, setCareTeams] = useState<PickerCareTeam[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -171,6 +173,7 @@ export function ManageUsersView() {
   const [editRoleId, setEditRoleId] = useState<number | null>(null)
   const [editFullName, setEditFullName] = useState("")
   const [editCredentials, setEditCredentials] = useState<string[]>([])
+  const [editCareTeamIds, setEditCareTeamIds] = useState<number[]>([])
   const [editError, setEditError] = useState("")
   const [editLoading, setEditLoading] = useState(false)
 
@@ -181,16 +184,18 @@ export function ManageUsersView() {
   const [createRoleId, setCreateRoleId] = useState<number | null>(null)
   const [createFullName, setCreateFullName] = useState("")
   const [createCredentials, setCreateCredentials] = useState<string[]>([])
+  const [createCareTeamIds, setCreateCareTeamIds] = useState<number[]>([])
   const [createError, setCreateError] = useState("")
   const [createLoading, setCreateLoading] = useState(false)
 
   const fetchAll = () => {
     setLoading(true)
     setError("")
-    Promise.all([getUsers(), getRolesPicker()])
-      .then(([usersData, rolesData]) => {
+    Promise.all([getUsers(), getRolesPicker(), listCareTeams().catch(() => [] as CareTeam[])])
+      .then(([usersData, rolesData, teamsData]) => {
         setUsers(usersData)
         setRoles(rolesData)
+        setCareTeams(teamsData.map((t) => ({ id: t.id, name: t.name })))
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -230,6 +235,7 @@ export function ManageUsersView() {
     setCreateRoleId(roles.length > 0 ? roles[0].id : null)
     setCreateFullName("")
     setCreateCredentials([])
+    setCreateCareTeamIds([])
     setCreateError("")
     setShowCreateDialog(true)
   }
@@ -252,13 +258,16 @@ export function ManageUsersView() {
     setCreateError("")
 
     try {
-      await createUser({
+      const result = await createUser({
         username: createUsername.trim(),
         password: createPassword,
         roleId: createRoleId,
         full_name: createFullName.trim() || undefined,
         credentials: createCredentials,
       })
+      if (createCareTeamIds.length > 0) {
+        await setUserCareTeams(result.user.id, createCareTeamIds)
+      }
       setShowCreateDialog(false)
       fetchAll()
     } catch (err: unknown) {
@@ -274,6 +283,7 @@ export function ManageUsersView() {
     setEditRoleId(user.roleId)
     setEditFullName(user.full_name || "")
     setEditCredentials(user.credentials || [])
+    setEditCareTeamIds(user.careTeamIds || [])
     setEditError("")
   }
 
@@ -300,14 +310,24 @@ export function ManageUsersView() {
       editCredentials.every((c) => editDialogUser.credentials.includes(c))
     if (!credsSame) updates.credentials = editCredentials
 
-    if (Object.keys(updates).length === 0) {
+    const origTeamIds = editDialogUser.careTeamIds || []
+    const teamsSame =
+      editCareTeamIds.length === origTeamIds.length &&
+      editCareTeamIds.every((id) => origTeamIds.includes(id))
+
+    if (Object.keys(updates).length === 0 && teamsSame) {
       setEditDialogUser(null)
       setEditLoading(false)
       return
     }
 
     try {
-      await updateUser(editDialogUser.id, updates)
+      if (Object.keys(updates).length > 0) {
+        await updateUser(editDialogUser.id, updates)
+      }
+      if (!teamsSame) {
+        await setUserCareTeams(editDialogUser.id, editCareTeamIds)
+      }
       setEditDialogUser(null)
       fetchAll()
     } catch (err: unknown) {
@@ -682,6 +702,31 @@ export function ManageUsersView() {
                 disabled={editLoading}
               />
             </div>
+            {careTeams.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Care Teams</Label>
+                <div className="flex flex-col gap-1.5 rounded-md border border-border p-3 bg-muted/20">
+                  {careTeams.map((team) => (
+                    <label key={team.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editCareTeamIds.includes(team.id)}
+                        onChange={(e) =>
+                          setEditCareTeamIds(
+                            e.target.checked
+                              ? [...editCareTeamIds, team.id]
+                              : editCareTeamIds.filter((id) => id !== team.id)
+                          )
+                        }
+                        disabled={editLoading}
+                        className="rounded"
+                      />
+                      <span className="text-sm text-foreground">{team.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             {editError && <p className="text-sm text-destructive">{editError}</p>}
             <div className="flex justify-end gap-2">
               <Button
@@ -769,6 +814,31 @@ export function ManageUsersView() {
                 disabled={createLoading}
               />
             </div>
+            {careTeams.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Care Teams</Label>
+                <div className="flex flex-col gap-1.5 rounded-md border border-border p-3 bg-muted/20">
+                  {careTeams.map((team) => (
+                    <label key={team.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createCareTeamIds.includes(team.id)}
+                        onChange={(e) =>
+                          setCreateCareTeamIds(
+                            e.target.checked
+                              ? [...createCareTeamIds, team.id]
+                              : createCareTeamIds.filter((id) => id !== team.id)
+                          )
+                        }
+                        disabled={createLoading}
+                        className="rounded"
+                      />
+                      <span className="text-sm text-foreground">{team.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             {createError && <p className="text-sm text-destructive">{createError}</p>}
             <div className="flex justify-end gap-2">
               <Button
