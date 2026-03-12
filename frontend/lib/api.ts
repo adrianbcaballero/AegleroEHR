@@ -138,6 +138,8 @@ export interface Patient {
   dischargedAt: string | null
   dischargeReason: string | null
   assignedProvider: string | null
+  careTeamId: number | null
+  careTeamName: string | null
   ssnLast4: string | null
   gender: string | null
   pronouns: string | null
