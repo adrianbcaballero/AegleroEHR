@@ -235,7 +235,7 @@ const allMainNavItems = [
   { title: "Dashboard", icon: LayoutDashboard, permission: "patients.view" },
   { title: "Front Desk", icon: ClipboardList, permission: "patients.view" },
   { title: "Patients", icon: Users, permission: "patients.view" },
-  { title: "Archive", icon: Archive, permission: "patients.view_all" },
+  { title: "Archive", icon: Archive, permission: "archive.view" },
 ]
 
 const adminNavItems = [
