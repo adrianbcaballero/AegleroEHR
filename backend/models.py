@@ -15,10 +15,8 @@ ALL_PERMISSIONS = [
     "patients.delete",               # delete / merge patients
 
     # Front Desk
-    "frontdesk.view",                # see the front desk page
-    "frontdesk.admissions.view",     # see pending admissions card
+    "frontdesk.view",                # see the front desk page (includes admissions + bed board)
     "frontdesk.beds.manage",         # manage beds (create / edit / delete)
-    "frontdesk.bedboard.view",       # see bed board card
     "frontdesk.patients.create",     # add patient via front desk
     "frontdesk.patients.pending",    # work on pending patients (admit / reject)
 
@@ -50,8 +48,7 @@ SYSTEM_ROLE_PERMISSIONS = {
     "psychiatrist": [
         "patients.view", "patients.view.all",
         "patients.create", "patients.edit",
-        "frontdesk.view", "frontdesk.admissions.view",
-        "frontdesk.bedboard.view", "frontdesk.patients.pending",
+        "frontdesk.view", "frontdesk.patients.pending",
         "archive.view", "archive.manage",
         "workflows.view", "workflows.manage",
         "consent.manage",
@@ -61,7 +58,7 @@ SYSTEM_ROLE_PERMISSIONS = {
     "technician": [
         "patients.view",
         "patients.edit",
-        "frontdesk.view", "frontdesk.bedboard.view",
+        "frontdesk.view",
         "consent.manage",
     ],
     "auditor": [
