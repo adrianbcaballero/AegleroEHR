@@ -88,20 +88,8 @@ const BUNDLE_GROUPS: BundleGroup[] = [
       {
         key: "frontdesk.view",
         label: "View Front Desk",
-        description: "Access the front desk page",
+        description: "Access the front desk page (admissions + bed board)",
         permissions: ["frontdesk.view"],
-      },
-      {
-        key: "frontdesk.admissions.view",
-        label: "Pending Admissions Card",
-        description: "See the pending admissions panel on front desk",
-        permissions: ["frontdesk.admissions.view"],
-      },
-      {
-        key: "frontdesk.bedboard.view",
-        label: "Bed Board",
-        description: "See the bed board occupancy panel",
-        permissions: ["frontdesk.bedboard.view"],
       },
       {
         key: "frontdesk.beds.manage",
