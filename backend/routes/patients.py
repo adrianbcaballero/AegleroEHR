@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from auth_middleware import require_auth
 from extensions import db
-from models import Patient, User, FormTemplate, PatientForm, Bed, CareTeamMember
+from models import Patient, User, FormTemplate, PatientForm, Bed, CareTeam, CareTeamMember
 
 import re
 from services.audit_logger import log_access
@@ -220,6 +220,18 @@ def create_patient():
             log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description=f"Patient creation failed — provider #{assigned_provider_id} not found")
             return {"error": "assignedProviderId does not exist"}, 400
 
+    # Care team assignment (optional)
+    care_team_id = data.get("careTeamId")
+    if care_team_id is not None:
+        try:
+            care_team_id = int(care_team_id)
+        except (ValueError, TypeError):
+            log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description="Patient creation failed — careTeamId must be an integer")
+            return {"error": "careTeamId must be an integer"}, 400
+        if not CareTeam.query.filter_by(id=care_team_id, tenant_id=g.tenant_id).first():
+            log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description=f"Patient creation failed — care team #{care_team_id} not found")
+            return {"error": "careTeamId does not exist"}, 400
+
     patient_code = (data.get("patientCode") or "").strip()
     auto_code = not patient_code
     if patient_code:
@@ -250,6 +262,7 @@ def create_patient():
         primary_diagnosis=(data.get("primaryDiagnosis") or "").strip() or None,
         insurance=(data.get("insurance") or "").strip() or None,
         assigned_provider_id=assigned_provider_id,
+        care_team_id=care_team_id,
         ssn_last4=ssn_last4 or None,
         gender=(data.get("gender") or "").strip() or None,
         pronouns=(data.get("pronouns") or "").strip() or None,
@@ -367,6 +380,19 @@ def update_patient(patient_id):
                 return {"error": "assignedProviderId does not exist"}, 400
 
             p.assigned_provider_id = apid
+
+    if "careTeamId" in data:
+        ctid = data.get("careTeamId")
+        if ctid is None or ctid == "":
+            p.care_team_id = None
+        else:
+            try:
+                ctid = int(ctid)
+            except (ValueError, TypeError):
+                return {"error": "careTeamId must be an integer"}, 400
+            if not CareTeam.query.filter_by(id=ctid, tenant_id=g.tenant_id).first():
+                return {"error": "careTeamId does not exist"}, 400
+            p.care_team_id = ctid
 
     if "ssnLast4" in data:
         val = (data["ssnLast4"] or "").strip()
