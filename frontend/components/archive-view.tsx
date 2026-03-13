@@ -17,7 +17,7 @@ const statusColors: Record<string, string> = {
   archived: "bg-muted text-muted-foreground border-border",
 }
 
-export function ArchiveView({ userRole }: { userRole?: string }) {
+export function ArchiveView({ userPermissions = [] }: { userPermissions?: string[] }) {
   const [query, setQuery] = useState("")
   const [ssn, setSsn] = useState("")
   const [results, setResults] = useState<Patient[] | null>(null)
@@ -57,7 +57,7 @@ export function ArchiveView({ userRole }: { userRole?: string }) {
       <PatientProfileView
         patientId={selectedPatientId}
         onBack={() => setSelectedPatientId(null)}
-        userRole={userRole}
+        userPermissions={userPermissions}
       />
     )
   }
