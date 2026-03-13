@@ -923,12 +923,10 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
 export function PatientProfileView({
   patientId,
   onBack,
-  userRole,
   userPermissions = [],
 }: {
   patientId: string
   onBack: () => void
-  userRole?: string
   userPermissions?: string[]
 }) {
   const [patient, setPatient] = useState<PatientDetail | null>(null)
@@ -1610,12 +1608,10 @@ function PatientTable({
 export function PatientsView({
   initialFilter,
   initialPatientId,
-  userRole,
   userPermissions = [],
 }: {
   initialFilter?: string | null
   initialPatientId?: string
-  userRole?: string
   userPermissions?: string[]
 }) {
   const [patients, setPatients] = useState<Patient[]>([])
@@ -1643,7 +1639,6 @@ export function PatientsView({
       <PatientProfileView
         patientId={selectedPatientId}
         onBack={() => { setSelectedPatientId(null); fetchPatients() }}
-        userRole={userRole}
         userPermissions={userPermissions}
       />
     )
