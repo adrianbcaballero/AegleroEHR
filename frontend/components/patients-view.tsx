@@ -946,6 +946,9 @@ export function PatientProfileView({
   const canAdmitDischarge = userRole === "admin" || userRole === "psychiatrist"
   const canEdit = userRole === "admin" || userRole === "psychiatrist"
 
+  const [careTeams, setCareTeams] = useState<CareTeam[]>([])
+  const [editCareTeamId, setEditCareTeamId] = useState("")
+
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
@@ -968,7 +971,11 @@ export function PatientProfileView({
     setEditSaving(true)
     setEditError("")
     try {
-      const updated = await updatePatient(patient.id, editForm)
+      const payload: Record<string, unknown> = { ...editForm }
+      if (editingSection === "clinical") {
+        payload.careTeamId = editCareTeamId && editCareTeamId !== "none" ? parseInt(editCareTeamId) : null
+      }
+      const updated = await updatePatient(patient.id, payload)
       setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
       setEditingSection(null)
       setEditForm({})
@@ -1028,6 +1035,7 @@ export function PatientProfileView({
     getCategories()
       .then((r) => setCategories(r.categories))
       .catch(() => {})
+    listCareTeams().then(setCareTeams).catch(() => {})
   }, [patientId])
 
   useEffect(() => {
@@ -1336,15 +1344,18 @@ export function PatientProfileView({
             <CardTitle className="text-sm font-heading font-semibold text-foreground">Clinical</CardTitle>
             {canEdit && editingSection !== "clinical" && (
               <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
-                onClick={() => startEdit("clinical", {
-                  primaryDiagnosis: patient.primaryDiagnosis || "",
-                  insurance: patient.insurance || "",
-                  referringProvider: patient.referringProvider || "",
-                  primaryCarePhysician: patient.primaryCarePhysician || "",
-                  pharmacy: patient.pharmacy || "",
-                  currentMedications: patient.currentMedications || "",
-                  allergies: patient.allergies || "",
-                })}>
+                onClick={() => {
+                  setEditCareTeamId(patient.careTeamId ? String(patient.careTeamId) : "none")
+                  startEdit("clinical", {
+                    primaryDiagnosis: patient.primaryDiagnosis || "",
+                    insurance: patient.insurance || "",
+                    referringProvider: patient.referringProvider || "",
+                    primaryCarePhysician: patient.primaryCarePhysician || "",
+                    pharmacy: patient.pharmacy || "",
+                    currentMedications: patient.currentMedications || "",
+                    allergies: patient.allergies || "",
+                  })
+                }}>
                 <PenLine className="size-3.5" />
               </Button>
             )}
@@ -1358,6 +1369,22 @@ export function PatientProfileView({
                   <div><p className="text-xs text-muted-foreground mb-1">Referring Provider</p><Input className="h-7 text-sm" value={editForm.referringProvider} onChange={ef("referringProvider")} /></div>
                   <div><p className="text-xs text-muted-foreground mb-1">Primary Care Physician</p><Input className="h-7 text-sm" value={editForm.primaryCarePhysician} onChange={ef("primaryCarePhysician")} /></div>
                   <div><p className="text-xs text-muted-foreground mb-1">Pharmacy</p><Input className="h-7 text-sm" value={editForm.pharmacy} onChange={ef("pharmacy")} /></div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Care Team</p>
+                    <Select value={editCareTeamId} onValueChange={setEditCareTeamId}>
+                      <SelectTrigger className="h-7 text-sm">
+                        <SelectValue placeholder="No care team" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No care team (visible to all)</SelectItem>
+                        {careTeams.map((ct) => (
+                          <SelectItem key={ct.id} value={String(ct.id)}>
+                            {ct.name} ({ct.members.length} members)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="col-span-2"><p className="text-xs text-muted-foreground mb-1">Current Medications</p><Textarea className="text-sm min-h-[60px]" value={editForm.currentMedications} onChange={ef("currentMedications")} /></div>
                   <div className="col-span-2"><p className="text-xs text-muted-foreground mb-1">Allergies</p><Textarea className="text-sm min-h-[60px]" value={editForm.allergies} onChange={ef("allergies")} /></div>
                 </div>
@@ -1372,7 +1399,7 @@ export function PatientProfileView({
                 <div><p className="text-xs text-muted-foreground">ASAM LOC</p><p className="font-medium text-foreground">{patient.currentLoc ? `LOC ${patient.currentLoc}` : "Not assessed"}</p></div>
                 <div><p className="text-xs text-muted-foreground">Diagnosis</p><p className="font-medium text-foreground">{patient.primaryDiagnosis || "—"}</p></div>
                 <div><p className="text-xs text-muted-foreground">Insurance</p><p className="font-medium text-foreground">{patient.insurance || "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Provider</p><p className="font-medium text-foreground">{patient.assignedProvider || "Unassigned"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Care Team</p><p className="font-medium text-foreground">{patient.careTeamName || "Unassigned"}</p></div>
                 <div><p className="text-xs text-muted-foreground">Referring Provider</p><p className="font-medium text-foreground">{patient.referringProvider || "—"}</p></div>
                 <div><p className="text-xs text-muted-foreground">Primary Care Physician</p><p className="font-medium text-foreground">{patient.primaryCarePhysician || "—"}</p></div>
                 <div><p className="text-xs text-muted-foreground">Pharmacy</p><p className="font-medium text-foreground">{patient.pharmacy || "—"}</p></div>

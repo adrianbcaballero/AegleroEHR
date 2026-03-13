@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getPatients, createPatient, getBeds, assignBed } from "@/lib/api"
-import type { Patient, Bed } from "@/lib/api"
+import { getPatients, createPatient, getBeds, assignBed, listCareTeams } from "@/lib/api"
+import type { Patient, Bed, CareTeam } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
 import { ManageBedsView } from "@/components/manage-beds-view"
 
@@ -87,6 +87,8 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
   const [assignError, setAssignError] = useState("")
 
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM)
+  const [selectedCareTeamId, setSelectedCareTeamId] = useState("")
+  const [careTeams, setCareTeams] = useState<CareTeam[]>([])
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState("")
 
@@ -112,9 +114,10 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
   useEffect(() => {
     fetchPending()
     fetchBeds()
+    listCareTeams().then(setCareTeams).catch(() => {})
   }, [fetchPending, fetchBeds])
 
-  const resetForm = () => { setFormData(EMPTY_FORM); setAddError("") }
+  const resetForm = () => { setFormData(EMPTY_FORM); setSelectedCareTeamId(""); setAddError("") }
 
   const handleAdd = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -128,6 +131,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
       for (const [k, v] of Object.entries(formData) as [string, string][]) {
         if (v.trim()) payload[k] = v.trim()
       }
+      if (selectedCareTeamId && selectedCareTeamId !== "none") payload.careTeamId = parseInt(selectedCareTeamId)
       await createPatient(payload)
       setShowAdd(false)
       resetForm()
@@ -561,6 +565,32 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
               </div>
             </div>
           </div>
+
+          {/* Care Team Assignment */}
+          {careTeams.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">Care Team</p>
+              <div className="flex flex-col gap-1.5">
+                <Label>Assign to Care Team</Label>
+                <Select value={selectedCareTeamId} onValueChange={setSelectedCareTeamId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No care team (visible to all staff)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No care team (visible to all staff)</SelectItem>
+                    {careTeams.map((ct) => (
+                      <SelectItem key={ct.id} value={String(ct.id)}>
+                        {ct.name} ({ct.members.length} members)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Assigning a care team restricts patient visibility to team members only.
+                </p>
+              </div>
+            </div>
+          )}
 
           {addError && <p className="text-sm text-destructive">{addError}</p>}
           <div className="flex justify-end gap-2 pt-1">
