@@ -92,7 +92,7 @@ def _apply_rbac(query):
     member_team_ids = (
         db.session.query(CareTeamMember.care_team_id)
         .filter_by(user_id=g.user.id)
-        .subquery()
+        .scalar_subquery()
     )
     return query.filter(
         or_(Patient.care_team_id == None, Patient.care_team_id.in_(member_team_ids))
