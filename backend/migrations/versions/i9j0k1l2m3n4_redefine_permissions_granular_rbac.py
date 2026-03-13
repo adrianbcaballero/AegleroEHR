@@ -24,8 +24,8 @@ perm_t = table("role_permission", column("id", sa.Integer), column("role_id", sa
 NEW_SYSTEM_ROLE_PERMISSIONS = {
     "admin": [
         "patients.view", "patients.view.all", "patients.edit", "patients.create", "patients.delete",
-        "frontdesk.view", "frontdesk.admissions.view", "frontdesk.beds.manage",
-        "frontdesk.bedboard.view", "frontdesk.patients.create", "frontdesk.patients.pending",
+        "frontdesk.view", "frontdesk.beds.manage",
+        "frontdesk.patients.create", "frontdesk.patients.pending",
         "archive.view", "archive.export", "archive.manage",
         "workflows.view", "workflows.manage",
         "careteam.manage",
@@ -34,8 +34,7 @@ NEW_SYSTEM_ROLE_PERMISSIONS = {
     ],
     "psychiatrist": [
         "patients.view", "patients.view.all", "patients.create", "patients.edit",
-        "frontdesk.view", "frontdesk.admissions.view",
-        "frontdesk.bedboard.view", "frontdesk.patients.pending",
+        "frontdesk.view", "frontdesk.patients.pending",
         "archive.view", "archive.manage",
         "workflows.view", "workflows.manage",
         "consent.manage",
@@ -45,7 +44,7 @@ NEW_SYSTEM_ROLE_PERMISSIONS = {
     "technician": [
         "patients.view",
         "patients.edit",
-        "frontdesk.view", "frontdesk.bedboard.view",
+        "frontdesk.view",
         "consent.manage",
     ],
     "auditor": [
