@@ -1548,7 +1548,7 @@ function PatientTable({
         <TableRow className="hover:bg-transparent">
           <TableHead className="text-xs font-semibold text-muted-foreground">Patient</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground hidden sm:table-cell">Insurance</TableHead>
-          <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Provider</TableHead>
+          <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Care Team</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground">Risk</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
         </TableRow>
@@ -1579,7 +1579,7 @@ function PatientTable({
               <span className="text-sm text-foreground">{patient.insurance || "—"}</span>
             </TableCell>
             <TableCell className="hidden md:table-cell">
-              <span className="text-sm text-muted-foreground">{patient.assignedProvider || "Unassigned"}</span>
+              <span className="text-sm text-muted-foreground">{patient.careTeamName || "Unassigned"}</span>
             </TableCell>
             <TableCell>
               <Badge variant="secondary" className={`text-[10px] capitalize ${riskColors[patient.riskLevel] || ""}`}>
