@@ -945,8 +945,9 @@ export function PatientProfileView({
   const [showDischarge, setShowDischarge] = useState(false)
   const [dischargeReason, setDischargeReason] = useState("completed")
 
-  const canAdmitDischarge = userRole === "admin" || userRole === "psychiatrist"
-  const canEdit = userRole === "admin" || userRole === "psychiatrist"
+  const canAdmit = userPermissions.includes("frontdesk.patients.pending")
+  const canDischarge = userPermissions.includes("archive.manage")
+  const canEdit = userPermissions.includes("patients.edit")
 
   const [careTeams, setCareTeams] = useState<CareTeam[]>([])
   const [editCareTeamId, setEditCareTeamId] = useState("")
@@ -1117,13 +1118,13 @@ export function PatientProfileView({
           <Badge variant="secondary" className={`text-xs ${riskColors[patient.riskLevel] || ""}`}>
             {patient.riskLevel} risk
           </Badge>
-          {canAdmitDischarge && patient.status !== "active" && (
+          {canAdmit && patient.status !== "active" && (
             <Button size="sm" onClick={handleAdmit} disabled={actionLoading} className="gap-1.5">
               <LogIn className="size-3.5" />
               {patient.status === "inactive" ? "Re-admit" : "Admit"}
             </Button>
           )}
-          {canAdmitDischarge && patient.status === "active" && (
+          {canDischarge && patient.status === "active" && (
             <Button size="sm" variant="outline" onClick={() => setShowDischarge(true)} disabled={actionLoading} className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10">
               <LogOut className="size-3.5" />
               Discharge
@@ -1610,10 +1611,12 @@ export function PatientsView({
   initialFilter,
   initialPatientId,
   userRole,
+  userPermissions = [],
 }: {
   initialFilter?: string | null
   initialPatientId?: string
   userRole?: string
+  userPermissions?: string[]
 }) {
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
@@ -1641,6 +1644,7 @@ export function PatientsView({
         patientId={selectedPatientId}
         onBack={() => { setSelectedPatientId(null); fetchPatients() }}
         userRole={userRole}
+        userPermissions={userPermissions}
       />
     )
   }

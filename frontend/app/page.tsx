@@ -110,6 +110,7 @@ export default function EHRApp() {
             }
             initialPatientId={navOptions?.patientId}
             userRole={userRole}
+            userPermissions={userPermissions}
           />
         )
       case "Front Desk":
