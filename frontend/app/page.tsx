@@ -113,7 +113,7 @@ export default function EHRApp() {
           />
         )
       case "Front Desk":
-        return <FrontDeskView userRole={userRole} />
+        return <FrontDeskView userPermissions={userPermissions} />
       case "Archive":
         return <ArchiveView userRole={userRole} />
       case "Workflows":

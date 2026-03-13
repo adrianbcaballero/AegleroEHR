@@ -71,7 +71,7 @@ function groupBedsByUnit(unitBeds: Bed[]): [string, Bed[]][] {
   return Array.from(map.entries())
 }
 
-export function FrontDeskView({ userRole }: { userRole?: string }) {
+export function FrontDeskView({ userPermissions = [] }: { userPermissions?: string[] }) {
   const [patients, setPatients] = useState<Patient[]>([])
   const [beds, setBeds] = useState<Bed[]>([])
   const [loading, setLoading] = useState(true)
@@ -195,7 +195,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
       <PatientProfileView
         patientId={selectedPatientId}
         onBack={() => { setSelectedPatientId(null); fetchPending(); fetchBeds() }}
-        userRole={userRole}
+        userPermissions={userPermissions}
       />
     )
   }
@@ -208,7 +208,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Front Desk</h1>
           <p className="text-sm text-muted-foreground">Manage incoming patients and pre-admission intake</p>
         </div>
-        {userRole !== "technician" && (
+        {userPermissions.includes("frontdesk.patients.create") && (
           <Button onClick={() => { resetForm(); setShowAdd(true) }} className="gap-2">
             <Plus className="size-4" />
             Add Patient
@@ -279,7 +279,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
               )}
             </CardTitle>
             <div className="flex items-center gap-1">
-              {userRole === "admin" && (
+              {userPermissions.includes("frontdesk.beds.manage") && (
                 <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowManageBeds(true)}>
                   Manage Beds
                 </Button>
@@ -359,7 +359,7 @@ export function FrontDeskView({ userRole }: { userRole?: string }) {
                           )}
 
                           {/* Unassign button for occupied beds */}
-                          {bed.status === "occupied" && userRole !== "technician" && (
+                          {bed.status === "occupied" && userPermissions.includes("frontdesk.beds.manage") && (
                             <button
                               className="text-[10px] text-muted-foreground hover:text-destructive transition-colors text-left"
                               onClick={(e: { stopPropagation: () => void }) => { e.stopPropagation(); handleUnassign(bed) }}

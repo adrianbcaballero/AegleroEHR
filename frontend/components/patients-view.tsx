@@ -924,10 +924,12 @@ export function PatientProfileView({
   patientId,
   onBack,
   userRole,
+  userPermissions = [],
 }: {
   patientId: string
   onBack: () => void
   userRole?: string
+  userPermissions?: string[]
 }) {
   const [patient, setPatient] = useState<PatientDetail | null>(null)
   const [forms, setForms] = useState<PatientFormEntry[]>([])

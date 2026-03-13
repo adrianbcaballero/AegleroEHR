@@ -239,7 +239,7 @@ const allMainNavItems = [
 ]
 
 const adminNavItems = [
-  { title: "Workflows", icon: GitBranch, permission: "templates.manage" },
+  { title: "Workflows", icon: GitBranch, permission: "workflows.view" },
   { title: "Manage Users", icon: UserCog, permission: "users.manage" },
   { title: "Manage Roles", icon: Shield, permission: "roles.manage" },
   { title: "Manage Care Teams", icon: UsersRound, permission: "careteam.manage" },
