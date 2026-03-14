@@ -58,6 +58,9 @@ def create_app():
     from routes.careteams import careteams_bp
     app.register_blueprint(careteams_bp)
 
+    from routes.mfa import mfa_bp
+    app.register_blueprint(mfa_bp)
+
     # Import models so Alembic can detect
     import models
 

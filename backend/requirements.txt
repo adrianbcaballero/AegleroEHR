@@ -6,3 +6,5 @@ python-dotenv==1.0.1
 Werkzeug==3.1.6
 Flask-Migrate==4.0.7
 gunicorn==22.0.0
+pyotp==2.9.0
+qrcode[pil]==8.0

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 
+import pyotp
 from flask import Blueprint, request, make_response
 from werkzeug.security import check_password_hash
 
@@ -11,6 +12,9 @@ from services.audit_logger import log_access
 from services.rate_limiter import login_limiter
 from services.helpers import client_ip, get_slug_from_host
 from auth_middleware import _get_session_id, _validate_session
+
+# In-memory store for MFA pending tokens (short-lived, cleared on use)
+_mfa_pending: dict[str, dict] = {}
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -61,10 +65,67 @@ def login():
 
     user.failed_login_attempts = 0
     user.locked_until = None
+
+    # Check if MFA is required but user hasn't set it up yet
+    needs_mfa_setup = tenant.mfa_required and not user.mfa_enabled
+
+    # If user has MFA enabled, require TOTP before creating session
+    if user.mfa_enabled:
+        mfa_token = secrets.token_urlsafe(32)
+        _mfa_pending[mfa_token] = {
+            "user_id": user.id,
+            "tenant_id": t_id,
+            "expires": datetime.now(timezone.utc) + timedelta(minutes=5),
+        }
+        db.session.commit()
+        return {"mfaRequired": True, "mfaToken": mfa_token}, 200
+
     is_first_login = user.last_login is None
     user.last_login = datetime.now(timezone.utc)
     db.session.commit()
 
+    return _create_session(user, tenant, t_id, ip, is_first_login, needs_mfa_setup)
+
+
+@auth_bp.post("/login/mfa")
+def login_mfa():
+    """Complete login by verifying the TOTP code."""
+    data = request.get_json(silent=True) or {}
+    mfa_token = (data.get("mfaToken") or "").strip()
+    code = (data.get("code") or "").strip()
+    ip = client_ip()
+
+    if not mfa_token or not code:
+        return {"error": "mfaToken and code are required"}, 400
+
+    pending = _mfa_pending.pop(mfa_token, None)
+    if not pending or pending["expires"] < datetime.now(timezone.utc):
+        _mfa_pending.pop(mfa_token, None)
+        return {"error": "MFA session expired, please log in again"}, 401
+
+    user = User.query.get(pending["user_id"])
+    if not user or not user.mfa_secret:
+        return {"error": "invalid MFA session"}, 401
+
+    totp = pyotp.TOTP(user.mfa_secret)
+    if not totp.verify(code, valid_window=1):
+        # Put the token back so user can retry (within the 5 min window)
+        _mfa_pending[mfa_token] = pending
+        log_access(user.id, "LOGIN", "auth", "FAILED", ip,
+                   description=f"MFA code verification failed for '{user.username}'",
+                   tenant_id=pending["tenant_id"])
+        return {"error": "invalid code"}, 401
+
+    tenant = Tenant.query.get(pending["tenant_id"])
+    is_first_login = user.last_login is None
+    user.last_login = datetime.now(timezone.utc)
+    db.session.commit()
+
+    return _create_session(user, tenant, pending["tenant_id"], ip, is_first_login, False)
+
+
+def _create_session(user, tenant, t_id, ip, is_first_login, needs_mfa_setup):
+    """Shared helper to create session + cookie after successful authentication."""
     session_id = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=config.SESSION_TIMEOUT_MINUTES)
 
@@ -95,6 +156,7 @@ def login():
         "tenant_name": tenant.name,
         "is_first_login": is_first_login,
         "requires_terms_agreement": user.agreed_to_terms_at is None,
+        "needsMfaSetup": needs_mfa_setup,
     }, 200)
     resp.set_cookie(
         "session",

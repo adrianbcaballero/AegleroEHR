@@ -82,10 +82,30 @@ export interface LoginResponse {
   tenant_name: string;
   is_first_login: boolean;
   requires_terms_agreement: boolean;
+  needsMfaSetup?: boolean;
+  mfaRequired?: boolean;
+  mfaToken?: string;
 }
 
 export function login(username: string, password: string) {
   return apiPost<LoginResponse>("/api/auth/login", { username, password });
+}
+
+export function loginMfa(mfaToken: string, code: string) {
+  return apiPost<LoginResponse>("/api/auth/login/mfa", { mfaToken, code });
+}
+
+export interface MfaSetupResponse {
+  qrCode: string;
+  secret: string;
+}
+
+export function getMfaSetup() {
+  return apiGet<MfaSetupResponse>("/api/auth/mfa/setup");
+}
+
+export function verifyMfaSetup(code: string) {
+  return apiPost<{ mfaEnabled: boolean }>("/api/auth/mfa/verify", { code });
 }
 
 export function logout() {
