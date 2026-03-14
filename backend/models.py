@@ -313,15 +313,19 @@ class CareTeamMember(db.Model):
 
 
 class AuditLog(db.Model):
+    """
+    Tamper-evident audit log implementing a SHA-256 hash chain.
+    Each entry stores a hash of its own contents plus the previous entry's hash,
+    satisfying ONC §170.315(d)(2) tamper-resistance requirements.
+    """
     __tablename__ = "audit_log"
 
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
     timestamp = db.Column(db.DateTime(timezone=True),
-    default=lambda: datetime.now(timezone.utc),
-    nullable=False
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
-
 
     user_id = db.Column(db.Integer, nullable=True)
     action = db.Column(db.String(80), nullable=False)
@@ -329,8 +333,11 @@ class AuditLog(db.Model):
     ip_address = db.Column(db.String(45), nullable=True)
     description = db.Column(db.String(255), nullable=True)
 
-    #success or fail
-    status = db.Column(db.String(20), nullable=False)  
+    status = db.Column(db.String(20), nullable=False)  # SUCCESS / FAILED
+
+    # Hash chain for tamper detection — ONC §170.315(d)(2)
+    prev_hash = db.Column(db.String(64), nullable=True)   # SHA-256 of previous entry (null for first)
+    entry_hash = db.Column(db.String(64), nullable=True)   # SHA-256 of this entry's contents + prev_hash
 
 
 

@@ -4,7 +4,7 @@ from flask import Blueprint, request, g
 
 from auth_middleware import require_auth
 from models import AuditLog, UserSession, User
-from services.audit_logger import log_access
+from services.audit_logger import log_access, _compute_hash
 from extensions import db
 from services.helpers import client_ip, tenant_query
 
@@ -99,6 +99,7 @@ def get_audit_logs():
             "ipAddress": log.ip_address,
             "status": log.status,
             "description": log.description,
+            "entryHash": log.entry_hash,
         })
     next_before_id = items[-1]["id"] if items else None
     
@@ -199,7 +200,7 @@ def export_audit_logs():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID", "Timestamp", "User ID", "Username", "Action", "Resource", "IP Address", "Status", "Description"])
+    writer.writerow(["ID", "Timestamp", "User ID", "Username", "Action", "Resource", "IP Address", "Status", "Description", "Prev Hash", "Entry Hash"])
 
     for log, username in rows:
         writer.writerow([
@@ -212,6 +213,8 @@ def export_audit_logs():
             log.ip_address or "",
             log.status,
             log.description or "",
+            log.prev_hash or "",
+            log.entry_hash or "",
         ])
 
     csv_data = output.getvalue()
@@ -231,3 +234,60 @@ def export_audit_logs():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@audit_bp.get("/verify")
+@require_auth(permission="audit.view")
+def verify_audit_chain():
+    """
+    GET /api/audit/verify
+    Walks the full hash chain for this tenant and reports whether any entries
+    have been tampered with.  ONC §170.315(d)(2) tamper-detection.
+    """
+    ip = client_ip()
+
+    rows = (
+        db.session.query(AuditLog)
+        .filter(AuditLog.tenant_id == g.tenant_id)
+        .order_by(AuditLog.id.asc())
+        .all()
+    )
+
+    total = len(rows)
+    broken = []
+    prev_hash = None
+
+    for row in rows:
+        if row.entry_hash is None:
+            prev_hash = None
+            continue
+
+        expected = _compute_hash(
+            row.timestamp, row.tenant_id, row.user_id,
+            row.action, row.resource, row.status,
+            row.ip_address, row.description, prev_hash,
+        )
+
+        if row.entry_hash != expected or row.prev_hash != prev_hash:
+            broken.append({
+                "id": row.id,
+                "timestamp": row.timestamp.isoformat(),
+                "action": row.action,
+                "expected_hash": expected,
+                "actual_hash": row.entry_hash,
+            })
+
+        prev_hash = row.entry_hash
+
+    intact = len(broken) == 0
+    status_word = "INTACT" if intact else "TAMPERED"
+
+    log_access(g.user.id, "AUDIT_VERIFY", "audit/verify", "SUCCESS", ip,
+               description=f"Hash chain verification: {status_word} — {total} entries checked, {len(broken)} broken")
+
+    return {
+        "intact": intact,
+        "total_entries": total,
+        "broken_entries": len(broken),
+        "details": broken[:50],  # cap to prevent huge responses
+    }, 200
