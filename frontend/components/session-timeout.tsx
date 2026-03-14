@@ -27,6 +27,8 @@ export function SessionTimeout({
   const heartbeatTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const showWarningRef = useRef(false)
   const onTimeoutRef = useRef(onTimeout)
+  const hadActivityRef = useRef(false)
+  const lastResetRef = useRef(Date.now())
 
   // Keep ref in sync
   onTimeoutRef.current = onTimeout
@@ -50,10 +52,17 @@ export function SessionTimeout({
     setShowWarning(false)
     showWarningRef.current = false
     setSecondsLeft(warningSeconds)
+    hadActivityRef.current = false
+    lastResetRef.current = Date.now()
 
-    // Heartbeat: ping backend every 5 min while user is active
+    // Heartbeat: ping backend every 5 min, but only if there was real
+    // user activity since the last ping.  This keeps the backend session
+    // alive while the user is active, and lets it expire naturally when idle.
     heartbeatTimer.current = setInterval(() => {
-      getMe().catch(() => {})
+      if (hadActivityRef.current) {
+        hadActivityRef.current = false
+        getMe().catch(() => {})
+      }
     }, 5 * 60 * 1000)
 
     // Warning shows at (timeout - warningSeconds)
@@ -77,15 +86,49 @@ export function SessionTimeout({
   useEffect(() => {
     function handleActivity() {
       if (showWarningRef.current) return
+      hadActivityRef.current = true
+
+      // Only reset the full timer set if enough time has passed (throttle to
+      // avoid resetting on every single mouse move — 30 second debounce)
+      if (Date.now() - lastResetRef.current > 30_000) {
+        resetTimers()
+      }
+    }
+
+    // Handle computer sleep/hibernate: when the page becomes visible again,
+    // check if the session is still valid.  JS timers freeze during sleep so
+    // the warning popup may never have fired.
+    function handleVisibility() {
+      if (document.visibilityState !== "visible") return
+      if (showWarningRef.current) return
+
+      // If we've been away longer than the timeout, go straight to logout
+      const elapsed = Date.now() - lastResetRef.current
+      if (elapsed >= timeoutMinutes * 60 * 1000) {
+        doLogout()
+        return
+      }
+
+      // If we're past the warning threshold, verify with backend
+      if (elapsed >= warningMs) {
+        getMe()
+          .then(() => resetTimers())
+          .catch(() => doLogout())
+        return
+      }
+
+      // Otherwise just reset (activity happened — user woke the machine)
       resetTimers()
     }
 
     const events = ["mousedown", "keydown", "mousemove", "scroll", "touchstart"]
     events.forEach((event) => window.addEventListener(event, handleActivity))
+    document.addEventListener("visibilitychange", handleVisibility)
     resetTimers()
 
     return () => {
       events.forEach((event) => window.removeEventListener(event, handleActivity))
+      document.removeEventListener("visibilitychange", handleVisibility)
       clearAllTimers()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,8 +157,9 @@ export function SessionTimeout({
           <Button
             className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={() => {
-              getMe().catch(() => {})
-              resetTimers()
+              getMe()
+                .then(() => resetTimers())
+                .catch(() => doLogout())
             }}
           >
             Continue Session

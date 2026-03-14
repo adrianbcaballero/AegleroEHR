@@ -137,6 +137,11 @@ def me():
     if not user:
         return {"error": "not authenticated"}, 401
 
+    # Sliding session: extend expiration on every /me call so that
+    # heartbeat pings from an active frontend keep the session alive.
+    sess.expires_at = datetime.now(timezone.utc) + timedelta(minutes=config.SESSION_TIMEOUT_MINUTES)
+    db.session.commit()
+
     tenant = Tenant.query.get(user.tenant_id)
     return {
         "user_id": user.id,
