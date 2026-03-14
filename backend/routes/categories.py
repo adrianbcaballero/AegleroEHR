@@ -24,7 +24,30 @@ def get_tenant():
         "phone": tenant.phone or "",
         "email": tenant.email or "",
         "address": tenant.address or "",
+        "mfaRequired": tenant.mfa_required,
     }, 200
+
+
+@categories_bp.patch("/tenant/mfa")
+@require_auth(permission="settings.manage")
+def toggle_tenant_mfa():
+    tenant = Tenant.query.get(g.tenant_id)
+    if not tenant:
+        return {"error": "tenant not found"}, 404
+
+    data = request.get_json(silent=True) or {}
+    if "mfaRequired" not in data:
+        return {"error": "mfaRequired is required"}, 400
+
+    tenant.mfa_required = bool(data["mfaRequired"])
+    db.session.commit()
+
+    ip = client_ip()
+    action = "MFA_ENABLED" if tenant.mfa_required else "MFA_DISABLED"
+    log_access(g.user.id, action, "tenant/mfa", "SUCCESS", ip,
+               description=f"Tenant MFA requirement {'enabled' if tenant.mfa_required else 'disabled'}")
+
+    return {"mfaRequired": tenant.mfa_required}, 200
 
 
 @categories_bp.get("/categories")

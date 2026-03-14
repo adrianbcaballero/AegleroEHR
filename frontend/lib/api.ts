@@ -55,6 +55,22 @@ export async function apiPut<T>(path: string, data?: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export async function apiPatch<T>(path: string, data?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    credentials: "include",
+    body: data ? JSON.stringify(data) : undefined,
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `PATCH ${path} failed: ${res.status}`)
+  }
+
+  return res.json() as Promise<T>
+}
+
 // Auth API calls
 export interface LoginResponse {
   user_id: number;
@@ -496,10 +512,15 @@ export interface TenantInfo {
   phone: string
   email: string
   address: string
+  mfaRequired: boolean
 }
 
 export function getTenant() {
   return apiGet<TenantInfo>("/api/tenant")
+}
+
+export function toggleTenantMfa(mfaRequired: boolean) {
+  return apiPatch<{ mfaRequired: boolean }>("/api/tenant/mfa", { mfaRequired })
 }
 
 

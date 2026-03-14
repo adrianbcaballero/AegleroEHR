@@ -38,6 +38,9 @@ ALL_PERMISSIONS = [
     "users.manage",                  # create / edit / lock / unlock users
     "roles.manage",                  # manage roles and permissions
 
+    # Settings
+    "settings.manage",               # manage tenant settings (MFA, security)
+
     # Consent (42 CFR Part 2)
     "consent.manage",                # create / revoke patient consent records
 ]
@@ -134,6 +137,9 @@ class User(db.Model):
     permanently_locked = db.Column(db.Boolean, default=False, nullable=False)
     signature_data = db.Column(db.Text, nullable=True)  # base64 data-URL of saved signature image
 
+    mfa_secret = db.Column(db.String(32), nullable=True)   # TOTP shared secret (base32)
+    mfa_enabled = db.Column(db.Boolean, default=False, nullable=False)
+
     __table_args__ = (db.UniqueConstraint("tenant_id", "username", name="uq_tenant_username"),)
 
     @property
@@ -160,6 +166,7 @@ class Tenant(db.Model):
     phone = db.Column(db.String(30), nullable=True)
     email = db.Column(db.String(120), nullable=True)
     address = db.Column(db.String(255), nullable=True)
+    mfa_required = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

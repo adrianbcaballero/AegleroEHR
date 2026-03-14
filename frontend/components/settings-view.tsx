@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { getTenant } from "@/lib/api"
+import { getTenant, toggleTenantMfa } from "@/lib/api"
 import type { TenantInfo } from "@/lib/api"
 
 export function SettingsView() {
@@ -126,7 +126,14 @@ export function SettingsView() {
               <p className="text-sm font-medium text-foreground">Require MFA for all users</p>
               <p className="text-xs text-muted-foreground">When enabled, all users must set up MFA on their next login</p>
             </div>
-            <Switch />
+            <Switch
+              checked={tenant?.mfaRequired ?? false}
+              onCheckedChange={(checked) => {
+                toggleTenantMfa(checked)
+                  .then((res) => setTenant((prev) => prev ? { ...prev, mfaRequired: res.mfaRequired } : prev))
+                  .catch(() => {})
+              }}
+            />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
