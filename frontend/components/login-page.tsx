@@ -1,11 +1,11 @@
 "use client"
 
 import React, { useState } from "react"
-import { login as apiLogin } from "@/lib/api"
+import { login as apiLogin, loginMfa } from "@/lib/api"
 import type { LoginResponse } from "@/lib/api"
 
 import Image from "next/image"
-import { LogIn, ChevronDown, ChevronUp } from "lucide-react"
+import { LogIn, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -30,6 +30,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [loading, setLoading] = useState(false)
   const [notesExpanded, setNotesExpanded] = useState(false)
 
+  // MFA state
+  const [mfaStep, setMfaStep] = useState(false)
+  const [mfaToken, setMfaToken] = useState("")
+  const [mfaCode, setMfaCode] = useState("")
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!username.trim() || !password) {
@@ -42,9 +47,36 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     try {
       const res = await apiLogin(username.trim(), password)
-      onLogin(res.role as UserRole, res)
+      if (res.mfaRequired && res.mfaToken) {
+        setMfaToken(res.mfaToken)
+        setMfaStep(true)
+        setMfaCode("")
+      } else {
+        onLogin(res.role as UserRole, res)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed"
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!mfaCode.trim()) {
+      setError("Enter your authenticator code")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+
+    try {
+      const res = await loginMfa(mfaToken, mfaCode.trim())
+      onLogin(res.role as UserRole, res)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Invalid code"
       setError(message)
     } finally {
       setLoading(false)
@@ -104,48 +136,94 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <Card className="w-full max-w-sm border-border/60">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg font-heading font-semibold text-foreground text-center">
-              Sign In
+              {mfaStep ? "Two-Factor Authentication" : "Sign In"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="username" className="text-sm font-medium text-foreground">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => { setUsername(e.target.value); setError("") }}
-                  className="h-10"
+            {mfaStep ? (
+              <form onSubmit={handleMfaSubmit} className="flex flex-col gap-4">
+                <div className="flex items-center justify-center">
+                  <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
+                    <ShieldCheck className="size-6 text-primary" />
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  Enter the 6-digit code from your authenticator app
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="mfaCode" className="text-sm font-medium text-foreground">Authenticator Code</Label>
+                  <Input
+                    id="mfaCode"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="000000"
+                    value={mfaCode}
+                    onChange={(e) => { setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError("") }}
+                    className="h-10 text-center text-lg tracking-widest"
+                    disabled={loading}
+                    autoFocus
+                  />
+                </div>
+
+                {error && <p className="text-sm text-destructive">{error}</p>}
+
+                <Button
+                  type="submit"
+                  className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={loading || mfaCode.length < 6}
+                >
+                  {loading ? "Verifying…" : "Verify"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-sm text-muted-foreground"
+                  onClick={() => { setMfaStep(false); setMfaToken(""); setMfaCode(""); setError("") }}
+                >
+                  Back to Sign In
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="username" className="text-sm font-medium text-foreground">Username</Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={username}
+                    onChange={(e) => { setUsername(e.target.value); setError("") }}
+                    className="h-10"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="password" className="text-sm font-medium text-foreground">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setError("") }}
+                    className="h-10"
+                    disabled={loading}
+                  />
+                </div>
+
+                {error && <p className="text-sm text-destructive">{error}</p>}
+
+                <Button
+                  type="submit"
+                  className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
                   disabled={loading}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="password" className="text-sm font-medium text-foreground">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError("") }}
-                  className="h-10"
-                  disabled={loading}
-                />
-              </div>
-
-              {error && <p className="text-sm text-destructive">{error}</p>}
-
-              <Button
-                type="submit"
-                className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
-                disabled={loading}
-              >
-                <LogIn className="mr-2 size-4" />
-                {loading ? "Signing in…" : "Sign In"}
-              </Button>
-            </form>
+                >
+                  <LogIn className="mr-2 size-4" />
+                  {loading ? "Signing in…" : "Sign In"}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>

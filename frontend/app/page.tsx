@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator"
 import { setSessionToken, logout as apiLogout, getMe } from "@/lib/api"
 import { SessionTimeout } from "@/components/session-timeout"
 import { FirstLoginModal } from "@/components/first-login-modal"
+import { MfaSetup } from "@/components/mfa-setup"
 
 import {
   Breadcrumb,
@@ -43,6 +44,7 @@ export default function EHRApp() {
   const [navOptions, setNavOptions] = useState<{ filter?: string; patientId?: string } | null>(null)
   const [showFirstLoginModal, setShowFirstLoginModal] = useState(false)
   const [isFirstLogin, setIsFirstLogin] = useState(false)
+  const [needsMfaSetup, setNeedsMfaSetup] = useState(false)
   const [sessionLoading, setSessionLoading] = useState(true)
 
   // On mount, check if there's already a valid session cookie
@@ -82,8 +84,18 @@ export default function EHRApp() {
           setCurrentUser({ username: session.username, fullName: session.full_name })
           setIsLoggedIn(true)
           setIsFirstLogin(session.is_first_login)
+          if (session.needsMfaSetup) setNeedsMfaSetup(true)
           if (session.requires_terms_agreement) setShowFirstLoginModal(true)
         }}
+      />
+    )
+  }
+
+  if (needsMfaSetup && !showFirstLoginModal) {
+    return (
+      <MfaSetup
+        onComplete={() => setNeedsMfaSetup(false)}
+        onBack={() => { handleSignOut(); setNeedsMfaSetup(false) }}
       />
     )
   }
