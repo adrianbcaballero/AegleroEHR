@@ -217,6 +217,8 @@ def me():
         "tenant_id": user.tenant_id,
         "tenant_name": tenant.name if tenant else None,
         "signature_data": user.signature_data,
+        "requires_terms_agreement": user.agreed_to_terms_at is None,
+        "needsMfaSetup": bool(tenant and tenant.mfa_required and not user.mfa_enabled),
     }, 200
 
 

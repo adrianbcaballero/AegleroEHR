@@ -117,7 +117,7 @@ export function acceptTerms() {
 }
 
 export function getMe() {
-  return apiGet<{ user_id: number; username: string; full_name: string | null; role: string; permissions: string[]; tenant_name: string; signature_data: string | null }>("/api/auth/me");
+  return apiGet<{ user_id: number; username: string; full_name: string | null; role: string; permissions: string[]; tenant_name: string; signature_data: string | null; requires_terms_agreement: boolean; needsMfaSetup: boolean }>("/api/auth/me");
 }
 
 export function saveSignature(signatureData: string | null) {

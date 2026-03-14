@@ -55,6 +55,8 @@ export default function EHRApp() {
         setUserPermissions(me.permissions || [])
         setTenantName(me.tenant_name || "")
         setCurrentUser({ username: me.username, fullName: me.full_name })
+        if (me.requires_terms_agreement) setShowFirstLoginModal(true)
+        if (me.needsMfaSetup) setNeedsMfaSetup(true)
         setIsLoggedIn(true)
       })
       .catch(() => {})
