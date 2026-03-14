@@ -91,7 +91,13 @@ export default function EHRApp() {
     )
   }
 
-  if (needsMfaSetup && !showFirstLoginModal) {
+  if (showFirstLoginModal) {
+    return (
+      <FirstLoginModal open={true} onAccept={() => setShowFirstLoginModal(false)} />
+    )
+  }
+
+  if (needsMfaSetup) {
     return (
       <MfaSetup
         onComplete={() => setNeedsMfaSetup(false)}
@@ -151,7 +157,6 @@ export default function EHRApp() {
 
   return (
     <SidebarProvider>
-      <FirstLoginModal open={showFirstLoginModal} onAccept={() => setShowFirstLoginModal(false)} />
       <SessionTimeout
         timeoutMinutes={15}
         warningSeconds={60}
