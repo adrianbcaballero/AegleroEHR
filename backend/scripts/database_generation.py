@@ -45,13 +45,13 @@ def seed():
 
         # ── Tenants ──
         tenant1 = Tenant(
-            name="Sunrise Detox Center",
-            slug="sunrise-detox",
+            name="Aeglero Detox Center",
+            slug="aeglero-detox",
             status="active",
             npi="1982734560",
-            phone="(512) 555-0190",
-            email="admin@sunrisedetox.com",
-            address="4801 S Congress Ave, Suite 200, Austin, TX 78745",
+            phone="(999) 999-9999",
+            email="contact@aeglero.com",
+            address="1111 Congress Ave, Suite 1111, Austin, TX 11111",
         )
         tenant2 = Tenant(
             name="Harbor Recovery Clinic",
@@ -537,7 +537,7 @@ def seed():
         db.session.add_all(t1_patients + t2_patients)
         db.session.commit()
 
-        # ── Beds (Tenant 1 — Sunrise Detox) ──
+        # ── Beds (Tenant 1 — Aeglero Detox) ──
         t1_bed_data = [
             # (display_name, unit, room, bed_label, sort_order, status)
             ("Bed A-1", "Detox Unit A", "101", "1", 1, "available"),
@@ -1091,7 +1091,7 @@ def seed():
         print(f"  2. {tenant2.name} (slug: {tenant2.slug})")
         print()
         print("Login credentials (Password for all: Password123!):")
-        print(f"  Sunrise:")
+        print(f"  Aeglero:")
         print(f"    admin1        — Administrator (Morgan Lee)")
         print(f"    psychiatrist1 — Psychiatrist (Dr. Fierro)")
         print(f"    psychiatrist3 — Psychiatrist (Dr. Nakamura)")
@@ -1103,7 +1103,7 @@ def seed():
         print(f"  Harbor:")
         print(f"    admin2 / psychiatrist2 / technician2")
         print()
-        print("Care Teams (Sunrise):")
+        print("Care Teams (Aeglero):")
         print(f"  Detox Unit Team  — Dr. Fierro, Priya Sharma (RN), Jordan Kim (Tech)")
         print(f"  IOP/PHP Team     — Dr. Nakamura, Dani Orozco (Tech)")
         print(f"  Intake Team      — Taylor Brooks (Front Desk), Priya Sharma (RN)")
@@ -1112,12 +1112,12 @@ def seed():
         pending = sum(1 for p in t1_patients if p.status == "pending")
         active = sum(1 for p in t1_patients if p.status == "active")
         inactive = sum(1 for p in t1_patients if p.status == "inactive")
-        print(f"Patients: {len(t1_patients)} (Sunrise) + {len(t2_patients)} (Harbor)")
-        print(f"  Sunrise — {pending} pending, {active} active ({len(active_detox)} in beds + {active - len(active_detox)} IOP/PHP), {inactive} discharged")
+        print(f"Patients: {len(t1_patients)} (Aeglero) + {len(t2_patients)} (Harbor)")
+        print(f"  Aeglero — {pending} pending, {active} active ({len(active_detox)} in beds + {active - len(active_detox)} IOP/PHP), {inactive} discharged")
         print(f"  Harbor  — {len(t2_patients)} active")
         print()
         occupied = sum(1 for b in t1_beds if any(p.assigned_bed_id == b.id for p in t1_patients))
-        print(f"Beds (Sunrise): {len(t1_beds)} total — {occupied} occupied, 1 cleaning, 1 out of service")
+        print(f"Beds (Aeglero): {len(t1_beds)} total — {occupied} occupied, 1 cleaning, 1 out of service")
         print("Form templates and sample forms created for both tenants.")
 
 

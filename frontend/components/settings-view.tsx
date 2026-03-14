@@ -1,18 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Globe, Shield, Database, Smartphone, Loader2 } from "lucide-react"
+import { Globe, Shield, Smartphone, Loader2, Lock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { getTenant } from "@/lib/api"
 import type { TenantInfo } from "@/lib/api"
 
@@ -99,30 +92,18 @@ export function SettingsView() {
         <CardContent className="flex flex-col gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">Session Timeout</Label>
-              <Select defaultValue="30">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15 minutes</SelectItem>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="60">60 minutes</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium text-muted-foreground">Session Timeout</Label>
+              <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40">
+                <Lock className="size-3.5 text-muted-foreground" />
+                <span className="text-sm text-foreground">15 minutes</span>
+              </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">Max Login Attempts</Label>
-              <Select defaultValue="5">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="3">3 attempts</SelectItem>
-                  <SelectItem value="5">5 attempts</SelectItem>
-                  <SelectItem value="10">10 attempts</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium text-muted-foreground">Max Login Attempts</Label>
+              <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40">
+                <Lock className="size-3.5 text-muted-foreground" />
+                <span className="text-sm text-foreground">5 attempts</span>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -145,63 +126,37 @@ export function SettingsView() {
               <p className="text-sm font-medium text-foreground">Require MFA for all users</p>
               <p className="text-xs text-muted-foreground">When enabled, all users must set up MFA on their next login</p>
             </div>
-            <Switch defaultChecked />
+            <Switch />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">MFA Method</Label>
-              <Select defaultValue="authenticator">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="authenticator">Authenticator App (TOTP)</SelectItem>
-                  <SelectItem value="sms">SMS Code</SelectItem>
-                  <SelectItem value="email">Email Code</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium text-muted-foreground">MFA Method</Label>
+              <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40">
+                <Lock className="size-3.5 text-muted-foreground" />
+                <span className="text-sm text-foreground">Authenticator App (TOTP)</span>
+              </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">Remember Device</Label>
-              <Select defaultValue="30">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Never</SelectItem>
-                  <SelectItem value="7">7 days</SelectItem>
-                  <SelectItem value="30">30 days</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium text-muted-foreground">
+                Remember Device
+                <span className="ml-2 text-xs font-normal text-muted-foreground/60">Coming soon</span>
+              </Label>
+              <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border bg-muted/40 opacity-50">
+                <Lock className="size-3.5 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Not available</span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20">
+          <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20 opacity-50">
             <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-foreground">Enforce MFA for Admin roles</p>
+              <p className="text-sm font-medium text-foreground">
+                Enforce MFA for Admin roles
+                <span className="ml-2 text-xs font-normal text-muted-foreground/60">Coming soon</span>
+              </p>
               <p className="text-xs text-muted-foreground">Admin users will always be required to use MFA regardless of global setting</p>
             </div>
-            <Switch defaultChecked />
+            <Switch disabled />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Database */}
-      <Card className="border-border/60">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Database className="size-4 text-primary" />
-            <CardTitle className="text-base font-heading font-semibold text-foreground">
-              Data & Backup
-            </CardTitle>
-          </div>
-          <CardDescription>Database and backup configuration</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-xs text-muted-foreground">
-            Backup and data configuration is managed by Aeglero. Contact{" "}
-            <a href="mailto:ticket@aeglero.com" className="underline hover:text-foreground transition-colors">ticket@aeglero.com</a>{" "}
-            for backup schedules, restore requests, or data exports.
-          </p>
         </CardContent>
       </Card>
     </div>
