@@ -258,6 +258,21 @@ class UserSession(db.Model):
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
 
 
+class MfaPendingToken(db.Model):
+    """
+    Short-lived token issued after password verification for MFA-enabled users.
+    Stored in the database so it works across multiple gunicorn workers.
+    Tokens expire after 5 minutes and are deleted on use.
+    """
+    __tablename__ = "mfa_pending_token"
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+
+
 class Bed(db.Model):
     """
     Physical bed inventory for the tenant.
