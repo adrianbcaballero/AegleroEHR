@@ -605,6 +605,13 @@ def delete_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip)
         return {"error": "form not found"}, 404
 
+    # Completed forms are signed legal medical records — immutable per
+    # ONC §170.315(d)(2) and HIPAA record-retention requirements.
+    if f.status == "completed":
+        log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip,
+                   description=f"Attempted to delete completed form #{form_id} for patient {p.patient_code}")
+        return {"error": "completed forms are legal records and cannot be deleted"}, 409
+
     template = FormTemplate.query.get(f.template_id)
     access_level = _get_access_level(template, g.user) if template else None
     if access_level not in ("edit", "sign"):
@@ -615,6 +622,6 @@ def delete_patient_form(patient_id, form_id):
 
     db.session.delete(f)
     db.session.commit()
-    log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "SUCCESS", ip, description=f"Deleted '{tpl_name}' from {p.first_name} {p.last_name} ({p.patient_code})")
+    log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "SUCCESS", ip, description=f"Deleted draft '{tpl_name}' from {p.first_name} {p.last_name} ({p.patient_code})")
     
     return {"ok": True}, 200

@@ -147,7 +147,7 @@ class User(db.Model):
         """Role slug for inline checks (e.g. data-scoping logic). Falls back to legacy string."""
         if self.role_obj:
             return self.role_obj.name
-        return self.role or ""
+        return ""
 
     def has_permission(self, permission: str) -> bool:
         if self.role_obj:
