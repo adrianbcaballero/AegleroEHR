@@ -63,11 +63,12 @@ def login():
     user.failed_login_attempts = 0
     user.locked_until = None
 
-    # Check if MFA is required but user hasn't set it up yet
+    # MFA is governed entirely by the tenant toggle.
+    # When tenant.mfa_required is ON:  enforce TOTP (or prompt setup if not yet configured)
+    # When tenant.mfa_required is OFF: skip MFA even if the user previously set it up
     needs_mfa_setup = tenant.mfa_required and not user.mfa_enabled
 
-    # If user has MFA enabled, require TOTP before creating session
-    if user.mfa_enabled:
+    if tenant.mfa_required and user.mfa_enabled:
         # Clean up any expired MFA tokens for this user
         MfaPendingToken.query.filter(
             MfaPendingToken.user_id == user.id,
