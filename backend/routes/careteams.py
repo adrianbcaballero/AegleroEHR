@@ -10,9 +10,13 @@ careteams_bp = Blueprint("careteams", __name__, url_prefix="/api/careteams")
 
 
 def _serialize_team(team: CareTeam):
+    member_ids = [m.user_id for m in team.members]
+    users_map = {u.id: u for u in User.query.filter(
+        User.id.in_(member_ids), User.tenant_id == g.tenant_id
+    ).all()} if member_ids else {}
     members = []
     for m in team.members:
-        u = User.query.get(m.user_id)
+        u = users_map.get(m.user_id)
         members.append({
             "userId": m.user_id,
             "username": u.username if u else None,

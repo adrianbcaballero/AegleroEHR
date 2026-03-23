@@ -68,9 +68,9 @@ def _serialize_template(t: FormTemplate):
 
 def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler: User | None = None, access_level: str | None = None):
     if template is None:
-        template = FormTemplate.query.get(f.template_id)
+        template = tenant_query(FormTemplate).filter_by(id=f.template_id).first()
     if filler is None and f.filled_by:
-        filler = User.query.get(f.filled_by)
+        filler = User.query.filter_by(id=f.filled_by, tenant_id=g.tenant_id).first()
 
     template_name = template.name if template else None
     template_category = template.category if template else None
@@ -460,13 +460,13 @@ def get_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_GET", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Form #{form_id} not found for patient {p.patient_code}")
         return {"error": "form not found"}, 404
 
-    template = FormTemplate.query.get(f.template_id)
+    template = tenant_query(FormTemplate).filter_by(id=f.template_id).first()
     level = _get_access_level(template, g.user) if template else None
     if not level:
         log_access(g.user.id, "FORM_GET", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Role '{g.user.role_name}' not allowed to view form #{form_id}")
         return {"error": "forbidden"}, 403
 
-    filler = User.query.get(f.filled_by) if f.filled_by else None
+    filler = User.query.filter_by(id=f.filled_by, tenant_id=g.tenant_id).first() if f.filled_by else None
     data = _serialize_form(f, template=template, filler=filler, access_level=level)
     data["templateFields"] = template.fields if template else []
 
@@ -521,7 +521,7 @@ def create_patient_form(patient_id):
     db.session.commit()
 
     log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Added '{template.name}' form to {p.first_name} {p.last_name} ({p.patient_code})")
-    filler = User.query.get(f.filled_by) if f.filled_by else None
+    filler = User.query.filter_by(id=f.filled_by, tenant_id=g.tenant_id).first() if f.filled_by else None
     return _serialize_form(f, template=template, filler=filler), 201
 
 
@@ -546,7 +546,7 @@ def update_patient_form(patient_id, form_id):
         return {"error": "form not found"}, 404
 
     # Check per-template access level
-    template = FormTemplate.query.get(f.template_id)
+    template = tenant_query(FormTemplate).filter_by(id=f.template_id).first()
     access_level = _get_access_level(template, g.user) if template else None
     if access_level not in ("edit", "sign"):
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Access denied — insufficient template access level for form #{form_id}")
@@ -582,7 +582,7 @@ def update_patient_form(patient_id, form_id):
         _maybe_score_asam(f, p, template, ip)
     else:
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Saved draft of '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
-    filler = User.query.get(f.filled_by) if f.filled_by else None
+    filler = User.query.filter_by(id=f.filled_by, tenant_id=g.tenant_id).first() if f.filled_by else None
     level = _get_access_level(template, g.user) if template else None
     return _serialize_form(f, template=template, filler=filler, access_level=level), 200
 
@@ -612,7 +612,7 @@ def delete_patient_form(patient_id, form_id):
                    description=f"Attempted to delete completed form #{form_id} for patient {p.patient_code}")
         return {"error": "completed forms are legal records and cannot be deleted"}, 409
 
-    template = FormTemplate.query.get(f.template_id)
+    template = tenant_query(FormTemplate).filter_by(id=f.template_id).first()
     access_level = _get_access_level(template, g.user) if template else None
     if access_level not in ("edit", "sign"):
         log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Access denied — insufficient template access level for form #{form_id}")

@@ -94,7 +94,7 @@ def provider_display_name(provider_id: int) -> str | None:
     """
     if not provider_id:
         return None
-    u = User.query.get(provider_id)
+    u = User.query.filter_by(id=provider_id, tenant_id=g.tenant_id).first()
     if not u:
         return None
     return u.full_name or u.username
