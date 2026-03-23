@@ -273,6 +273,19 @@ class MfaPendingToken(db.Model):
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
 
 
+class LoginAttempt(db.Model):
+    """
+    Records each login attempt timestamp per IP address for rate limiting.
+    Stored in the database so the limit is enforced across all gunicorn workers.
+    Old rows are pruned on each check.
+    """
+    __tablename__ = "login_attempt"
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), nullable=False, index=True)
+    attempted_at = db.Column(db.DateTime(timezone=True), nullable=False)
+
+
 class Bed(db.Model):
     """
     Physical bed inventory for the tenant.

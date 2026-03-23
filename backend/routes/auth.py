@@ -9,7 +9,7 @@ from extensions import db
 import config
 from models import User, UserSession, Tenant, Patient, MfaPendingToken
 from services.audit_logger import log_access
-from services.rate_limiter import login_limiter
+from services.rate_limiter import is_rate_limited
 from services.helpers import client_ip, get_slug_from_host
 from auth_middleware import _get_session_id, _validate_session
 
@@ -30,7 +30,7 @@ def login():
         
     t_id = tenant.id
 
-    if login_limiter.is_rate_limited(ip):
+    if is_rate_limited(ip):
         log_access(None, "LOGIN", "auth", "FAILED", ip, description=f"Rate limited login attempt for '{username}'", tenant_id=t_id)
         return {"error": "Too many login attempts. Please wait 60 seconds.", "retry_after": 60}, 429
 
