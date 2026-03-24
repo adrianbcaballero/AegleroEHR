@@ -20,9 +20,9 @@ export function FirstLoginModal({
   if (!open) return null
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-2xl border-border/60">
-        <CardHeader className="pb-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-6">
+      <Card className="w-full max-w-2xl max-h-[95vh] flex flex-col border-border/60">
+        <CardHeader className="pb-4 shrink-0">
           <div className="flex items-center justify-center mb-2">
             <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
               <FileCheck className="size-6 text-primary" />
@@ -35,8 +35,8 @@ export function FirstLoginModal({
             Please read the following before accessing the system. You must agree to proceed.
           </p>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <ScrollArea className="max-h-[50vh] rounded-md border border-border p-4">
+        <CardContent className="flex flex-col gap-4 min-h-0 overflow-hidden">
+          <div className="overflow-y-auto rounded-md border border-border p-4">
             <div className="flex flex-col gap-5 text-sm text-foreground leading-relaxed">
 
               <section className="flex flex-col gap-1.5">
@@ -110,9 +110,9 @@ export function FirstLoginModal({
               </section>
 
             </div>
-          </ScrollArea>
+          </div>
 
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label className="flex items-start gap-3 cursor-pointer shrink-0">
             <Checkbox
               id="agree"
               checked={agreed}
@@ -126,7 +126,7 @@ export function FirstLoginModal({
             </span>
           </label>
           <Button
-            className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
+            className="w-full h-10 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
             disabled={!agreed}
             onClick={() => { acceptTerms().catch(() => {}); onAccept() }}
           >
