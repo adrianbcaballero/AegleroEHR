@@ -34,40 +34,30 @@ import type { AuditLogEntry, AuditStats } from "@/lib/api"
 type UserPickerItem = { id: number; username: string; full_name: string | null }
 
 // Map action/status to visual styles
-function getLogLevel(entry: AuditLogEntry): "success" | "error" | "warning" | "info" {
-  if (entry.status === "FAILED") {
-    if (entry.action === "ACCESS_401" || entry.action === "ACCESS_403") return "warning"
-    if (entry.action === "ACCESS_500") return "error"
-    if (entry.action === "LOGIN") return "warning"
-    return "error"
-  }
-  return entry.action === "LOGIN" || entry.action === "LOGOUT" ? "info" : "success"
+function getLogLevel(entry: AuditLogEntry): "success" | "error" | "info" {
+  if (entry.status === "FAILED") return "error"
+  if (entry.action === "LOGIN" || entry.action === "LOGOUT") return "info"
+  return "success"
 }
 
 const levelConfig = {
   info: {
     icon: LogIn,
-    color: "text-primary",
-    bg: "bg-primary/10",
-    badgeClass: "bg-primary/10 text-primary border-primary/20",
-  },
-  warning: {
-    icon: AlertTriangle,
-    color: "text-chart-4",
-    bg: "bg-chart-4/10",
-    badgeClass: "bg-chart-4/10 text-chart-4 border-chart-4/20",
+    color: "text-blue-500",
+    bg: "bg-blue-500/10",
+    badgeClass: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   },
   error: {
     icon: AlertCircle,
-    color: "text-destructive",
-    bg: "bg-destructive/10",
-    badgeClass: "bg-destructive/10 text-destructive border-destructive/20",
+    color: "text-red-500",
+    bg: "bg-red-500/10",
+    badgeClass: "bg-red-500/10 text-red-500 border-red-500/20",
   },
   success: {
     icon: CheckCircle,
-    color: "text-accent",
-    bg: "bg-accent/10",
-    badgeClass: "bg-accent/10 text-accent border-accent/20",
+    color: "text-green-500",
+    bg: "bg-green-500/10",
+    badgeClass: "bg-green-500/10 text-green-500 border-green-500/20",
   },
 }
 
