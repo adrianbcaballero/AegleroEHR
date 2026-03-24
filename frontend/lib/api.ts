@@ -256,7 +256,7 @@ export interface AuditStats {
 }
 
 export function getAuditLogs(params?: {
-  action?: string
+  actions?: string[]
   status?: string
   limit?: number
   before_id?: number
@@ -265,7 +265,7 @@ export function getAuditLogs(params?: {
   user_id?: number
 }) {
   const query = new URLSearchParams()
-  if (params?.action) query.set("action", params.action)
+  if (params?.actions) params.actions.forEach((a) => query.append("action", a))
   if (params?.status) query.set("status", params.status)
   if (params?.user_id) query.set("user_id", String(params.user_id))
   if (params?.limit) query.set("limit", String(params.limit))
@@ -353,12 +353,14 @@ export function getDashboardPatients() {
 
 // Audit export — returns a file download
 export async function exportAuditLogs(params?: {
+  actions?: string[]
   status?: string
   date_from?: string
   date_to?: string
   user_id?: number
 }) {
   const query = new URLSearchParams()
+  if (params?.actions) params.actions.forEach((a) => query.append("action", a))
   if (params?.status) query.set("status", params.status)
   if (params?.date_from) query.set("date_from", params.date_from)
   if (params?.date_to) query.set("date_to", params.date_to)

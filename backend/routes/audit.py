@@ -31,7 +31,7 @@ def _parse_date(value):
 def get_audit_logs():
 
     user_id = request.args.get("user_id")
-    action = (request.args.get("action") or "").strip()
+    actions = [a.strip() for a in request.args.getlist("action") if a.strip()]
     status = (request.args.get("status") or "").strip()
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
@@ -51,10 +51,9 @@ def get_audit_logs():
             q = q.filter(AuditLog.user_id == int(user_id))
         except ValueError:
             return {"error": "user_id must be an integer"}, 400
-        
 
-    if action:
-        q = q.filter(AuditLog.action == action)
+    if actions:
+        q = q.filter(AuditLog.action.in_(actions))
 
     if status:
         q = q.filter(AuditLog.status == status)
@@ -168,6 +167,7 @@ def export_audit_logs():
 
     ip = client_ip()
 
+    actions = [a.strip() for a in request.args.getlist("action") if a.strip()]
     status = (request.args.get("status") or "").strip()
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
@@ -180,6 +180,9 @@ def export_audit_logs():
             q = q.filter(AuditLog.user_id == int(user_id))
         except ValueError:
             pass
+
+    if actions:
+        q = q.filter(AuditLog.action.in_(actions))
 
     if status:
         q = q.filter(AuditLog.status == status)

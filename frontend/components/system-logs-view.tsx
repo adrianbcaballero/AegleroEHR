@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from "react"
 import {
   Search,
-  Shield,
-  AlertTriangle,
   AlertCircle,
   CheckCircle,
   Clock,
@@ -13,8 +11,9 @@ import {
   Globe,
   Loader2,
   LogIn,
-  Activity,
   Download,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -27,11 +26,61 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
-import { getAuditLogs, getAuditStats, exportAuditLogs, getUsersPicker } from "@/lib/api"
-import type { AuditLogEntry, AuditStats } from "@/lib/api"
+import { cn } from "@/lib/utils"
+import { getAuditLogs, exportAuditLogs, getUsersPicker } from "@/lib/api"
+import type { AuditLogEntry } from "@/lib/api"
 
 type UserPickerItem = { id: number; username: string; full_name: string | null }
+
+// Friendly labels for action types
+const ACTION_LABELS: Record<string, string> = {
+  LOGIN: "Login",
+  LOGOUT: "Logout",
+  INVITE_ACCEPT: "Invite Accepted",
+  USER_CREATE: "User Created",
+  USER_UPDATE: "User Updated",
+  USER_LOCK: "User Locked",
+  USER_UNLOCK: "User Unlocked",
+  USER_RESET_PASSWORD: "Password Reset",
+  USER_INVITE: "Invite Sent",
+  PATIENT_GET: "Patient Viewed",
+  PATIENT_CREATE: "Patient Created",
+  PATIENT_UPDATE: "Patient Updated",
+  PATIENT_ADMIT: "Patient Admitted",
+  PATIENT_DISCHARGE: "Patient Discharged",
+  BED_CREATE: "Bed Created",
+  BED_UPDATE: "Bed Updated",
+  BED_DELETE: "Bed Deleted",
+  BED_ASSIGN: "Bed Assigned",
+  BED_UNASSIGN: "Bed Unassigned",
+  FORM_LIST: "Forms Viewed",
+  FORM_GET: "Form Viewed",
+  FORM_CREATE: "Form Created",
+  FORM_UPDATE: "Form Updated",
+  FORM_SIGN: "Form Signed",
+  FORM_DELETE: "Form Deleted",
+  TEMPLATE_GET: "Template Viewed",
+  TEMPLATE_CREATE: "Template Created",
+  TEMPLATE_UPDATE: "Template Updated",
+  TEMPLATE_DELETE: "Template Deleted",
+  CATEGORY_DELETE: "Category Deleted",
+  ROLE_CREATE: "Role Created",
+  ROLE_UPDATE: "Role Updated",
+  ROLE_DELETE: "Role Deleted",
+  AUDIT_EXPORT: "Audit Export",
+  AUDIT_VERIFY: "Audit Verify",
+  MFA_SETUP: "MFA Setup",
+  MFA_DISABLE: "MFA Disabled",
+  MFA_TOGGLE: "MFA Toggled",
+  ASAM_SCORE: "ASAM Score",
+  PART2_CREATE: "Part 2 Consent Created",
+}
+
+function actionLabel(action: string): string {
+  return ACTION_LABELS[action] ?? action.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+}
 
 // Map action/status to visual styles
 function getLogLevel(entry: AuditLogEntry): "success" | "error" | "info" {
@@ -82,7 +131,7 @@ function LogDetailPage({
         <div className="flex-1">
           <p className="text-xs text-muted-foreground">System Logs / #{log.id}</p>
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">
-            {log.action}
+            {actionLabel(log.action)}
           </h1>
         </div>
         <Badge variant="secondary" className={`text-xs ${config.badgeClass}`}>
@@ -115,7 +164,7 @@ function LogDetailPage({
               <p className="text-xs text-muted-foreground">Action</p>
               <div className="flex items-center gap-1.5 mt-1">
                 <LevelIcon className={`size-3.5 ${config.color}`} />
-                <p className="text-sm font-medium text-foreground">{log.action}</p>
+                <p className="text-sm font-medium text-foreground">{actionLabel(log.action)}</p>
               </div>
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
@@ -165,7 +214,6 @@ export function SystemLogsView() {
   const PAGE_SIZE = 20
 
   const [logs, setLogs] = useState<AuditLogEntry[]>([])
-  const [stats, setStats] = useState<AuditStats | null>(null)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -178,12 +226,14 @@ export function SystemLogsView() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [exporting, setExporting] = useState(false)
+  const [actionFilter, setActionFilter] = useState<string[]>([])
   const [userFilter, setUserFilter] = useState<string>("")
   const [usersList, setUsersList] = useState<UserPickerItem[]>([])
 
   const handleExport = () => {
     setExporting(true)
-    const params: { status?: string; date_from?: string; date_to?: string; user_id?: number } = {}
+    const params: { actions?: string[]; status?: string; date_from?: string; date_to?: string; user_id?: number } = {}
+    if (actionFilter.length) params.actions = actionFilter
     if (statusFilter) params.status = statusFilter
     if (dateFrom) params.date_from = dateFrom
     if (dateTo) params.date_to = dateTo
@@ -198,7 +248,8 @@ export function SystemLogsView() {
     setLoading(true)
     setError("")
 
-    const params: { status?: string; limit?: number; before_id?: number; date_from?: string; date_to?: string; user_id?: number } = { limit: PAGE_SIZE }
+    const params: { actions?: string[]; status?: string; limit?: number; before_id?: number; date_from?: string; date_to?: string; user_id?: number } = { limit: PAGE_SIZE }
+    if (actionFilter.length) params.actions = actionFilter
     if (statusFilter) params.status = statusFilter
     if (cursorBeforeId) params.before_id = cursorBeforeId
     if (dateFrom) params.date_from = dateFrom
@@ -212,14 +263,8 @@ export function SystemLogsView() {
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load logs"))
       .finally(() => setLoading(false))
-  }, [statusFilter, dateFrom, dateTo, userFilter])
+  }, [actionFilter, statusFilter, dateFrom, dateTo, userFilter])
 
-  const fetchStats = useCallback(() => {
-    getAuditStats()
-      .then(setStats)
-      .catch(() => {})
-  }, [])
-  
   useEffect(() => {
     getUsersPicker().then(setUsersList).catch(() => {})
   }, [])
@@ -229,9 +274,8 @@ export function SystemLogsView() {
       setBeforeId(undefined)
       setPageHistory([])
       fetchLogs()
-      fetchStats()
     })
-  }, [fetchLogs, fetchStats])
+  }, [fetchLogs])
 
   const handleNextPage = () => {
     if (logs.length === 0) return
@@ -298,71 +342,11 @@ export function SystemLogsView() {
         </Button>
       </div>
 
-      {/* Stats from real API */}
-      {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Card className="border-border/60">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <LogIn className="size-3.5 text-accent" />
-                <p className="text-xs text-muted-foreground font-medium">Logins Today</p>
-              </div>
-              <p className="text-xl font-bold font-heading text-accent">{stats.total_logins_today}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <AlertTriangle className="size-3.5 text-chart-4" />
-                <p className="text-xs text-muted-foreground font-medium">Failed Logins</p>
-              </div>
-              <p className="text-xl font-bold font-heading text-chart-4">{stats.failed_logins_today}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Shield className="size-3.5 text-destructive" />
-                <p className="text-xs text-muted-foreground font-medium">401 Unauth</p>
-              </div>
-              <p className="text-xl font-bold font-heading text-destructive">{stats.not_authenticated_today}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <AlertCircle className="size-3.5 text-destructive" />
-                <p className="text-xs text-muted-foreground font-medium">403 Forbidden</p>
-              </div>
-              <p className="text-xl font-bold font-heading text-destructive">{stats.unauthorized_attempts_today}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <AlertCircle className="size-3.5 text-destructive" />
-                <p className="text-xs text-muted-foreground font-medium">500 Errors</p>
-              </div>
-              <p className="text-xl font-bold font-heading text-destructive">{stats.server_errors_today}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/60">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Activity className="size-3.5 text-primary" />
-                <p className="text-xs text-muted-foreground font-medium">Active Sessions</p>
-              </div>
-              <p className="text-xl font-bold font-heading text-primary">{stats.active_sessions}</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Filters */}
       <Card className="border-border/60">
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-col gap-3">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
               <Input
                 placeholder="Search by action, resource, user, or IP..."
@@ -371,43 +355,90 @@ export function SystemLogsView() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="SUCCESS">Success</SelectItem>
-                <SelectItem value="FAILED">Failed</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={userFilter} onValueChange={(v) => setUserFilter(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="User" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
-                {usersList.map((u) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {u.full_name || u.username}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="date"
-              className="w-full sm:w-40"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              placeholder="From date"
-            />
-            <Input
-              type="date"
-              className="w-full sm:w-40"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              placeholder="To date"
-            />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-52 justify-between bg-transparent font-normal"
+                  >
+                    <span className="truncate">
+                      {actionFilter.length === 0
+                        ? "Action Type"
+                        : actionFilter.length === 1
+                          ? actionLabel(actionFilter[0])
+                          : `${actionFilter.length} actions`}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-0" align="start">
+                  <div className="max-h-60 overflow-y-auto p-1">
+                    <button
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                      onClick={() => setActionFilter([])}
+                    >
+                      <Check className={cn("size-4", actionFilter.length === 0 ? "opacity-100" : "opacity-0")} />
+                      All Actions
+                    </button>
+                    <Separator className="my-1" />
+                    {Object.entries(ACTION_LABELS)
+                      .sort(([, a], [, b]) => a.localeCompare(b))
+                      .map(([key, label]) => (
+                        <button
+                          key={key}
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                          onClick={() =>
+                            setActionFilter((prev) =>
+                              prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+                            )
+                          }
+                        >
+                          <Check className={cn("size-4", actionFilter.includes(key) ? "opacity-100" : "opacity-0")} />
+                          {label}
+                        </button>
+                      ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="SUCCESS">Success</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={userFilter} onValueChange={(v) => setUserFilter(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {usersList.map((u) => (
+                    <SelectItem key={u.id} value={String(u.id)}>
+                      {u.full_name || u.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                type="date"
+                className="w-full sm:w-40"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                placeholder="From date"
+              />
+              <Input
+                type="date"
+                className="w-full sm:w-40"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                placeholder="To date"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -486,7 +517,7 @@ export function SystemLogsView() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-foreground">{log.action}</span>
+                        <span className="text-sm font-medium text-foreground">{actionLabel(log.action)}</span>
                         <Badge variant="secondary" className={`text-[10px] ${config.badgeClass}`}>
                           {log.status}
                         </Badge>
