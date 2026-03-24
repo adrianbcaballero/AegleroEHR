@@ -178,6 +178,8 @@ export function ManageUsersView() {
   const [editUsername, setEditUsername] = useState("")
   const [editRoleId, setEditRoleId] = useState<number | null>(null)
   const [editFullName, setEditFullName] = useState("")
+  const [editEmail, setEditEmail] = useState("")
+  const [editPhone, setEditPhone] = useState("")
   const [editCredentials, setEditCredentials] = useState<string[]>([])
   const [editCareTeamIds, setEditCareTeamIds] = useState<number[]>([])
   const [editError, setEditError] = useState("")
@@ -327,6 +329,8 @@ export function ManageUsersView() {
     setEditUsername(user.username)
     setEditRoleId(user.roleId)
     setEditFullName(user.full_name || "")
+    setEditEmail(user.email || "")
+    setEditPhone(user.phone || "")
     setEditCredentials(user.credentials || [])
     setEditCareTeamIds(user.careTeamIds || [])
     setEditError("")
@@ -346,10 +350,12 @@ export function ManageUsersView() {
     setEditLoading(true)
     setEditError("")
 
-    const updates: { username?: string; roleId?: number; full_name?: string; credentials?: string[] } = {}
+    const updates: { username?: string; roleId?: number; full_name?: string; email?: string; phone?: string; credentials?: string[] } = {}
     if (editUsername !== editDialogUser.username) updates.username = editUsername.trim()
     if (editRoleId !== editDialogUser.roleId) updates.roleId = editRoleId
     if (editFullName !== (editDialogUser.full_name || "")) updates.full_name = editFullName.trim()
+    if (editEmail !== (editDialogUser.email || "")) updates.email = editEmail.trim()
+    if (editPhone !== (editDialogUser.phone || "")) updates.phone = editPhone.trim()
     const credsSame =
       editCredentials.length === editDialogUser.credentials.length &&
       editCredentials.every((c) => editDialogUser.credentials.includes(c))
@@ -656,7 +662,7 @@ export function ManageUsersView() {
 
       {/* Reset Password Dialog */}
       <Dialog open={!!resetDialogUser} onOpenChange={(open) => { if (!open) setResetDialogUser(null) }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Reset Password</DialogTitle>
             <DialogDescription>
@@ -705,7 +711,7 @@ export function ManageUsersView() {
 
       {/* Edit User Dialog */}
       <Dialog open={!!editDialogUser} onOpenChange={(open) => { if (!open) setEditDialogUser(null) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Edit User</DialogTitle>
             <DialogDescription>
@@ -730,6 +736,32 @@ export function ManageUsersView() {
                 onChange={(e) => { setEditUsername(e.target.value); setEditError("") }}
                 disabled={editLoading}
               />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">
+                  <Mail className="inline h-3.5 w-3.5 mr-1" />Email
+                </Label>
+                <Input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={editEmail}
+                  onChange={(e) => { setEditEmail(e.target.value); setEditError("") }}
+                  disabled={editLoading}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">
+                  <Phone className="inline h-3.5 w-3.5 mr-1" />Phone
+                </Label>
+                <Input
+                  type="tel"
+                  placeholder="(555) 123-4567"
+                  value={editPhone}
+                  onChange={(e) => { setEditPhone(e.target.value); setEditError("") }}
+                  disabled={editLoading}
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium text-foreground">Role</Label>
@@ -807,7 +839,7 @@ export function ManageUsersView() {
 
       {/* Invite Link Dialog */}
       <Dialog open={showInviteDialog} onOpenChange={(open) => { if (!open) { setInviteLink(null) } setShowInviteDialog(open) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Invite Link</DialogTitle>
             <DialogDescription>
@@ -839,7 +871,7 @@ export function ManageUsersView() {
 
       {/* Create User Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={(open) => { if (!open) { setInviteLink(null) } setShowCreateDialog(open) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Create User</DialogTitle>
             <DialogDescription>

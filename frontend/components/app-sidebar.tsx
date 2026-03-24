@@ -170,7 +170,7 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-foreground">My Signature</DialogTitle>
           <DialogDescription>

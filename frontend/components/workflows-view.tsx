@@ -800,7 +800,7 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
           <Settings2 className="mr-2 size-4" /> Manage Categories
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-foreground">Manage Categories</DialogTitle>
           <DialogDescription>

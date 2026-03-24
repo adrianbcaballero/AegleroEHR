@@ -504,7 +504,7 @@ export function ManageBedsView() {
 
       {/* ── Add Unit Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={addUnitOpen} onOpenChange={(v) => { if (!v) setAddUnitOpen(false) }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Add Unit</DialogTitle>
             <DialogDescription>Enter a name for the new unit.</DialogDescription>
@@ -535,7 +535,7 @@ export function ManageBedsView() {
 
       {/* ── Add / Edit Bed Dialog ───────────────────────────────────────────── */}
       <Dialog open={bedDialogOpen} onOpenChange={(v) => { if (!v) setBedDialogOpen(false) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">
               {editingBed ? "Edit Bed" : `Add Bed — ${bedDialogUnit}`}
@@ -627,7 +627,7 @@ export function ManageBedsView() {
 
       {/* ── Delete Confirm Dialog ───────────────────────────────────────────── */}
       <Dialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Delete Bed</DialogTitle>
             <DialogDescription>

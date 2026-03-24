@@ -380,7 +380,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
 
       {/* Assign Bed Dialog */}
       <Dialog open={!!assignDialog} onOpenChange={(v) => { if (!v) { setAssignDialog(null); setAssignPatientCode(""); setAssignError("") } }}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">
               Assign Bed — {assignDialog?.bed.displayName}

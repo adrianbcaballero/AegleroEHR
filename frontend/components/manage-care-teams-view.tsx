@@ -351,7 +351,7 @@ export function ManageCareTeamsView() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editTeam} onOpenChange={(open) => { if (!open) setEditTeam(null) }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Edit Care Team</DialogTitle>
             <DialogDescription>
@@ -401,7 +401,7 @@ export function ManageCareTeamsView() {
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">New Care Team</DialogTitle>
             <DialogDescription>

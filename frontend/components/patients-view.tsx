@@ -456,7 +456,7 @@ function FormDetailView({
 
           {/* Delete Confirmation Dialog */}
           <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-            <DialogContent className="sm:max-w-sm">
+            <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="font-heading text-foreground">Delete Form</DialogTitle>
                 <DialogDescription>
@@ -476,7 +476,7 @@ function FormDetailView({
 
           {/* Clear Fields Confirmation Dialog */}
           <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-            <DialogContent className="sm:max-w-sm">
+            <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="font-heading text-foreground">Clear Form Fields</DialogTitle>
                 <DialogDescription>
@@ -496,7 +496,7 @@ function FormDetailView({
 
           {/* Sign Confirmation Dialog */}
           <Dialog open={showSignConfirm} onOpenChange={setShowSignConfirm}>
-            <DialogContent className="sm:max-w-sm">
+            <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="font-heading text-foreground">Confirm Signature</DialogTitle>
                 <DialogDescription>
@@ -600,7 +600,7 @@ function NewFormDialog({ patientCode, onCreated, categoryFilter }: { patientCode
           <Plus className="mr-1.5 size-3.5" /> Add Form
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-foreground">Add Form</DialogTitle>
           <DialogDescription>Select a template to create a new form for this patient.</DialogDescription>
@@ -892,7 +892,7 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
 
       {/* Revoke Consent Dialog */}
       <Dialog open={showRevoke !== null} onOpenChange={(o) => { if (!o) { setShowRevoke(null); setRevokeReason(""); setError("") } }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Revoke Consent</DialogTitle>
             <DialogDescription>
