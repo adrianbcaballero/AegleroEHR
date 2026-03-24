@@ -196,7 +196,9 @@ def export_audit_logs():
     if dt_to:
         q = q.filter(AuditLog.timestamp < (dt_to + timedelta(days=1)))
 
-    rows = q.order_by(AuditLog.id.desc()).all()
+    EXPORT_ROW_LIMIT = 50_000
+    rows = q.order_by(AuditLog.id.desc()).limit(EXPORT_ROW_LIMIT).all()
+    truncated = len(rows) == EXPORT_ROW_LIMIT
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -228,12 +230,14 @@ def export_audit_logs():
     if date_to: filters.append(f"to={date_to}")
     if user_id: filters.append(f"user_id={user_id}")
     filter_desc = f" with filters: {', '.join(filters)}" if filters else " (no filters)"
-    log_access(g.user.id, "AUDIT_EXPORT", "audit/export", "SUCCESS", ip, description=f"Exported {len(rows)} audit log entries to CSV{filter_desc}")
-    return Response(
-        csv_data,
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    trunc_note = f" (truncated to {EXPORT_ROW_LIMIT})" if truncated else ""
+    log_access(g.user.id, "AUDIT_EXPORT", "audit/export", "SUCCESS", ip, description=f"Exported {len(rows)} audit log entries to CSV{filter_desc}{trunc_note}")
+
+    headers = {"Content-Disposition": f"attachment; filename={filename}"}
+    if truncated:
+        headers["X-Truncated"] = "true"
+        headers["X-Row-Limit"] = str(EXPORT_ROW_LIMIT)
+    return Response(csv_data, mimetype="text/csv", headers=headers)
 
 
 @audit_bp.get("/verify")
