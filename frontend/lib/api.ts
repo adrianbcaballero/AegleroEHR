@@ -8,12 +8,25 @@ export function getSessionToken(): string | null { return null; }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+/**
+ * Checks for 401 responses and forces a redirect to login.
+ * This handles session invalidation (password reset, account lock, expiry)
+ * so the user doesn't sit on a broken page.
+ */
+function handleUnauthorized(res: Response, path: string): void {
+  if (res.status === 401 && !path.startsWith("/api/auth/login") && !path.startsWith("/api/auth/me")) {
+    window.location.replace("/");
+  }
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "GET",
     headers: JSON_HEADERS,
     credentials: "include",
   });
+
+  handleUnauthorized(res, path);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -31,6 +44,8 @@ export async function apiPost<T>(path: string, data?: unknown): Promise<T> {
     body: data ? JSON.stringify(data) : undefined,
   });
 
+  handleUnauthorized(res, path);
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `POST ${path} failed: ${res.status}`);
@@ -47,6 +62,8 @@ export async function apiPut<T>(path: string, data?: unknown): Promise<T> {
     body: data ? JSON.stringify(data) : undefined,
   })
 
+  handleUnauthorized(res, path);
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error || `PUT ${path} failed: ${res.status}`)
@@ -62,6 +79,8 @@ export async function apiPatch<T>(path: string, data?: unknown): Promise<T> {
     credentials: "include",
     body: data ? JSON.stringify(data) : undefined,
   })
+
+  handleUnauthorized(res, path);
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -476,6 +495,7 @@ export async function apiDelete<T>(path: string): Promise<T> {
     headers: JSON_HEADERS,
     credentials: "include",
   })
+  handleUnauthorized(res, path);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(body.error || `DELETE ${path} failed: ${res.status}`)

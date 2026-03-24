@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from auth_middleware import require_auth
 from extensions import db
-from models import User, Role, CareTeam, CareTeamMember
+from models import User, UserSession, Role, CareTeam, CareTeamMember
 from services.audit_logger import log_access
 from services.helpers import client_ip, tenant_query
 from werkzeug.security import generate_password_hash
@@ -82,9 +82,11 @@ def lock_user(user_id: int):
         return {"error": "cannot lock your own account"}, 400
 
     u.permanently_locked = True
+    # Kill all active sessions so the locked user is forced out immediately
+    UserSession.query.filter_by(user_id=u.id).delete()
     db.session.commit()
 
-    log_access(g.user.id, "USER_LOCK", f"user/{u.id}", "SUCCESS", ip, description=f"Permanently locked account for '{u.username}' ({u.role_name})")
+    log_access(g.user.id, "USER_LOCK", f"user/{u.id}", "SUCCESS", ip, description=f"Permanently locked account for '{u.username}' ({u.role_name}) — all sessions invalidated")
     return {"ok": True, "user": _serialize_user(u)}, 200
 
 
@@ -111,9 +113,11 @@ def reset_password(user_id: int):
     u.failed_login_attempts = 0
     u.locked_until = None
     u.permanently_locked = False
+    # Kill all active sessions so the user must re-authenticate with the new password
+    UserSession.query.filter_by(user_id=u.id).delete()
     db.session.commit()
 
-    log_access(g.user.id, "USER_RESET_PASSWORD", f"user/{u.id}", "SUCCESS", ip, description=f"Reset password for '{u.username}' ({u.role_name})")
+    log_access(g.user.id, "USER_RESET_PASSWORD", f"user/{u.id}", "SUCCESS", ip, description=f"Reset password for '{u.username}' ({u.role_name}) — all sessions invalidated")
     return {"ok": True}, 200
 
 
