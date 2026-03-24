@@ -35,13 +35,29 @@ def get_slug_from_host() -> str | None:
 def client_ip() -> str:
     """
     Extracts the real client IP address.
-    Checks X-Forwarded-For first (for requests behind a reverse proxy like ALB/nginx),
-    then falls back to the direct remote address.
+
+    TRUSTED_PROXY_COUNT controls which part of X-Forwarded-For to trust:
+      0 (default/dev) — ignore the header entirely, use remote_addr
+      1 (behind ALB)  — trust only the rightmost entry (the one ALB added)
+      2 (ALB + CDN)   — trust the second from right, etc.
+
+    This prevents clients from spoofing their IP by injecting fake
+    X-Forwarded-For values, which would poison audit logs.
     """
+    import config
+    proxy_count = config.TRUSTED_PROXY_COUNT
+
+    if proxy_count <= 0:
+        return request.remote_addr
+
     fwd = request.headers.get("X-Forwarded-For", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.remote_addr
+    if not fwd:
+        return request.remote_addr
+
+    parts = [p.strip() for p in fwd.split(",")]
+    # Pick the entry added by the trusted proxy, counting from the right
+    index = max(len(parts) - proxy_count, 0)
+    return parts[index]
 
 
 def parse_date_iso(value) -> date | None | str:
