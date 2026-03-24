@@ -5,11 +5,8 @@ import {
   GitBranch,
   Search,
   ArrowLeft,
-  FileText,
-  CheckCircle2,
   Clock,
   ChevronRight,
-  ClipboardList,
   Plus,
   Loader2,
   Shield,
@@ -37,6 +34,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -144,9 +143,9 @@ function TemplateEditorDialog({
           setRequiredForAdmission(existing.requiredForAdmission)
           setRequiredForDischarge(existing.requiredForDischarge)
         } else {
-          // New template — default all roles to "sign" (full access)
+          // New template — default all roles to "none" (no access)
           const map: Record<number, AccessLevel> = {}
-          availableRoles.forEach((r: { id: number; name: string; displayName: string }) => { map[r.id] = "sign" })
+          availableRoles.forEach((r: { id: number; name: string; displayName: string }) => { map[r.id] = "none" })
           setRoleAccess(map)
         }
       })
@@ -870,7 +869,7 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
             placeholder="New category name…"
             value={newCat}
             onChange={(e) => { setNewCat((e.target as HTMLInputElement).value); setError("") }}
-            onKeyDown={(e) => { if ((e as KeyboardEvent).key === "Enter") { e.preventDefault(); addCat() } }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCat() } }}
             className="flex-1"
           />
           <Button type="button" variant="outline" className="bg-transparent text-foreground" onClick={addCat}>
@@ -894,6 +893,78 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
   )
 }
 
+// ------- Template Card (reusable) -------
+function TemplateCard({ template, onClick }: { template: FormTemplate; onClick: () => void }) {
+  const signers = (template.roleAccess || []).filter((ra: RoleAccess) => ra.accessLevel === "sign")
+  const isArchived = template.status === "archived"
+
+  return (
+    <Card
+      className={`border-border/60 cursor-pointer transition-all hover:shadow-md hover:border-primary/30 ${isArchived ? "opacity-60" : ""}`}
+      onClick={onClick}
+    >
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <GitBranch className="size-4 text-primary shrink-0" />
+            <Badge variant="secondary" className="text-[10px] capitalize">{template.category}</Badge>
+            {isArchived && (
+              <Badge variant="secondary" className="text-[10px] bg-muted text-muted-foreground border-0">
+                <Archive className="size-2.5 mr-1" />Archived
+              </Badge>
+            )}
+          </div>
+          <ChevronRight className="size-4 text-muted-foreground" />
+        </div>
+        <h3 className="text-sm font-semibold text-foreground mt-2">{template.name}</h3>
+        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{template.description}</p>
+        <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border">
+          {template.isRecurring && (
+            <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
+              <Clock className="size-2.5 mr-1" />Recurring
+            </Badge>
+          )}
+          {template.requiredForAdmission && (
+            <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Admission Required</Badge>
+          )}
+          {template.requiredForDischarge && (
+            <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Discharge Required</Badge>
+          )}
+          {signers.length > 0 && (
+            <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent border-0">
+              <Shield className="size-2.5 mr-1" />
+              {signers.map((s: RoleAccess) => s.roleDisplayName).join(", ")}
+            </Badge>
+          )}
+          {!template.isRecurring && !template.requiredForAdmission && !template.requiredForDischarge && signers.length === 0 && (
+            <span className="text-[10px] text-muted-foreground">No restrictions</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function TemplateGrid({ templates, onSelect }: { templates: FormTemplate[]; onSelect: (id: number) => void }) {
+  if (templates.length === 0) {
+    return (
+      <Card className="border-border/60 col-span-full">
+        <CardContent className="p-8 text-center">
+          <p className="text-sm text-muted-foreground">No templates found.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {templates.map((t) => (
+        <TemplateCard key={t.id} template={t} onClick={() => onSelect(t.id)} />
+      ))}
+    </div>
+  )
+}
+
 // ------- Main Workflows View -------
 export function WorkflowsView({ userRole }: { userRole?: string }) {
   const [templates, setTemplates] = useState<FormTemplate[]>([])
@@ -902,6 +973,8 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
   const [error, setError] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+  const [activeTab, setActiveTab] = useState("all")
 
   const fetchCategories = useCallback(async () => {
     getCategories()
@@ -912,11 +985,11 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
   const fetchTemplates = useCallback(async () => {
     setLoading(true)
     setError("")
-    getTemplates()
+    getTemplates(showArchived ? "all" : "active")
       .then(setTemplates)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false))
-  }, [])
+  }, [showArchived])
 
   useEffect(() => {
     Promise.resolve().then(() => { fetchTemplates(); fetchCategories() })
@@ -939,8 +1012,12 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
     return t.name.toLowerCase().includes(q) || t.category.toLowerCase().includes(q)
   })
 
-  const totalInstances = templates.reduce((acc, t) => acc + (t.instanceCount || 0), 0)
-  const activeTemplates = templates.filter((t) => t.status === "active").length
+  // Build category tabs from the tenant's configured categories
+  const tabCategories = allCategories.length > 0 ? allCategories : DEFAULT_CATEGORIES
+
+  const templatesByTab = activeTab === "all"
+    ? filteredTemplates
+    : filteredTemplates.filter((t) => t.category === activeTab)
 
   return (
     <div className="flex flex-col gap-6">
@@ -986,117 +1063,40 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
 
       {!loading && !error && (
         <>
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Card className="border-border/60">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <ClipboardList className="size-3.5 text-primary" />
-                  <p className="text-xs text-muted-foreground font-medium">Templates</p>
-                </div>
-                <p className="text-xl font-bold font-heading text-foreground">{templates.length}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/60">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <CheckCircle2 className="size-3.5 text-accent" />
-                  <p className="text-xs text-muted-foreground font-medium">Active</p>
-                </div>
-                <p className="text-xl font-bold font-heading text-accent">{activeTemplates}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/60">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <FileText className="size-3.5 text-foreground" />
-                  <p className="text-xs text-muted-foreground font-medium">Total Forms</p>
-                </div>
-                <p className="text-xl font-bold font-heading text-foreground">{totalInstances}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-border/60">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Shield className="size-3.5 text-chart-4" />
-                  <p className="text-xs text-muted-foreground font-medium">Role-Restricted</p>
-                </div>
-                <p className="text-xl font-bold font-heading text-chart-4">
-                  {templates.filter((t) => t.allowedRoles.length < 3).length}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Search */}
+          {/* Search + Show Archived */}
           <Card className="border-border/60">
             <CardContent className="p-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search templates by name or category..."
-                  className="pl-9"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search templates by name..."
+                    className="pl-9"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                  <Switch checked={showArchived} onCheckedChange={setShowArchived} />
+                  <span className="text-sm text-muted-foreground">Show Archived</span>
+                </label>
               </div>
             </CardContent>
           </Card>
 
-          {/* Template Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredTemplates.map((template) => {
-              const signers = (template.roleAccess || []).filter((ra: RoleAccess) => ra.accessLevel === "sign")
-              return (
-                <Card
-                  key={template.id}
-                  className="border-border/60 cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
-                  onClick={() => setSelectedTemplateId(template.id)}
-                >
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <GitBranch className="size-4 text-primary shrink-0" />
-                        <Badge variant="secondary" className="text-[10px] capitalize">{template.category}</Badge>
-                      </div>
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-foreground mt-2">{template.name}</h3>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{template.description}</p>
-                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border">
-                      {template.isRecurring && (
-                        <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-0">
-                          <Clock className="size-2.5 mr-1" />Recurring
-                        </Badge>
-                      )}
-                      {template.requiredForAdmission && (
-                        <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Admission Required</Badge>
-                      )}
-                      {template.requiredForDischarge && (
-                        <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Discharge Required</Badge>
-                      )}
-                      {signers.length > 0 && (
-                        <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent border-0">
-                          <Shield className="size-2.5 mr-1" />
-                          {signers.map((s: RoleAccess) => s.roleDisplayName).join(", ")}
-                        </Badge>
-                      )}
-                      {!template.isRecurring && !template.requiredForAdmission && !template.requiredForDischarge && signers.length === 0 && (
-                        <span className="text-[10px] text-muted-foreground">No restrictions</span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-            {filteredTemplates.length === 0 && (
-              <Card className="border-border/60 col-span-full">
-                <CardContent className="p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No templates found.</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {/* Category Tabs + Template Cards */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+              <TabsTrigger value="all" className="text-xs capitalize">All</TabsTrigger>
+              {tabCategories.map((cat) => (
+                <TabsTrigger key={cat} value={cat} className="text-xs capitalize">{cat}</TabsTrigger>
+              ))}
+            </TabsList>
+
+            <TabsContent value={activeTab} className="mt-4">
+              <TemplateGrid templates={templatesByTab} onSelect={setSelectedTemplateId} />
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>

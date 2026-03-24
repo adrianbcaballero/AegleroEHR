@@ -448,8 +448,9 @@ export interface PatientFormEntry {
   accessLevel: "view" | "edit" | "sign" | null
 }
 
-export function getTemplates() {
-  return apiGet<FormTemplate[]>("/api/templates")
+export function getTemplates(status?: "active" | "all") {
+  const qs = status && status !== "active" ? `?status=${status}` : ""
+  return apiGet<FormTemplate[]>(`/api/templates${qs}`)
 }
 
 export function getTemplate(templateId: number) {
