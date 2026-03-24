@@ -35,10 +35,12 @@ def validate_config(app):
     if "sqlite" in db_url:
         warnings.append("DATABASE_URL is using SQLite — use PostgreSQL for anything beyond local development")
 
-    # CORS_ORIGINS should not be wildcard in production
+    # CORS_ORIGINS should not be wildcard or localhost in production
     cors_origins = os.getenv("CORS_ORIGINS", "")
     if cors_origins == "*":
         errors.append("CORS_ORIGINS is set to '*' — restrict to your frontend domain")
+    elif is_production and any(h in cors_origins for h in ("localhost", "127.0.0.1")):
+        errors.append("CORS_ORIGINS contains localhost — set to your production frontend domain")
 
     if is_production:
         if errors:
