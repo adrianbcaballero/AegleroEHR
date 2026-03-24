@@ -114,6 +114,14 @@ export function loginMfa(mfaToken: string, code: string) {
   return apiPost<LoginResponse>("/api/auth/login/mfa", { mfaToken, code });
 }
 
+export function validateInvite(token: string) {
+  return apiGet<{ username: string; full_name: string | null }>(`/api/auth/invite/validate?token=${encodeURIComponent(token)}`);
+}
+
+export function acceptInvite(token: string, password: string) {
+  return apiPost<{ ok: boolean; message: string }>("/api/auth/invite/accept", { token, password });
+}
+
 export interface MfaSetupResponse {
   qrCode: string;
   secret: string;
@@ -283,6 +291,8 @@ export interface SystemUser {
   credentials: string[]
   careTeamIds: number[]
   full_name: string | null
+  email: string | null
+  phone: string | null
   failed_attempts: number
   is_locked: boolean
   permanently_locked: boolean
@@ -306,8 +316,17 @@ export function updateUser(userId: number, data: { username?: string; roleId?: n
   return apiPut<{ ok: boolean; user: SystemUser }>(`/api/users/${userId}`, data)
 }
 
-export function createUser(data: { username: string; password: string; roleId: number; full_name?: string; credentials?: string[] }) {
-  return apiPost<{ ok: boolean; user: SystemUser }>("/api/users", data)
+export function createUser(data: {
+  username: string;
+  roleId: number;
+  method: "password" | "invite";
+  password?: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  credentials?: string[];
+}) {
+  return apiPost<{ ok: boolean; user: SystemUser; inviteToken?: string; inviteUrl?: string }>("/api/users", data)
 }
 
 export function setUserCareTeams(userId: number, teamIds: number[]) {
@@ -316,6 +335,10 @@ export function setUserCareTeams(userId: number, teamIds: number[]) {
 
 export function unlockUser(userId: number) {
   return apiPost<{ ok: boolean; user: SystemUser }>(`/api/users/${userId}/unlock`)
+}
+
+export function generateInviteLink(userId: number) {
+  return apiPost<{ ok: boolean; inviteToken: string; inviteUrl: string }>(`/api/users/${userId}/invite`)
 }
 
 export function resetUserPassword(userId: number, newPassword: string) {

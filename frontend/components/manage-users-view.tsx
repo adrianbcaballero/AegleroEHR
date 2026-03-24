@@ -14,6 +14,11 @@ import {
   Pencil,
   Plus,
   X,
+  Link,
+  Copy,
+  Check,
+  Mail,
+  Phone,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -50,7 +55,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword, getRolesPicker, listCareTeams, setUserCareTeams } from "@/lib/api"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { getUsers, lockUser, unlockUser, updateUser, createUser, resetUserPassword, generateInviteLink, getRolesPicker, listCareTeams, setUserCareTeams } from "@/lib/api"
 import type { SystemUser, CareTeam } from "@/lib/api"
 
 type PickerRole = { id: number; name: string; displayName: string }
@@ -179,14 +185,21 @@ export function ManageUsersView() {
 
   // Create user
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [createMethod, setCreateMethod] = useState<"password" | "invite">("password")
   const [createUsername, setCreateUsername] = useState("")
   const [createPassword, setCreatePassword] = useState("")
   const [createRoleId, setCreateRoleId] = useState<number | null>(null)
   const [createFullName, setCreateFullName] = useState("")
+  const [createEmail, setCreateEmail] = useState("")
+  const [createPhone, setCreatePhone] = useState("")
   const [createCredentials, setCreateCredentials] = useState<string[]>([])
   const [createCareTeamIds, setCreateCareTeamIds] = useState<number[]>([])
   const [createError, setCreateError] = useState("")
   const [createLoading, setCreateLoading] = useState(false)
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [showInviteDialog, setShowInviteDialog] = useState(false)
+  const [inviteDialogUser, setInviteDialogUser] = useState<string | null>(null)
 
   const fetchAll = () => {
     setLoading(true)
@@ -230,13 +243,18 @@ export function ManageUsersView() {
   }
 
   const openCreateDialog = () => {
+    setCreateMethod("password")
     setCreateUsername("")
     setCreatePassword("")
     setCreateRoleId(roles.length > 0 ? roles[0].id : null)
     setCreateFullName("")
+    setCreateEmail("")
+    setCreatePhone("")
     setCreateCredentials([])
     setCreateCareTeamIds([])
     setCreateError("")
+    setInviteLink(null)
+    setCopied(false)
     setShowCreateDialog(true)
   }
 
@@ -245,8 +263,8 @@ export function ManageUsersView() {
       setCreateError("Username must be at least 3 characters")
       return
     }
-    if (!createPassword || createPassword.length < 8) {
-      setCreateError("Password must be at least 8 characters")
+    if (createMethod === "password" && (!createPassword || createPassword.length < 12)) {
+      setCreateError("Password must be at least 12 characters")
       return
     }
     if (!createRoleId) {
@@ -260,20 +278,47 @@ export function ManageUsersView() {
     try {
       const result = await createUser({
         username: createUsername.trim(),
-        password: createPassword,
+        method: createMethod,
+        password: createMethod === "password" ? createPassword : undefined,
         roleId: createRoleId,
         full_name: createFullName.trim() || undefined,
+        email: createEmail.trim() || undefined,
+        phone: createPhone.trim() || undefined,
         credentials: createCredentials,
       })
       if (createCareTeamIds.length > 0) {
         await setUserCareTeams(result.user.id, createCareTeamIds)
       }
-      setShowCreateDialog(false)
+      if (createMethod === "invite" && result.inviteUrl) {
+        setInviteLink(`${window.location.origin}${result.inviteUrl}`)
+      } else {
+        setShowCreateDialog(false)
+      }
       fetchAll()
     } catch (err: unknown) {
       setCreateError(err instanceof Error ? err.message : "Failed to create user")
     } finally {
       setCreateLoading(false)
+    }
+  }
+
+  const handleCopyInviteLink = () => {
+    if (inviteLink) {
+      navigator.clipboard.writeText(inviteLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleGenerateInvite = async (user: { id: number; username: string }) => {
+    try {
+      const result = await generateInviteLink(user.id)
+      setInviteLink(`${window.location.origin}${result.inviteUrl}`)
+      setInviteDialogUser(user.username)
+      setCopied(false)
+      setShowInviteDialog(true)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to generate invite link")
     }
   }
 
@@ -587,6 +632,10 @@ export function ManageUsersView() {
                             <KeyRound className="mr-2 size-4" />
                             Reset Password
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleGenerateInvite(user)}>
+                            <Link className="mr-2 size-4" />
+                            Generate Invite Link
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -619,11 +668,18 @@ export function ManageUsersView() {
               <Label className="text-sm font-medium text-foreground">New Password</Label>
               <Input
                 type="password"
-                placeholder="Minimum 8 characters"
+                placeholder="Min 12 characters"
                 value={newPassword}
                 onChange={(e) => { setNewPassword(e.target.value); setResetError("") }}
                 disabled={resetLoading}
               />
+              <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                <li className={newPassword.length >= 12 ? "text-green-600" : ""}>At least 12 characters</li>
+                <li className={/[A-Z]/.test(newPassword) ? "text-green-600" : ""}>One uppercase letter</li>
+                <li className={/[a-z]/.test(newPassword) ? "text-green-600" : ""}>One lowercase letter</li>
+                <li className={/[0-9]/.test(newPassword) ? "text-green-600" : ""}>One number</li>
+                <li className={/[!@#$%^&*(),.?":{}|<>\-_=+\[\]\\;'/`~]/.test(newPassword) ? "text-green-600" : ""}>One special character</li>
+              </ul>
             </div>
             {resetError && <p className="text-sm text-destructive">{resetError}</p>}
             <div className="flex justify-end gap-2">
@@ -749,8 +805,40 @@ export function ManageUsersView() {
         </DialogContent>
       </Dialog>
 
+      {/* Invite Link Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={(open) => { if (!open) { setInviteLink(null) } setShowInviteDialog(open) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">Invite Link</DialogTitle>
+            <DialogDescription>
+              Share this link with <span className="font-medium">{inviteDialogUser}</span> to let them set their password. Expires in 48 hours.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={inviteLink || ""}
+                className="text-xs font-mono"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={handleCopyInviteLink}
+              >
+                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowInviteDialog(false)}>Done</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Create User Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <Dialog open={showCreateDialog} onOpenChange={(open) => { if (!open) { setInviteLink(null) } setShowCreateDialog(open) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-heading text-foreground">Create User</DialogTitle>
@@ -758,6 +846,40 @@ export function ManageUsersView() {
               Add a new user account to the system.
             </DialogDescription>
           </DialogHeader>
+
+          {inviteLink ? (
+            <div className="flex flex-col gap-4 py-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                  <Check className="h-4 w-4" />
+                  User created successfully
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Share this invite link with the user. They will use it to set their password. The link expires in 48 hours.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={inviteLink}
+                  className="text-xs font-mono"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={handleCopyInviteLink}
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={() => setShowCreateDialog(false)}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          ) : (
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium text-foreground">Full Name</Label>
@@ -777,16 +899,79 @@ export function ManageUsersView() {
                 disabled={createLoading}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Password</Label>
-              <Input
-                type="password"
-                placeholder="Password (min 8 characters)"
-                value={createPassword}
-                onChange={(e) => { setCreatePassword(e.target.value); setCreateError("") }}
-                disabled={createLoading}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">
+                  <Mail className="inline h-3.5 w-3.5 mr-1" />Email
+                </Label>
+                <Input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={createEmail}
+                  onChange={(e) => { setCreateEmail(e.target.value); setCreateError("") }}
+                  disabled={createLoading}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">
+                  <Phone className="inline h-3.5 w-3.5 mr-1" />Phone
+                </Label>
+                <Input
+                  type="tel"
+                  placeholder="(555) 123-4567"
+                  value={createPhone}
+                  onChange={(e) => { setCreatePhone(e.target.value); setCreateError("") }}
+                  disabled={createLoading}
+                />
+              </div>
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium text-foreground">Account Setup Method</Label>
+              <RadioGroup
+                value={createMethod}
+                onValueChange={(v) => { setCreateMethod(v as "password" | "invite"); setCreateError("") }}
+                className="flex flex-col gap-2"
+                disabled={createLoading}
+              >
+                <label className="flex items-center gap-2 cursor-pointer rounded-md border border-border p-3 hover:bg-muted/30">
+                  <RadioGroupItem value="password" id="method-password" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                      <KeyRound className="h-3.5 w-3.5" /> Set password now
+                    </span>
+                    <span className="text-xs text-muted-foreground">You create the password and share it with the user</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer rounded-md border border-border p-3 hover:bg-muted/30">
+                  <RadioGroupItem value="invite" id="method-invite" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                      <Link className="h-3.5 w-3.5" /> Send invite link
+                    </span>
+                    <span className="text-xs text-muted-foreground">User sets their own password via a secure link (expires in 48h)</span>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+            {createMethod === "password" && (
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Password</Label>
+                <Input
+                  type="password"
+                  placeholder="Min 12 characters"
+                  value={createPassword}
+                  onChange={(e) => { setCreatePassword(e.target.value); setCreateError("") }}
+                  disabled={createLoading}
+                />
+                <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                  <li className={createPassword.length >= 12 ? "text-green-600" : ""}>At least 12 characters</li>
+                  <li className={/[A-Z]/.test(createPassword) ? "text-green-600" : ""}>One uppercase letter</li>
+                  <li className={/[a-z]/.test(createPassword) ? "text-green-600" : ""}>One lowercase letter</li>
+                  <li className={/[0-9]/.test(createPassword) ? "text-green-600" : ""}>One number</li>
+                  <li className={/[!@#$%^&*(),.?":{}|<>\-_=+\[\]\\;'/`~]/.test(createPassword) ? "text-green-600" : ""}>One special character</li>
+                </ul>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium text-foreground">Role</Label>
               <Select
@@ -854,10 +1039,11 @@ export function ManageUsersView() {
                 onClick={handleCreateUser}
                 disabled={createLoading}
               >
-                {createLoading ? "Creating…" : "Create User"}
+                {createLoading ? "Creating…" : createMethod === "invite" ? "Create & Generate Link" : "Create User"}
               </Button>
             </div>
           </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

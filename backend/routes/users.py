@@ -303,6 +303,40 @@ def create_user():
     return result, 201
 
 
+@users_bp.post("/<int:user_id>/invite")
+@require_auth(permission="users.manage")
+def generate_invite(user_id: int):
+    """
+    POST /api/users/:id/invite
+    Generates a new invite token for an existing user (replaces any previous one).
+    """
+    import secrets
+    from datetime import timedelta
+
+    ip = client_ip()
+    u = tenant_query(User).filter_by(id=user_id).first()
+    if not u:
+        return {"error": "user not found"}, 404
+
+    # Delete any existing invite tokens for this user
+    InviteToken.query.filter_by(user_id=u.id).delete()
+
+    token = secrets.token_urlsafe(48)
+    invite = InviteToken(
+        token=token,
+        user_id=u.id,
+        tenant_id=g.tenant_id,
+        created_by=g.user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+    )
+    db.session.add(invite)
+    db.session.commit()
+
+    log_access(g.user.id, "USER_INVITE", f"user/{u.id}", "SUCCESS", ip,
+               description=f"Generated invite link for '{u.username}'")
+    return {"ok": True, "inviteToken": token, "inviteUrl": f"/invite?token={token}"}, 200
+
+
 @users_bp.put("/<int:user_id>/careteams")
 @require_auth(permission="users.manage")
 def update_user_careteams(user_id: int):
