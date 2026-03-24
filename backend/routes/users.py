@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from auth_middleware import require_auth
 from extensions import db
-from models import User, UserSession, Role, CareTeam, CareTeamMember
+from models import User, UserSession, Role, CareTeam, CareTeamMember, InviteToken
 from services.audit_logger import log_access
 from services.helpers import client_ip, tenant_query
 from werkzeug.security import generate_password_hash
@@ -209,28 +209,42 @@ def update_user(user_id: int):
 def create_user():
     """
     POST /api/users
-    Body: { "username": "...", "password": "...", "roleId": 3, "full_name": "...", "credentials": [...] }
+    Body: { "username": "...", "roleId": 3, "full_name": "...", "credentials": [...],
+            "email": "...", "phone": "...",
+            "method": "password" | "invite",
+            "password": "..." (required when method=password) }
     """
+    import secrets
+    from datetime import timedelta
+
     ip = client_ip()
     data = request.get_json(silent=True) or {}
 
     username = (data.get("username") or "").strip()
-    password = data.get("password") or ""
     role_id = data.get("roleId")
     full_name = (data.get("full_name") or "").strip() or None
     email = (data.get("email") or "").strip() or None
     phone = (data.get("phone") or "").strip() or None
     credentials = data.get("credentials", [])
+    method = (data.get("method") or "password").strip()
+
+    if method not in ("password", "invite"):
+        return {"error": "method must be 'password' or 'invite'"}, 400
 
     if not username or len(username) < 3:
         log_access(g.user.id, "USER_CREATE", "users", "FAILED", ip, description="User creation failed — username must be at least 3 characters")
         return {"error": "username must be at least 3 characters"}, 400
 
-    from services.password_validator import validate_password
-    is_valid, error_msg = validate_password(password)
-    if not is_valid:
-        log_access(g.user.id, "USER_CREATE", "users", "FAILED", ip, description=f"User creation failed — {error_msg} for '{username}'")
-        return {"error": error_msg}, 400
+    # Validate password only for password method
+    password_hash = None
+    if method == "password":
+        password = data.get("password") or ""
+        from services.password_validator import validate_password
+        is_valid, error_msg = validate_password(password)
+        if not is_valid:
+            log_access(g.user.id, "USER_CREATE", "users", "FAILED", ip, description=f"User creation failed — {error_msg} for '{username}'")
+            return {"error": error_msg}, 400
+        password_hash = generate_password_hash(password)
 
     if not role_id:
         return {"error": "roleId is required"}, 400
@@ -255,7 +269,7 @@ def create_user():
     u = User(
         tenant_id=g.tenant_id,
         username=username,
-        password_hash=generate_password_hash(password),
+        password_hash=password_hash,
         role_id=role_id,
         credentials=credentials,
         full_name=full_name,
@@ -264,11 +278,29 @@ def create_user():
     )
 
     db.session.add(u)
+    db.session.flush()  # get u.id before creating invite token
+
+    result = {"ok": True, "user": _serialize_user(u)}
+
+    if method == "invite":
+        token = secrets.token_urlsafe(48)
+        invite = InviteToken(
+            token=token,
+            user_id=u.id,
+            tenant_id=g.tenant_id,
+            created_by=g.user.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+        )
+        db.session.add(invite)
+        result["inviteToken"] = token
+        result["inviteUrl"] = f"/invite?token={token}"
+
     db.session.commit()
 
+    method_desc = "via invite link" if method == "invite" else "with password"
     log_access(g.user.id, "USER_CREATE", f"user/{u.id}", "SUCCESS", ip,
-               description=f"Created user '{u.username}' ({role.display_name}){' — ' + u.full_name if u.full_name else ''}")
-    return {"ok": True, "user": _serialize_user(u)}, 201
+               description=f"Created user '{u.username}' ({role.display_name}) {method_desc}{' — ' + u.full_name if u.full_name else ''}")
+    return result, 201
 
 
 @users_bp.put("/<int:user_id>/careteams")

@@ -118,7 +118,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
     username = db.Column(db.String(80), nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)
 
     # Permission-based role FK
     role_id = db.Column(db.Integer, db.ForeignKey("role.id"), nullable=True, index=True)
@@ -273,6 +273,24 @@ class MfaPendingToken(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False)
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+
+
+class InviteToken(db.Model):
+    """
+    Secure invite token for new user registration.
+    Admin creates a user without a password, generates this token.
+    The new user clicks the invite link, sets their password, and the token is consumed.
+    Tokens expire after 48 hours.
+    """
+    __tablename__ = "invite_token"
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class LoginAttempt(db.Model):

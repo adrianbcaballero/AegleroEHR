@@ -7,7 +7,7 @@ from werkzeug.security import check_password_hash
 
 from extensions import db
 import config
-from models import User, UserSession, Tenant, Patient, MfaPendingToken
+from models import User, UserSession, Tenant, Patient, MfaPendingToken, InviteToken
 from services.audit_logger import log_access
 from services.rate_limiter import is_rate_limited
 from services.helpers import client_ip, get_slug_from_host
@@ -51,6 +51,10 @@ def login():
     if user.locked_until and user.locked_until > datetime.now(timezone.utc):
         log_access(user.id, "LOGIN", "auth", "FAILED", ip, description=f"Login blocked — '{user.username}' temporarily locked", tenant_id=t_id)
         return {"error": "account locked. try again later"}, 403
+
+    if not user.password_hash:
+        log_access(user.id, "LOGIN", "auth", "FAILED", ip, description=f"Login blocked — '{user.username}' has not set a password (pending invite)", tenant_id=t_id)
+        return {"error": "account pending setup. check your invite link"}, 403
 
     if not check_password_hash(user.password_hash, password):
         user.failed_login_attempts += 1
@@ -283,3 +287,73 @@ def logout():
     resp = make_response({"ok": True}, 200)
     resp.set_cookie("session", "", httponly=True, secure=config.COOKIE_SECURE, samesite="Lax", max_age=0)
     return resp
+
+
+@auth_bp.get("/invite/validate")
+def validate_invite():
+    """
+    GET /api/auth/invite/validate?token=...
+    Public endpoint — checks if an invite token is valid and returns the username.
+    """
+    token = (request.args.get("token") or "").strip()
+    if not token:
+        return {"error": "token is required"}, 400
+
+    invite = InviteToken.query.filter_by(token=token).first()
+    if not invite:
+        return {"error": "invalid or expired invite link"}, 404
+
+    if invite.expires_at < datetime.now(timezone.utc):
+        db.session.delete(invite)
+        db.session.commit()
+        return {"error": "invite link has expired"}, 410
+
+    user = User.query.filter_by(id=invite.user_id).first()
+    return {"username": user.username, "full_name": user.full_name}, 200
+
+
+@auth_bp.post("/invite/accept")
+def accept_invite():
+    """
+    POST /api/auth/invite/accept
+    Body: { "token": "...", "password": "..." }
+    Public endpoint — new user sets their password via invite token.
+    """
+    from werkzeug.security import generate_password_hash
+    from services.password_validator import validate_password
+
+    ip = client_ip()
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    password = data.get("password") or ""
+
+    if not token:
+        return {"error": "token is required"}, 400
+
+    invite = InviteToken.query.filter_by(token=token).first()
+    if not invite:
+        return {"error": "invalid or expired invite link"}, 404
+
+    if invite.expires_at < datetime.now(timezone.utc):
+        db.session.delete(invite)
+        db.session.commit()
+        return {"error": "invite link has expired"}, 410
+
+    is_valid, error_msg = validate_password(password)
+    if not is_valid:
+        return {"error": error_msg}, 400
+
+    user = User.query.filter_by(id=invite.user_id).first()
+    if not user:
+        db.session.delete(invite)
+        db.session.commit()
+        return {"error": "user account no longer exists"}, 404
+
+    user.password_hash = generate_password_hash(password)
+    db.session.delete(invite)
+    db.session.commit()
+
+    log_access(user.id, "INVITE_ACCEPT", f"user/{user.id}", "SUCCESS", ip,
+               description=f"User '{user.username}' set password via invite link",
+               tenant_id=invite.tenant_id)
+    return {"ok": True, "message": "Password set successfully. You can now log in."}, 200
