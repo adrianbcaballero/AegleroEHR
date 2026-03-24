@@ -128,6 +128,8 @@ class User(db.Model):
     credentials = db.Column(db.JSON, nullable=True, default=list)
 
     full_name = db.Column(db.String(120), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    phone = db.Column(db.String(30), nullable=True)
 
     last_login = db.Column(db.DateTime(timezone=True), nullable=True)
     agreed_to_terms_at = db.Column(db.DateTime(timezone=True), nullable=True)

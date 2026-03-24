@@ -23,6 +23,8 @@ def _serialize_user(u: User):
         "roleDisplayName": u.role_obj.display_name if u.role_obj else None,
         "credentials": u.credentials or [],
         "full_name": u.full_name,
+        "email": u.email,
+        "phone": u.phone,
         "failed_attempts": u.failed_login_attempts,
         "is_locked": is_temp_locked or u.permanently_locked,
         "permanently_locked": u.permanently_locked,
@@ -176,6 +178,16 @@ def update_user(user_id: int):
         changes.append(f"name → '{new_name}'")
         u.full_name = new_name or None
 
+    if "email" in data:
+        new_email = (data["email"] or "").strip() or None
+        changes.append(f"email → '{new_email}'")
+        u.email = new_email
+
+    if "phone" in data:
+        new_phone = (data["phone"] or "").strip() or None
+        changes.append(f"phone → '{new_phone}'")
+        u.phone = new_phone
+
     if "credentials" in data:
         creds = data["credentials"]
         if not isinstance(creds, list):
@@ -206,6 +218,8 @@ def create_user():
     password = data.get("password") or ""
     role_id = data.get("roleId")
     full_name = (data.get("full_name") or "").strip() or None
+    email = (data.get("email") or "").strip() or None
+    phone = (data.get("phone") or "").strip() or None
     credentials = data.get("credentials", [])
 
     if not username or len(username) < 3:
@@ -245,6 +259,8 @@ def create_user():
         role_id=role_id,
         credentials=credentials,
         full_name=full_name,
+        email=email,
+        phone=phone,
     )
 
     db.session.add(u)
