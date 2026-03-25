@@ -8,13 +8,11 @@ import {
   ChevronRight,
   PenLine,
   ArrowLeft,
-  Users,
   AlertTriangle,
   Loader2,
   CheckCircle2,
   Clock,
   Trash2,
-  Archive,
   ShieldAlert,
   ShieldCheck,
   XCircle,
@@ -1419,22 +1417,20 @@ export function PatientProfileView({
         const visibleCategories = allCategories
         return (
           <Tabs value={activeTab || visibleCategories[0] || ""} onValueChange={setActiveTab}>
-            <TabsList className="flex flex-wrap h-auto gap-1.5 bg-transparent p-0 border-b border-border pb-2">
-              {visibleCategories.map((cat: string) => (
-                <TabsTrigger
-                  key={cat}
-                  value={cat}
-                  className="capitalize text-xs border rounded-md px-3 py-1.5 transition-all
-                    border-primary/25 bg-primary/5 text-foreground/70 hover:bg-primary/10 hover:text-foreground
-                    data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:font-medium"
-                >
-                  {cat}
-                  {(() => {
-                    const count = forms.filter((f) => f.templateCategory === cat).length
-                    return count > 0 ? <span className="ml-1.5 text-[10px] opacity-80">({count})</span> : null
-                  })()}
-                </TabsTrigger>
-              ))}
+            <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+              {visibleCategories.map((cat: string) => {
+                const count = forms.filter((f) => f.templateCategory === cat).length
+                return (
+                  <TabsTrigger
+                    key={cat}
+                    value={cat}
+                    className="text-xs capitalize"
+                  >
+                    {cat}
+                    {count > 0 && <span className="ml-1.5 text-[10px] opacity-70">({count})</span>}
+                  </TabsTrigger>
+                )
+              })}
             </TabsList>
 
             {visibleCategories.map((cat: string) => {
@@ -1657,10 +1653,6 @@ export function PatientsView({
 
   const activePatients = patients.filter((p) => p.status === "active" && matchesSearch(p))
 
-  const activeCount = patients.filter((p) => p.status === "active").length
-  const inactiveCount = patients.filter((p) => p.status === "inactive").length
-  const highRiskCount = patients.filter((p) => p.riskLevel === "high" && p.status === "active").length
-
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -1669,46 +1661,6 @@ export function PatientsView({
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Patients</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage your patient roster</p>
         </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Users className="size-3.5 text-primary" />
-              <p className="text-xs text-muted-foreground font-medium">Total</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-foreground">{patients.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Users className="size-3.5 text-accent" />
-              <p className="text-xs text-muted-foreground font-medium">Active</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-accent">{activeCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Archive className="size-3.5 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground font-medium">Inactive</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-muted-foreground">{inactiveCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <AlertTriangle className="size-3.5 text-destructive" />
-              <p className="text-xs text-muted-foreground font-medium">High Risk</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-destructive">{highRiskCount}</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Search */}
