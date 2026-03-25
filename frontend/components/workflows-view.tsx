@@ -54,7 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getTemplates, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories, deleteCategory, getRolesPicker } from "@/lib/api"
+import { getTemplates, getTemplate, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories, deleteCategory, getRolesPicker } from "@/lib/api"
 import type { FormTemplate, TemplateField, RoleAccess, DeleteCategoryError } from "@/lib/api"
 
 type AccessLevel = "none" | "view" | "edit" | "sign"
@@ -467,11 +467,10 @@ function TemplateDetailPage({
 
   const fetchTemplate = useCallback(async () => {
     setLoading(true)
-    getTemplates()
-      .then((templates) => {
-        const found = templates.find((t) => t.id === templateId)
-        setTemplate(found || null)
-        setAllCategories([...new Set(templates.map((t) => t.category))])
+    Promise.all([getTemplate(templateId), getTemplates("all")])
+      .then(([tmpl, all]) => {
+        setTemplate(tmpl || null)
+        setAllCategories([...new Set(all.map((t: FormTemplate) => t.category))])
       })
       .catch(() => {})
       .finally(() => setLoading(false))

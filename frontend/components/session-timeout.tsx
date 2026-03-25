@@ -29,6 +29,7 @@ export function SessionTimeout({
   const onTimeoutRef = useRef(onTimeout)
   const hadActivityRef = useRef(false)
   const lastResetRef = useRef(Date.now())
+  const lastPingRef = useRef(0)
 
   // Keep ref in sync
   onTimeoutRef.current = onTimeout
@@ -54,6 +55,14 @@ export function SessionTimeout({
     setSecondsLeft(warningSeconds)
     hadActivityRef.current = false
     lastResetRef.current = Date.now()
+
+    // Ping backend to keep session alive whenever timers reset due to activity.
+    // Throttled to once per 2 minutes to avoid excessive requests.
+    const now = Date.now()
+    if (now - lastPingRef.current >= 2 * 60 * 1000) {
+      lastPingRef.current = now
+      getMe().catch(() => {})
+    }
 
     // Heartbeat: ping backend every 5 min, but only if there was real
     // user activity since the last ping.  This keeps the backend session
