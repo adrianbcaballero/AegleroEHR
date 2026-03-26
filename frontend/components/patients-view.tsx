@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams } from "@/lib/api"
+import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getAvailableTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams } from "@/lib/api"
 import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent, CareTeam } from "@/lib/api"
 
 import {
@@ -565,10 +565,9 @@ function NewFormDialog({ patientCode, onCreated, categoryFilter }: { patientCode
 
   useEffect(() => {
     if (open) {
-      getTemplates()
+      getAvailableTemplates()
         .then((t) => {
-          const editable = t.filter((tpl) => tpl.status === "active" && (tpl.accessLevel === "edit" || tpl.accessLevel === "sign"))
-          setTemplates(categoryFilter ? editable.filter((tpl) => tpl.category === categoryFilter) : editable)
+          setTemplates(categoryFilter ? t.filter((tpl) => tpl.category === categoryFilter) : t)
         })
         .catch(() => {})
     }
@@ -1038,8 +1037,8 @@ export function PatientProfileView({
   }, [patientId])
 
   useEffect(() => {
-    getTemplates()
-      .then((t) => setTemplates(t.filter((tpl) => tpl.status === "active")))
+    getAvailableTemplates()
+      .then(setTemplates)
       .catch(() => {})
   }, [patientId])
 

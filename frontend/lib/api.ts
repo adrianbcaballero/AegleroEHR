@@ -454,6 +454,10 @@ export function getTemplates(status?: "active" | "all") {
   return apiGet<FormTemplate[]>(`/api/templates${qs}`)
 }
 
+export function getAvailableTemplates() {
+  return apiGet<FormTemplate[]>("/api/templates/available")
+}
+
 export function getTemplate(templateId: number) {
   return apiGet<FormTemplate>(`/api/templates/${templateId}`)
 }

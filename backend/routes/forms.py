@@ -100,18 +100,20 @@ def _get_access_level(template: FormTemplate, user) -> str | None:
     Returns the effective access level string ("view", "edit", "sign") for a user
     on a given template, or None if the user has no access.
 
-    Priority:
-      1. FormTemplateAccess row (new per-role system)
-      2. Legacy allowed_roles string list (falls back to "sign" = full access)
+    Uses FormTemplateAccess rows exclusively when the template has any configured.
+    Falls back to legacy allowed_roles only for templates with no access rows at all.
     """
-    if user.role_id:
-        entry = FormTemplateAccess.query.filter_by(
-            template_id=template.id, role_id=user.role_id
-        ).first()
-        if entry:
-            return entry.access_level
+    has_access_rows = FormTemplateAccess.query.filter_by(template_id=template.id).first() is not None
 
-    # Legacy fallback: role name in allowed_roles means full access
+    if has_access_rows:
+        if user.role_id:
+            entry = FormTemplateAccess.query.filter_by(
+                template_id=template.id, role_id=user.role_id
+            ).first()
+            return entry.access_level if entry else None
+        return None
+
+    # Legacy fallback: only for templates with no FormTemplateAccess rows
     if user.role_name in (template.allowed_roles or []):
         return "sign"
 
@@ -147,6 +149,24 @@ def list_templates():
         data["instanceCount"] = counts.get(t.id, 0)
         data["accessLevel"] = _get_access_level(t, g.user)
         result.append(data)
+
+    return result, 200
+
+
+@forms_bp.get("/templates/available")
+@require_auth(permission="patients.view")
+def list_available_templates():
+    """Return active templates the current user has edit or sign access to.
+    Used by the patient forms UI so roles without workflows.view can still add forms."""
+    templates = tenant_query(FormTemplate).filter(FormTemplate.status == "active").order_by(FormTemplate.name.asc()).all()
+
+    result = []
+    for t in templates:
+        level = _get_access_level(t, g.user)
+        if level in ("edit", "sign"):
+            data = _serialize_template(t)
+            data["accessLevel"] = level
+            result.append(data)
 
     return result, 200
 

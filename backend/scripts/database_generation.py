@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash
 from app import create_app
 from extensions import db
 from models import (
-    Tenant, User, Patient, AuditLog, FormTemplate, PatientForm,
+    Tenant, User, Patient, AuditLog, FormTemplate, FormTemplateAccess, PatientForm,
     Role, RolePermission, Bed, CareTeam, CareTeamMember,
     SYSTEM_ROLE_PERMISSIONS,
 )
@@ -894,6 +894,35 @@ def seed():
                 ),
             ]
             db.session.add_all(templates)
+
+        db.session.commit()
+
+        # ── Form Template Access (per-role permissions) ──
+        # Maps each template's allowed_roles to explicit FormTemplateAccess rows.
+        # admin/psychiatrist get "sign", technician/nurse get "edit",
+        # front_desk gets "view" on intake/consent, auditor gets nothing.
+        for tenant, roles, extra_roles in [
+            (tenant1, t1_roles, {"front_desk": t1_frontdesk_role, "nurse": t1_nurse_role}),
+            (tenant2, t2_roles, {}),
+        ]:
+            all_templates = FormTemplate.query.filter_by(tenant_id=tenant.id).all()
+            for tmpl in all_templates:
+                old_roles = tmpl.allowed_roles or []
+                # Admin always gets sign access
+                if "admin" in old_roles and "admin" in roles:
+                    db.session.add(FormTemplateAccess(template_id=tmpl.id, role_id=roles["admin"].id, access_level="sign"))
+                # Psychiatrist gets sign access
+                if "psychiatrist" in old_roles and "psychiatrist" in roles:
+                    db.session.add(FormTemplateAccess(template_id=tmpl.id, role_id=roles["psychiatrist"].id, access_level="sign"))
+                # Technician gets edit (can fill but not sign)
+                if "technician" in old_roles and "technician" in roles:
+                    db.session.add(FormTemplateAccess(template_id=tmpl.id, role_id=roles["technician"].id, access_level="edit"))
+                # Nurse gets edit on clinical/flowsheet templates
+                if "nurse" in extra_roles and tmpl.category in ("flowsheet", "clinical", "intake", "consent"):
+                    db.session.add(FormTemplateAccess(template_id=tmpl.id, role_id=extra_roles["nurse"].id, access_level="edit"))
+                # Front desk gets view on intake/consent templates
+                if "front_desk" in extra_roles and tmpl.category in ("intake", "consent", "insurance"):
+                    db.session.add(FormTemplateAccess(template_id=tmpl.id, role_id=extra_roles["front_desk"].id, access_level="view"))
 
         db.session.commit()
 
