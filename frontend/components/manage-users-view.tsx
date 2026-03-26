@@ -538,7 +538,7 @@ export function ManageUsersView() {
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="size-10">
+                        <Avatar className="size-12">
                           {user.avatar && <AvatarImage src={user.avatar} alt={user.full_name || user.username} />}
                           <AvatarFallback className="bg-primary/10 text-primary text-sm">
                             {getInitials(user)}

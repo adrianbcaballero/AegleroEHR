@@ -248,7 +248,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                   onClick={() => setSelectedPatientId(p.id)}
                   className="flex items-center gap-3 p-3 rounded-lg border border-border/60 hover:bg-muted/40 transition-colors text-left w-full"
                 >
-                  <Avatar className="size-10 shrink-0">
+                  <Avatar className="size-12 shrink-0">
                     {p.photo && <AvatarImage src={p.photo} alt={`${p.firstName} ${p.lastName}`} />}
                     <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
                       {p.firstName[0]}{p.lastName[0]}

@@ -1648,7 +1648,7 @@ function PatientTable({
           >
             <TableCell>
               <div className="flex items-center gap-3">
-                <Avatar className="size-10">
+                <Avatar className="size-12">
                   {patient.photo && <AvatarImage src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} />}
                   <AvatarFallback className="bg-primary/10 text-primary text-sm">
                     {patient.firstName[0]}{patient.lastName[0]}
