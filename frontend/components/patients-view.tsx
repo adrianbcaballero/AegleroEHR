@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   Search,
   Plus,
@@ -20,6 +20,8 @@ import {
   LogIn,
   LogOut,
   Camera,
+  Eye,
+  ImagePlus,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -28,7 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getAvailableTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams } from "@/lib/api"
+import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getAvailableTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams } from "@/lib/api"
 import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent, CareTeam } from "@/lib/api"
 
 import {
@@ -58,6 +60,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 
 // Default categories that always appear as tabs even with 0 forms — cannot be "deleted" by archiving templates
@@ -952,6 +955,9 @@ export function PatientProfileView({
   const [editForm, setEditForm] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState("")
+  const [viewingPhoto, setViewingPhoto] = useState(false)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   const startEdit = (section: string, fields: Record<string, string>) => {
     setEditingSection(section)
@@ -1092,39 +1098,80 @@ export function PatientProfileView({
         <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
           <ArrowLeft className="size-4" />
         </Button>
-        <div className="relative group">
-          <Avatar className="size-12">
-            {patient.photo && <AvatarImage src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} />}
-            <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-              {patient.firstName[0]}{patient.lastName[0]}
-            </AvatarFallback>
-          </Avatar>
-          {canEdit && (
-            <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-              <Camera className="size-4 text-white" />
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  if (file.size > 2 * 1024 * 1024) { alert("Photo must be under 2 MB"); return }
-                  const reader = new FileReader()
-                  reader.onload = () => {
-                    const dataUrl = reader.result as string
-                    updatePatient(patient.id, { photo: dataUrl })
-                      .then((updated) => setPatient(updated))
-                      .catch(() => alert("Failed to upload photo"))
-                  }
-                  reader.readAsDataURL(file)
-                  e.target.value = ""
-                }}
-              />
-            </label>
-          )}
-        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="relative group rounded-full focus:outline-none focus:ring-2 focus:ring-primary/50">
+              <Avatar className="size-16">
+                {patient.photo && <AvatarImage src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} />}
+                <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
+                  {patient.firstName[0]}{patient.lastName[0]}
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Camera className="size-5 text-white" />
+              </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-44 p-1" align="start">
+            {patient.photo && (
+              <button className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted" onClick={() => setViewingPhoto(true)}>
+                <Eye className="size-4" /> View Photo
+              </button>
+            )}
+            {canEdit && (
+              <>
+                <button className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted" onClick={() => photoInputRef.current?.click()}>
+                  <ImagePlus className="size-4" /> Upload Photo
+                </button>
+                <button className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted" onClick={() => cameraInputRef.current?.click()}>
+                  <Camera className="size-4" /> Take Photo
+                </button>
+                {patient.photo && (
+                  <button
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      updatePatient(patient.id, { photo: null })
+                        .then((updated) => setPatient(updated))
+                        .catch(() => alert("Failed to remove photo"))
+                    }}
+                  >
+                    <Trash2 className="size-4" /> Remove Photo
+                  </button>
+                )}
+              </>
+            )}
+            {!patient.photo && !canEdit && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">No photo</p>
+            )}
+          </PopoverContent>
+        </Popover>
+        {/* Hidden file inputs */}
+        <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          if (file.size > 2 * 1024 * 1024) { alert("Photo must be under 2 MB"); return }
+          const reader = new FileReader()
+          reader.onload = () => {
+            updatePatient(patient.id, { photo: reader.result as string })
+              .then((updated) => setPatient(updated))
+              .catch(() => alert("Failed to upload photo"))
+          }
+          reader.readAsDataURL(file)
+          e.target.value = ""
+        }} />
+        <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          if (file.size > 2 * 1024 * 1024) { alert("Photo must be under 2 MB"); return }
+          const reader = new FileReader()
+          reader.onload = () => {
+            updatePatient(patient.id, { photo: reader.result as string })
+              .then((updated) => setPatient(updated))
+              .catch(() => alert("Failed to upload photo"))
+          }
+          reader.readAsDataURL(file)
+          e.target.value = ""
+        }} />
         <div>
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">
             {patient.firstName} {patient.lastName}
@@ -1552,6 +1599,20 @@ export function PatientProfileView({
         )
       })()}
 
+      {/* Photo Viewer */}
+      {viewingPhoto && patient.photo && (
+        <Dialog open={viewingPhoto} onOpenChange={setViewingPhoto}>
+          <DialogContent className="sm:max-w-lg p-0 overflow-hidden">
+            <DialogHeader className="p-4 pb-0">
+              <DialogTitle className="font-heading text-foreground">{patient.firstName} {patient.lastName}</DialogTitle>
+              <DialogDescription className="sr-only">Patient profile photo</DialogDescription>
+            </DialogHeader>
+            <div className="p-4 pt-2">
+              <img src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} className="w-full rounded-lg" />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
@@ -1587,9 +1648,9 @@ function PatientTable({
           >
             <TableCell>
               <div className="flex items-center gap-3">
-                <Avatar className="size-8">
+                <Avatar className="size-10">
                   {patient.photo && <AvatarImage src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} />}
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                  <AvatarFallback className="bg-primary/10 text-primary text-sm">
                     {patient.firstName[0]}{patient.lastName[0]}
                   </AvatarFallback>
                 </Avatar>
