@@ -233,6 +233,7 @@ def me():
         "tenant_id": user.tenant_id,
         "tenant_name": tenant.name if tenant else None,
         "signature_data": user.signature_data,
+        "avatar": user.avatar,
         "requires_terms_agreement": user.agreed_to_terms_at is None,
         "needsMfaSetup": bool(tenant and tenant.mfa_required and not user.mfa_enabled),
     }, 200
@@ -263,6 +264,38 @@ def update_signature():
     user.signature_data = sig or None
     db.session.commit()
     return {"ok": True}, 200
+
+
+@auth_bp.put("/me/avatar")
+def update_avatar():
+    """
+    Save or clear the current user's profile avatar.
+    Body: { "avatar": "data:image/...;base64,..." } or { "avatar": null }
+    """
+    session_id = _get_session_id()
+    user, _ = _validate_session(session_id)
+    if not user:
+        return {"error": "not authenticated"}, 401
+
+    data = request.get_json(silent=True) or {}
+    avatar = data.get("avatar")
+
+    if avatar is not None:
+        if not isinstance(avatar, str):
+            return {"error": "avatar must be a string or null"}, 400
+        if not avatar.startswith("data:"):
+            return {"error": "avatar must be a data URL"}, 400
+        # Validate MIME type
+        mime = avatar.split(";")[0].replace("data:", "")
+        if mime not in ("image/jpeg", "image/png", "image/webp"):
+            return {"error": "avatar must be JPEG, PNG, or WebP"}, 400
+        # Rough size check (~2 MB decoded = ~2.7 MB base64)
+        if len(avatar) > 3_000_000:
+            return {"error": "avatar exceeds 2 MB limit"}, 400
+
+    user.avatar = avatar or None
+    db.session.commit()
+    return {"ok": True, "avatar": user.avatar}, 200
 
 
 @auth_bp.post("/logout")

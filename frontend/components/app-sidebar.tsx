@@ -22,6 +22,7 @@ import {
   ClipboardList,
   Archive,
   UsersRound,
+  ImagePlus,
 } from "lucide-react"
 import {
   Sidebar,
@@ -36,7 +37,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +53,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { getMe, saveSignature } from "@/lib/api"
+import { getMe, saveSignature, saveAvatar } from "@/lib/api"
 
 // ─── Signature Dialog ───
 function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClose: () => void; displayName: string }) {
@@ -280,6 +281,30 @@ interface AppSidebarProps {
 export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, userPermissions, tenantName, currentUser }: AppSidebarProps) {
   const [sigDialogOpen, setSigDialogOpen] = useState(false)
   const [sigOpenCount, setSigOpenCount] = useState(0)
+  const [userAvatar, setUserAvatar] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    getMe().then((me) => setUserAvatar(me.avatar ?? null)).catch(() => {})
+  }, [])
+
+  const handleAvatarUpload = (file: File) => {
+    if (file.size > 2 * 1024 * 1024) { alert("Photo must be under 2 MB"); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      saveAvatar(dataUrl)
+        .then((res) => setUserAvatar(res.avatar))
+        .catch(() => alert("Failed to upload avatar"))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleAvatarRemove = () => {
+    saveAvatar(null)
+      .then(() => setUserAvatar(null))
+      .catch(() => alert("Failed to remove avatar"))
+  }
   const mainNavItems = allMainNavItems.filter((item) => userPermissions.includes(item.permission))
   const filteredAdminItems = adminNavItems.filter((item) => userPermissions.includes(item.permission))
   const showAdmin = filteredAdminItems.length > 0
@@ -391,6 +416,7 @@ export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, userPe
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton size="lg" className="hover:bg-sidebar-accent">
                   <Avatar className="size-8 rounded-lg">
+                    {userAvatar && <AvatarImage src={userAvatar} alt={displayName} className="rounded-lg" />}
                     <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground rounded-lg text-xs">
                       {initials}
                     </AvatarFallback>
@@ -403,6 +429,17 @@ export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, userPe
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="start" className="w-56">
+                <DropdownMenuItem onClick={() => avatarInputRef.current?.click()}>
+                  <ImagePlus className="mr-2 size-4" />
+                  {userAvatar ? "Change Avatar" : "Upload Avatar"}
+                </DropdownMenuItem>
+                {userAvatar && (
+                  <DropdownMenuItem onClick={handleAvatarRemove}>
+                    <Trash2 className="mr-2 size-4" />
+                    Remove Avatar
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => { setSigDialogOpen(true); setSigOpenCount((c: number) => c + 1) }}>
                   <PenLine className="mr-2 size-4" />
                   My Signature
@@ -423,6 +460,17 @@ export function AppSidebar({ activeItem, onNavigate, onSignOut, userRole, userPe
         open={sigDialogOpen}
         onClose={() => setSigDialogOpen(false)}
         displayName={displayName}
+      />
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleAvatarUpload(file)
+          e.target.value = ""
+        }}
       />
     </Sidebar>
   )

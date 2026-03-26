@@ -144,11 +144,15 @@ export function acceptTerms() {
 }
 
 export function getMe() {
-  return apiGet<{ user_id: number; username: string; full_name: string | null; role: string; permissions: string[]; tenant_name: string; signature_data: string | null; requires_terms_agreement: boolean; needsMfaSetup: boolean }>("/api/auth/me");
+  return apiGet<{ user_id: number; username: string; full_name: string | null; role: string; permissions: string[]; tenant_name: string; signature_data: string | null; avatar: string | null; requires_terms_agreement: boolean; needsMfaSetup: boolean }>("/api/auth/me");
 }
 
 export function saveSignature(signatureData: string | null) {
   return apiPut<{ ok: boolean }>("/api/auth/me/signature", { signature_data: signatureData })
+}
+
+export function saveAvatar(avatar: string | null) {
+  return apiPut<{ ok: boolean; avatar: string | null }>("/api/auth/me/avatar", { avatar })
 }
 
 

@@ -138,6 +138,7 @@ class User(db.Model):
     locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
     permanently_locked = db.Column(db.Boolean, default=False, nullable=False)
     signature_data = db.Column(db.Text, nullable=True)  # base64 data-URL of saved signature image
+    avatar = db.Column(db.Text, nullable=True)  # base64 data-URL of profile photo
 
     mfa_secret = db.Column(db.String(32), nullable=True)   # TOTP shared secret (base32)
     mfa_enabled = db.Column(db.Boolean, default=False, nullable=False)
