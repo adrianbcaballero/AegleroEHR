@@ -19,12 +19,13 @@ import {
   Printer,
   LogIn,
   LogOut,
+  Camera,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getTemplates, getAvailableTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams } from "@/lib/api"
@@ -1091,11 +1092,39 @@ export function PatientProfileView({
         <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
           <ArrowLeft className="size-4" />
         </Button>
-        <Avatar className="size-12">
-          <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-            {patient.firstName[0]}{patient.lastName[0]}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative group">
+          <Avatar className="size-12">
+            {patient.photo && <AvatarImage src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} />}
+            <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+              {patient.firstName[0]}{patient.lastName[0]}
+            </AvatarFallback>
+          </Avatar>
+          {canEdit && (
+            <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+              <Camera className="size-4 text-white" />
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  if (file.size > 2 * 1024 * 1024) { alert("Photo must be under 2 MB"); return }
+                  const reader = new FileReader()
+                  reader.onload = () => {
+                    const dataUrl = reader.result as string
+                    updatePatient(patient.id, { photo: dataUrl })
+                      .then((updated) => setPatient(updated))
+                      .catch(() => alert("Failed to upload photo"))
+                  }
+                  reader.readAsDataURL(file)
+                  e.target.value = ""
+                }}
+              />
+            </label>
+          )}
+        </div>
         <div>
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">
             {patient.firstName} {patient.lastName}
@@ -1559,6 +1588,7 @@ function PatientTable({
             <TableCell>
               <div className="flex items-center gap-3">
                 <Avatar className="size-8">
+                  {patient.photo && <AvatarImage src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} />}
                   <AvatarFallback className="bg-primary/10 text-primary text-xs">
                     {patient.firstName[0]}{patient.lastName[0]}
                   </AvatarFallback>

@@ -240,6 +240,9 @@ class Patient(db.Model):
     care_team_id = db.Column(db.Integer, db.ForeignKey("care_team.id"), nullable=True)
     care_team = db.relationship("CareTeam", foreign_keys=[care_team_id])
 
+    # Profile photo — base64 data-URL (max ~2 MB encoded)
+    photo = db.Column(db.Text, nullable=True)
+
     # ASAM Level of Care — updated automatically when ASAM assessment form is completed
     current_loc = db.Column(db.String(10), nullable=True)
 

@@ -222,6 +222,7 @@ export interface Patient {
   referringProvider: string | null
   primaryCarePhysician: string | null
   pharmacy: string | null
+  photo: string | null
 }
 
 export interface PatientDetail extends Patient {}

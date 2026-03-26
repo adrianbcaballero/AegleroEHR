@@ -7,8 +7,32 @@ from auth_middleware import require_auth
 from extensions import db
 from models import Patient, User, FormTemplate, PatientForm, Bed, CareTeam, CareTeamMember
 
+import base64
 import re
 from services.audit_logger import log_access
+
+ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_PHOTO_BYTES = 2 * 1024 * 1024  # 2 MB decoded
+
+
+def _validate_photo(data_url: str) -> str | None:
+    """Validate a base64 data-URL image. Returns error string or None if valid."""
+    if not data_url.startswith("data:"):
+        return "photo must be a data URL"
+    try:
+        header, encoded = data_url.split(",", 1)
+    except ValueError:
+        return "invalid data URL format"
+    mime = header.split(";")[0].replace("data:", "")
+    if mime not in ALLOWED_PHOTO_TYPES:
+        return f"photo type '{mime}' not allowed — use JPEG, PNG, or WebP"
+    try:
+        raw = base64.b64decode(encoded)
+    except Exception:
+        return "invalid base64 encoding"
+    if len(raw) > MAX_PHOTO_BYTES:
+        return "photo exceeds 2 MB limit"
+    return None
 from services.helpers import client_ip, parse_date_iso, get_patient_by_id_or_code, check_patient_access, provider_display_name, tenant_query
 
 
@@ -78,6 +102,7 @@ def _serialize_patient(p: Patient):
         "dischargeReason": p.discharge_reason,
         "careTeamId": p.care_team_id,
         "careTeamName": p.care_team.name if p.care_team else None,
+        "photo": p.photo,
     }
 
 
@@ -249,6 +274,14 @@ def create_patient():
         log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description="Patient creation failed — ssnLast4 must be exactly 4 digits")
         return {"error": "ssnLast4 must be exactly 4 digits"}, 400
 
+    # Validate photo if provided
+    photo_data = data.get("photo")
+    if photo_data:
+        photo_err = _validate_photo(photo_data)
+        if photo_err:
+            log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description=f"Patient creation failed — {photo_err}")
+            return {"error": photo_err}, 400
+
     p = Patient(
         tenant_id=g.tenant_id,
         patient_code=patient_code,
@@ -282,6 +315,7 @@ def create_patient():
         referring_provider=(data.get("referringProvider") or "").strip() or None,
         primary_care_physician=(data.get("primaryCarePhysician") or "").strip() or None,
         pharmacy=(data.get("pharmacy") or "").strip() or None,
+        photo=photo_data or None,
     )
 
     for attempt in range(5):
@@ -453,6 +487,16 @@ def update_patient(patient_id):
 
     if "pharmacy" in data:
         p.pharmacy = (data["pharmacy"] or "").strip() or None
+
+    if "photo" in data:
+        photo_data = data["photo"]
+        if photo_data:
+            photo_err = _validate_photo(photo_data)
+            if photo_err:
+                return {"error": photo_err}, 400
+            p.photo = photo_data
+        else:
+            p.photo = None  # allow clearing the photo
 
     db.session.commit()
 

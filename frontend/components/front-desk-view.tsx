@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Loader2, UserPlus, ClipboardList, BedDouble, RefreshCw } from "lucide-react"
+import { Plus, Loader2, UserPlus, ClipboardList, BedDouble, RefreshCw, Camera, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -91,6 +91,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
   const [careTeams, setCareTeams] = useState<CareTeam[]>([])
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState("")
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
   const sf = (field: keyof FormData) => (e: { target: { value: string } }) =>
     setFormData((prev: FormData) => ({ ...prev, [field]: e.target.value }))
@@ -117,7 +118,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
     listCareTeams().then(setCareTeams).catch(() => {})
   }, [fetchPending, fetchBeds])
 
-  const resetForm = () => { setFormData(EMPTY_FORM); setSelectedCareTeamId(""); setAddError("") }
+  const resetForm = () => { setFormData(EMPTY_FORM); setSelectedCareTeamId(""); setAddError(""); setPhotoPreview(null) }
 
   const handleAdd = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -132,6 +133,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
         if (v.trim()) payload[k] = v.trim()
       }
       if (selectedCareTeamId && selectedCareTeamId !== "none") payload.careTeamId = parseInt(selectedCareTeamId)
+      if (photoPreview) payload.photo = photoPreview
       await createPatient(payload)
       setShowAdd(false)
       resetForm()
@@ -431,6 +433,49 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
               Patient will be created with <strong>pending</strong> status. Complete intake forms before admitting.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Photo Upload */}
+          <div className="flex items-center gap-4 py-2">
+            <div className="relative">
+              <div className="size-16 rounded-full bg-muted flex items-center justify-center overflow-hidden border border-border">
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Preview" className="size-full object-cover" />
+                ) : (
+                  <Camera className="size-5 text-muted-foreground" />
+                )}
+              </div>
+              {photoPreview && (
+                <button
+                  type="button"
+                  className="absolute -top-1 -right-1 size-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                  onClick={() => setPhotoPreview(null)}
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground cursor-pointer hover:underline">
+                {photoPreview ? "Change Photo" : "Add Photo"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    if (file.size > 2 * 1024 * 1024) { setAddError("Photo must be under 2 MB"); return }
+                    const reader = new FileReader()
+                    reader.onload = () => setPhotoPreview(reader.result as string)
+                    reader.readAsDataURL(file)
+                    e.target.value = ""
+                  }}
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">JPEG, PNG, or WebP — max 2 MB</p>
+            </div>
+          </div>
 
           {/* Basic Information */}
           <div className="space-y-3">
