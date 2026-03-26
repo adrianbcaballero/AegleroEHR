@@ -145,6 +145,7 @@ def list_templates():
     for t in templates:
         data = _serialize_template(t)
         data["instanceCount"] = counts.get(t.id, 0)
+        data["accessLevel"] = _get_access_level(t, g.user)
         result.append(data)
 
     return result, 200
@@ -498,6 +499,11 @@ def create_patient_form(patient_id):
         log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip, description=f"Form creation failed — template #{template_id} not found or archived")
         return {"error": "template not found or archived"}, 404
 
+    access_level = _get_access_level(template, g.user)
+    if access_level not in ("edit", "sign"):
+        log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip, description=f"Form creation denied — role '{g.user.role_name}' lacks edit/sign access to template '{template.name}'")
+        return {"error": "forbidden — insufficient access to this form template"}, 403
+
     form_data = data.get("formData", {})
     if not isinstance(form_data, dict):
         log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip, description="Form creation failed — formData must be an object")
@@ -567,7 +573,9 @@ def update_patient_form(patient_id, form_id):
         status = (data["status"] or "").strip()
         if status not in {"draft", "completed"}:
             return {"error": "status must be draft or completed"}, 400
-        # Signing is gated per-template by FormTemplateAccess (access_level == "sign")
+        if status == "completed" and access_level != "sign":
+            log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Sign denied — role '{g.user.role_name}' lacks sign access for form #{form_id}")
+            return {"error": "forbidden — sign access required to complete this form"}, 403
         f.status = status
         if status == "completed" and not f.signed_at:
             f.signed_by_name = g.user.full_name or g.user.username

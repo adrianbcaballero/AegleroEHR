@@ -567,8 +567,8 @@ function NewFormDialog({ patientCode, onCreated, categoryFilter }: { patientCode
     if (open) {
       getTemplates()
         .then((t) => {
-          const active = t.filter((tpl) => tpl.status === "active")
-          setTemplates(categoryFilter ? active.filter((tpl) => tpl.category === categoryFilter) : active)
+          const editable = t.filter((tpl) => tpl.status === "active" && (tpl.accessLevel === "edit" || tpl.accessLevel === "sign"))
+          setTemplates(categoryFilter ? editable.filter((tpl) => tpl.category === categoryFilter) : editable)
         })
         .catch(() => {})
     }

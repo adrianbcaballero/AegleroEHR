@@ -427,6 +427,7 @@ export interface FormTemplate {
   createdAt: string | null
   updatedAt: string | null
   instanceCount?: number
+  accessLevel?: "view" | "edit" | "sign" | null
 }
 
 export interface PatientFormEntry {
