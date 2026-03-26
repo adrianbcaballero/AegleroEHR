@@ -31,6 +31,7 @@ def _serialize_user(u: User):
         "locked_until": u.locked_until.isoformat() if u.locked_until else None,
         "last_login": None,
         "careTeamIds": care_team_ids,
+        "avatar": u.avatar,
     }
 
 

@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Label } from "@/components/ui/label"
 import {
   Table,
@@ -538,8 +538,9 @@ export function ManageUsersView() {
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="size-8">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                        <Avatar className="size-10">
+                          {user.avatar && <AvatarImage src={user.avatar} alt={user.full_name || user.username} />}
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm">
                             {getInitials(user)}
                           </AvatarFallback>
                         </Avatar>

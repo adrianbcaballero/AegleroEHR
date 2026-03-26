@@ -303,6 +303,7 @@ export interface SystemUser {
   permanently_locked: boolean
   locked_until: string | null
   last_login: string | null
+  avatar: string | null
 }
 
 export function getUsers() {
