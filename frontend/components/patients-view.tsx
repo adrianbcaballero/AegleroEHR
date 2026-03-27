@@ -23,6 +23,8 @@ import {
   Eye,
   ImagePlus,
   CalendarIcon,
+  ChevronDown,
+  Circle,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -1204,6 +1206,8 @@ export function PatientProfileView({
   const [showDischarge, setShowDischarge] = useState(false)
   const [dischargeReason, setDischargeReason] = useState("completed")
   const [consentRefreshKey, setConsentRefreshKey] = useState(0)
+  const [checklistOpen, setChecklistOpen] = useState(false)
+  const [hasActiveConsent, setHasActiveConsent] = useState(false)
 
   const canAdmit = userPermissions.includes("frontdesk.patients.pending")
   const canDischarge = userPermissions.includes("archive.manage")
@@ -1321,6 +1325,12 @@ export function PatientProfileView({
   useEffect(() => {
     Promise.resolve().then(() => fetchForms())
   }, [patientId, fetchForms])
+
+  // Check for active 42 CFR consent (for admission checklist)
+  useEffect(() => {
+    if (!patient || patient.status !== "pending") return
+    getPart2Consents(patientId).then((c) => setHasActiveConsent(c.some((x) => x.status === "active"))).catch(() => {})
+  }, [patientId, patient?.status, consentRefreshKey])
 
   if (loading) {
     return (
@@ -1500,15 +1510,79 @@ export function PatientProfileView({
         </DialogContent>
       </Dialog>
 
-      {/* Pending banner */}
-      {patient.status === "pending" && (
-        <div className="flex items-center gap-3 p-4 rounded-lg border border-chart-4/30 bg-chart-4/10">
-          <AlertTriangle className="size-4 text-chart-4 shrink-0" />
-          <p className="text-sm text-chart-4 font-medium">
-            Pending Admission — complete intake forms before admitting this patient.
-          </p>
-        </div>
-      )}
+      {/* Pending admission checklist */}
+      {patient.status === "pending" && (() => {
+        const requiredTemplates = templates.filter((t) => t.requiredForAdmission)
+        const checkItems: { label: string; done: boolean; action?: () => void }[] = []
+
+        // Required forms
+        for (const tmpl of requiredTemplates) {
+          const completed = forms.some((f) => f.templateId === tmpl.id && f.status === "completed")
+          checkItems.push({
+            label: tmpl.name,
+            done: completed,
+            action: () => {
+              const cat = tmpl.category
+              setActiveTab(cat)
+              const existing = forms.find((f) => f.templateId === tmpl.id)
+              if (existing) setSelectedFormId(existing.id)
+            },
+          })
+        }
+
+        // 42 CFR Part 2 consent
+        checkItems.push({ label: "42 CFR Part 2 Consent", done: hasActiveConsent, action: () => setActiveTab("42-cfr-part-2") })
+
+        // Insurance on file
+        checkItems.push({ label: "Insurance on file", done: !!(patient.insurance && patient.insurance.trim()) })
+
+        // Emergency contact
+        checkItems.push({ label: "Emergency contact on file", done: !!(patient.emergencyContactName && patient.emergencyContactPhone) })
+
+        const completedCount = checkItems.filter((i) => i.done).length
+        const allDone = completedCount === checkItems.length
+
+        return (
+          <div className={`rounded-lg border ${allDone ? "border-chart-5/30 bg-chart-5/10" : "border-chart-4/30 bg-chart-4/10"}`}>
+            <button
+              onClick={() => setChecklistOpen((o) => !o)}
+              className="flex items-center gap-3 w-full p-4 text-left"
+            >
+              {allDone
+                ? <CheckCircle2 className="size-4 text-chart-5 shrink-0" />
+                : <AlertTriangle className="size-4 text-chart-4 shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${allDone ? "text-chart-5" : "text-chart-4"}`}>
+                  {allDone ? "Ready for Admission" : "Pending Admission"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {completedCount} of {checkItems.length} requirements completed
+                </p>
+              </div>
+              <ChevronDown className={`size-4 text-muted-foreground transition-transform ${checklistOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {checklistOpen && (
+              <div className="px-4 pb-4 flex flex-col gap-1.5">
+                <Separator />
+                {checkItems.map((item, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-2.5 py-1.5 px-2 rounded-md text-sm ${item.action ? "cursor-pointer hover:bg-muted/40 transition-colors" : ""}`}
+                    onClick={item.action}
+                  >
+                    {item.done
+                      ? <CheckCircle2 className="size-4 text-chart-5 shrink-0" />
+                      : <Circle className="size-4 text-muted-foreground/40 shrink-0" />}
+                    <span className={item.done ? "text-muted-foreground line-through" : "text-foreground font-medium"}>{item.label}</span>
+                    {!item.done && item.action && <ChevronRight className="size-3 text-muted-foreground ml-auto" />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 42 CFR Part 2 status banner */}
       <Part2StatusBanner patientCode={patient.id} refreshKey={consentRefreshKey} />
