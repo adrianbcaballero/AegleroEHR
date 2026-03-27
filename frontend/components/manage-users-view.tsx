@@ -3,10 +3,8 @@
 import { useState, useEffect } from "react"
 import {
   Search,
-  UserCog,
-  Shield,
-  CheckCircle2,
   Lock,
+  Wrench,
   Unlock,
   MoreHorizontal,
   Loader2,
@@ -419,9 +417,6 @@ export function ManageUsersView() {
     )
   })
 
-  const activeCount = users.filter((u) => !u.is_locked).length
-  const lockedCount = users.filter((u) => u.is_locked).length
-  const totalRoles = new Set(users.map((u) => u.roleId)).size
 
   return (
     <div className="flex flex-col gap-6">
@@ -430,7 +425,7 @@ export function ManageUsersView() {
         <div>
           <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Manage Users</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            User accounts, lockout status, and access management
+            User account management
           </p>
         </div>
         <Button
@@ -440,46 +435,6 @@ export function ManageUsersView() {
           <Plus className="mr-2 size-4" />
           Create User
         </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <UserCog className="size-3.5 text-foreground" />
-              <p className="text-xs text-muted-foreground font-medium">Total Users</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-foreground">{users.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <CheckCircle2 className="size-3.5 text-accent" />
-              <p className="text-xs text-muted-foreground font-medium">Active</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-accent">{activeCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Lock className="size-3.5 text-destructive" />
-              <p className="text-xs text-muted-foreground font-medium">Locked</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-destructive">{lockedCount}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Shield className="size-3.5 text-primary" />
-              <p className="text-xs text-muted-foreground font-medium">Roles</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-primary">{totalRoles}</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Search */}
@@ -529,8 +484,9 @@ export function ManageUsersView() {
                   <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Role</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground hidden lg:table-cell">Credentials</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Failed Attempts</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
+                  <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Last Login</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground hidden lg:table-cell">Contact</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground w-10"><Wrench className="size-3.5 text-muted-foreground mx-auto" /></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -582,15 +538,22 @@ export function ManageUsersView() {
                           Temp Locked
                         </Badge>
                       ) : (
-                        <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent">
+                        <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-500">
                           Active
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <span className={`text-sm ${user.failed_attempts > 0 ? "text-chart-4 font-medium" : "text-muted-foreground"}`}>
-                        {user.failed_attempts}
+                      <span className="text-sm text-muted-foreground">
+                        {user.last_login ? new Date(user.last_login).toLocaleDateString() : "Never"}
                       </span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {user.email ? (
+                        <span className="text-sm text-muted-foreground">{user.email}</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

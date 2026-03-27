@@ -29,7 +29,7 @@ def _serialize_user(u: User):
         "is_locked": is_temp_locked or u.permanently_locked,
         "permanently_locked": u.permanently_locked,
         "locked_until": u.locked_until.isoformat() if u.locked_until else None,
-        "last_login": None,
+        "last_login": u.last_login.isoformat() if u.last_login else None,
         "careTeamIds": care_team_ids,
         "avatar": u.avatar,
     }
