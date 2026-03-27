@@ -21,6 +21,8 @@ def _serialize(c: Part2Consent):
         "expiration": c.expiration.isoformat() if c.expiration else None,
         "status": c.status,
         "patientSignature": c.patient_signature,
+        "witnessSignature": c.witness_signature,
+        "witnessName": c.witness_name,
         "signedAt": c.signed_at.isoformat() if c.signed_at else None,
         "revokedAt": c.revoked_at.isoformat() if c.revoked_at else None,
         "revokedBy": c.revoked_by,
@@ -95,6 +97,8 @@ def create_consent(patient_id):
         expiration=expiration,
         status="active",
         patient_signature=patient_signature,
+        witness_signature=g.user.signature_data,
+        witness_name=g.user.full_name or g.user.username,
         signed_at=now,
         created_by=g.user.id,
     )

@@ -691,6 +691,10 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
   const [expirationDate, setExpirationDate] = useState<Date | undefined>(undefined)
   const [acknowledged, setAcknowledged] = useState(false)
 
+  // Witness (logged-in staff) signature
+  const [witnessSignature, setWitnessSignature] = useState<string | null>(null)
+  const [witnessName, setWitnessName] = useState("")
+
   // Patient signature canvas
   const sigCanvasRef = useRef<HTMLCanvasElement>(null)
   const sigDrawing = useRef(false)
@@ -707,6 +711,15 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
   }, [patientCode])
 
   useEffect(() => { load() }, [load])
+
+  // Load staff signature when dialog opens
+  useEffect(() => {
+    if (!showNew) return
+    getMe().then((me) => {
+      setWitnessSignature(me.signature_data ?? null)
+      setWitnessName(me.full_name || me.username)
+    }).catch(() => {})
+  }, [showNew])
 
   // Touch support for patient signature canvas
   useEffect(() => {
@@ -968,6 +981,21 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
                 onClick={() => { const ctx = sigCanvasRef.current?.getContext("2d"); if (ctx && sigCanvasRef.current) ctx.clearRect(0, 0, sigCanvasRef.current.width, sigCanvasRef.current.height) }}>
                 Clear Signature
               </Button>
+            </div>
+
+            {/* Witness (staff) signature */}
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs font-medium text-foreground">Witness Signature (Staff)</Label>
+              {witnessSignature ? (
+                <div className="rounded-md border border-border bg-muted/30 p-3">
+                  <img src={witnessSignature} alt="Witness signature" className="h-14 w-auto object-contain object-left" />
+                  <p className="text-xs text-muted-foreground mt-1">Witnessed by <span className="font-medium text-foreground">{witnessName}</span></p>
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-border bg-muted/20 p-3">
+                  <p className="text-xs text-muted-foreground">No saved signature found. Please save your signature in the sidebar menu first.</p>
+                </div>
+              )}
             </div>
 
             {error && <p className="text-xs text-destructive">{error}</p>}

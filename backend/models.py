@@ -508,6 +508,10 @@ class Part2Consent(db.Model):
     patient_signature = db.Column(db.Text, nullable=True)
     signed_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
+    # Witness (staff member recording the consent)
+    witness_signature = db.Column(db.Text, nullable=True)
+    witness_name = db.Column(db.String(200), nullable=True)
+
     # Revocation tracking
     revoked_at = db.Column(db.DateTime(timezone=True), nullable=True)
     revoked_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)

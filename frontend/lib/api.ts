@@ -567,6 +567,8 @@ export interface Part2Consent {
   expiration: string
   status: "active" | "revoked"
   patientSignature: string | null
+  witnessSignature: string | null
+  witnessName: string | null
   signedAt: string | null
   revokedAt: string | null
   revokedBy: number | null
