@@ -112,19 +112,69 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
       .catch(() => setLoadingExisting(false))
   }, [open])
 
-  const getPos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const getPosFromNative = (e: MouseEvent | TouchEvent) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
     const rect = canvas.getBoundingClientRect()
-    if ("touches" in e) {
+    if ("touches" in e && e.touches.length > 0) {
       const t = e.touches[0]
       return { x: (t.clientX - rect.left) * (canvas.width / rect.width), y: (t.clientY - rect.top) * (canvas.height / rect.height) }
     }
+    if ("clientX" in e) {
+      return { x: (e.clientX - rect.left) * (canvas.width / rect.width), y: (e.clientY - rect.top) * (canvas.height / rect.height) }
+    }
+    return { x: 0, y: 0 }
+  }
+
+  const getPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
     return { x: (e.clientX - rect.left) * (canvas.width / rect.width), y: (e.clientY - rect.top) * (canvas.height / rect.height) }
   }
 
-  const startDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
+  // Use native event listeners for touch to allow preventDefault on non-passive listeners
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault()
+      drawing.current = true
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+      const { x, y } = getPosFromNative(e)
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      if (!drawing.current) return
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+      ctx.lineWidth = 2
+      ctx.lineCap = "round"
+      ctx.strokeStyle = "#1a1a2e"
+      const { x, y } = getPosFromNative(e)
+      ctx.lineTo(x, y)
+      ctx.stroke()
+    }
+
+    const handleTouchEnd = () => { drawing.current = false }
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false })
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false })
+    canvas.addEventListener("touchend", handleTouchEnd)
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart)
+      canvas.removeEventListener("touchmove", handleTouchMove)
+      canvas.removeEventListener("touchend", handleTouchEnd)
+    }
+  }, [open, loadingExisting])
+
+  const startDraw = (e: React.MouseEvent<HTMLCanvasElement>) => {
     drawing.current = true
     const ctx = canvasRef.current?.getContext("2d")
     if (!ctx) return
@@ -133,8 +183,7 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
     ctx.moveTo(x, y)
   }
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!drawing.current) return
     const ctx = canvasRef.current?.getContext("2d")
     if (!ctx) return
@@ -171,7 +220,7 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-foreground">My Signature</DialogTitle>
           <DialogDescription>
@@ -184,8 +233,8 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            <div className="relative rounded-lg border-2 border-dashed border-border bg-white overflow-hidden" style={{ touchAction: "none" }}>
+          <div className="flex flex-col gap-3">
+            <div className="relative w-full rounded-lg border-2 border-dashed border-border bg-white overflow-hidden" style={{ touchAction: "none" }}>
               <canvas
                 ref={canvasRef}
                 width={440}
@@ -195,22 +244,19 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
                 onMouseMove={draw}
                 onMouseUp={stopDraw}
                 onMouseLeave={stopDraw}
-                onTouchStart={startDraw}
-                onTouchMove={draw}
-                onTouchEnd={stopDraw}
               />
               <p className="absolute bottom-2 right-3 text-[10px] text-muted-foreground/40 pointer-events-none select-none">sign above</p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="bg-transparent text-foreground" onClick={generateFromName}>
-                <RefreshCw className="mr-1.5 size-3.5" /> Generate from name
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <Button variant="outline" size="sm" className="bg-transparent text-foreground text-xs" onClick={generateFromName}>
+                <RefreshCw className="mr-1 size-3" /> Generate
               </Button>
-              <Button variant="outline" size="sm" className="bg-transparent text-foreground" onClick={clearCanvas}>
-                <Trash2 className="mr-1.5 size-3.5" /> Clear
+              <Button variant="outline" size="sm" className="bg-transparent text-foreground text-xs" onClick={clearCanvas}>
+                <Trash2 className="mr-1 size-3" /> Clear
               </Button>
               {hasExisting && (
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-auto" onClick={handleRemove} disabled={saving}>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs col-span-2 sm:col-span-1" onClick={handleRemove} disabled={saving}>
                   Remove saved
                 </Button>
               )}
@@ -219,10 +265,10 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
             {error && <p className="text-sm text-destructive">{error}</p>}
             {saved && <p className="text-sm text-accent">Signature saved!</p>}
 
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <Button variant="outline" className="bg-transparent text-foreground" onClick={onClose}>Cancel</Button>
               <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSave} disabled={saving}>
-                {saving ? <><Loader2 className="mr-2 size-4 animate-spin" />Saving…</> : <><PenLine className="mr-2 size-4" />Save Signature</>}
+                {saving ? <><Loader2 className="mr-2 size-4 animate-spin" />Saving…</> : <><PenLine className="mr-2 size-4" />Save</>}
               </Button>
             </div>
           </div>
