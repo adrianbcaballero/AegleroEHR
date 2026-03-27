@@ -675,7 +675,38 @@ const DISCLOSURE_CATEGORIES = [
   "Lab & Drug Screen Results",
 ] as const
 
-function Part2ConsentSection({ patientCode }: { patientCode: string }) {
+function Part2StatusBanner({ patientCode, refreshKey }: { patientCode: string; refreshKey: number }) {
+  const [consents, setConsents] = useState<Part2Consent[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getPart2Consents(patientCode).then(setConsents).catch(() => {}).finally(() => setLoading(false))
+  }, [patientCode, refreshKey])
+
+  const active = consents.find((c) => c.status === "active")
+
+  if (loading) return null
+
+  return active ? (
+    <div className="flex items-start gap-2 rounded-md bg-chart-5/10 border border-chart-5/20 px-3 py-2">
+      <ShieldCheck className="size-4 text-chart-5 shrink-0 mt-0.5" />
+      <div className="text-xs text-foreground">
+        <span className="font-semibold">Active 42 CFR Part 2 consent on file</span>
+        {" — "} Expires: <span className="font-medium">{active.expiration ? format(new Date(active.expiration + "T00:00:00"), "MM/dd/yyyy") : "—"}</span>
+        {" · "} Disclosed to: <span className="font-medium">{active.receivingParty}</span>
+      </div>
+    </div>
+  ) : (
+    <div className="flex items-start gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2">
+      <ShieldAlert className="size-4 text-destructive shrink-0 mt-0.5" />
+      <p className="text-xs text-destructive font-medium">
+        No active 42 CFR Part 2 consent on file. Patient SUD information cannot be disclosed to any third party without written consent.
+      </p>
+    </div>
+  )
+}
+
+function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; onChanged?: () => void }) {
   const [consents, setConsents] = useState<Part2Consent[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -739,8 +770,6 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
     return () => { canvas.removeEventListener("touchstart", onStart); canvas.removeEventListener("touchmove", onMove); canvas.removeEventListener("touchend", onEnd) }
   }, [showNew])
 
-  const activeConsent = consents.find((c) => c.status === "active")
-
   const resetNewForm = () => {
     setReceivingParty("")
     setPurpose("")
@@ -787,6 +816,7 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
       setShowNew(false)
       resetNewForm()
       load()
+      onChanged?.()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save consent")
     } finally {
@@ -803,6 +833,7 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
       setShowRevoke(null)
       setRevokeReason("")
       load()
+      onChanged?.()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to revoke consent")
     } finally {
@@ -812,46 +843,24 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
 
   return (
     <Card className="border-border/60">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {activeConsent
-              ? <ShieldCheck className="size-4 text-chart-5" />
-              : <ShieldAlert className="size-4 text-destructive" />}
-            <CardTitle className="text-sm font-heading font-semibold text-foreground">
-              42 CFR Part 2 Consent
-            </CardTitle>
-          </div>
+          <CardTitle className="text-base font-heading font-semibold text-foreground">
+            42 CFR Part 2 Consents
+            <span className="ml-2 text-sm font-normal text-muted-foreground">({consents.length})</span>
+          </CardTitle>
           <Button size="sm" variant="outline" className="h-7 text-xs bg-transparent text-foreground" onClick={() => { resetNewForm(); setShowNew(true) }}>
             <Plus className="mr-1 size-3" /> New Consent
           </Button>
         </div>
-
-        {/* Status banner */}
-        {!loading && (
-          activeConsent ? (
-            <div className="mt-2 flex items-start gap-2 rounded-md bg-chart-5/10 border border-chart-5/20 px-3 py-2">
-              <ShieldCheck className="size-4 text-chart-5 shrink-0 mt-0.5" />
-              <div className="text-xs text-foreground">
-                <span className="font-semibold">Active consent on file</span>
-                {" — "} Expires: <span className="font-medium">{activeConsent.expiration ? format(new Date(activeConsent.expiration + "T00:00:00"), "MM/dd/yyyy") : "—"}</span>
-                {" · "} Disclosed to: <span className="font-medium">{activeConsent.receivingParty}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-2 flex items-start gap-2 rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2">
-              <ShieldAlert className="size-4 text-destructive shrink-0 mt-0.5" />
-              <p className="text-xs text-destructive font-medium">
-                No active 42 CFR Part 2 consent on file. Patient SUD information cannot be disclosed to any third party without written consent.
-              </p>
-            </div>
-          )
-        )}
       </CardHeader>
 
-      {/* Consent history table */}
-      {consents.length > 0 && (
-        <CardContent className="p-0">
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : consents.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -885,8 +894,12 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      )}
+        ) : (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            No 42 CFR Part 2 consents yet for this patient.
+          </div>
+        )}
+      </CardContent>
 
       {/* New Consent Dialog */}
       <Dialog open={showNew} onOpenChange={(o) => { if (!o) { setShowNew(false); resetNewForm() } }}>
@@ -1063,6 +1076,7 @@ export function PatientProfileView({
   const [actionError, setActionError] = useState("")
   const [showDischarge, setShowDischarge] = useState(false)
   const [dischargeReason, setDischargeReason] = useState("completed")
+  const [consentRefreshKey, setConsentRefreshKey] = useState(0)
 
   const canAdmit = userPermissions.includes("frontdesk.patients.pending")
   const canDischarge = userPermissions.includes("archive.manage")
@@ -1369,8 +1383,8 @@ export function PatientProfileView({
         </div>
       )}
 
-      {/* 42 CFR Part 2 Consent */}
-      <Part2ConsentSection patientCode={patient.id} />
+      {/* 42 CFR Part 2 status banner */}
+      <Part2StatusBanner patientCode={patient.id} refreshKey={consentRefreshKey} />
 
       {/* Patient Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1626,7 +1640,14 @@ export function PatientProfileView({
                   </TabsTrigger>
                 )
               })}
+              <TabsTrigger value="42-cfr-part-2" className="text-xs">
+                42 CFR Part 2
+              </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="42-cfr-part-2" className="mt-3">
+              <Part2ConsentSection patientCode={patient.id} onChanged={() => setConsentRefreshKey((k) => k + 1)} />
+            </TabsContent>
 
             {visibleCategories.map((cat: string) => {
               const catForms = forms.filter((f) => f.templateCategory === cat)
