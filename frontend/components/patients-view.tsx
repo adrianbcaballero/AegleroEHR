@@ -730,6 +730,9 @@ function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; 
   const sigCanvasRef = useRef<HTMLCanvasElement>(null)
   const sigDrawing = useRef(false)
 
+  // Detail view state
+  const [viewConsent, setViewConsent] = useState<Part2Consent | null>(null)
+
   // Revoke form state
   const [revokeReason, setRevokeReason] = useState("")
 
@@ -873,7 +876,7 @@ function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; 
             </TableHeader>
             <TableBody>
               {consents.map((c) => (
-                <TableRow key={c.id}>
+                <TableRow key={c.id} className="cursor-pointer transition-colors" onClick={() => setViewConsent(c)}>
                   <TableCell className="text-sm font-medium text-foreground">{c.receivingParty}</TableCell>
                   <TableCell className="hidden sm:table-cell text-xs text-muted-foreground max-w-[200px] truncate">{c.purpose}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{c.expiration ? format(new Date(c.expiration + "T00:00:00"), "MM/dd/yyyy") : "—"}</TableCell>
@@ -883,12 +886,7 @@ function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; 
                       : <Badge variant="secondary" className="text-[10px] bg-destructive/10 text-destructive border-destructive/20">Revoked</Badge>}
                   </TableCell>
                   <TableCell>
-                    {c.status === "active" && (
-                      <Button size="sm" variant="ghost" className="h-6 text-xs text-destructive hover:text-destructive px-2"
-                        onClick={() => { setShowRevoke(c.id); setError("") }}>
-                        <XCircle className="size-3 mr-1" />Revoke
-                      </Button>
-                    )}
+                    <ChevronRight className="size-4 text-muted-foreground" />
                   </TableCell>
                 </TableRow>
               ))}
@@ -1047,6 +1045,135 @@ function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; 
               Confirm Revocation
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Consent Detail Dialog */}
+      <Dialog open={viewConsent !== null} onOpenChange={(o) => { if (!o) setViewConsent(null) }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          {viewConsent && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2">
+                  {viewConsent.status === "active"
+                    ? <ShieldCheck className="size-5 text-chart-5" />
+                    : <ShieldAlert className="size-5 text-destructive" />}
+                  <DialogTitle className="font-heading text-foreground">42 CFR Part 2 Consent #{viewConsent.id}</DialogTitle>
+                </div>
+                <DialogDescription>
+                  {viewConsent.status === "active"
+                    ? "This consent is currently active."
+                    : "This consent has been revoked."}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex flex-col gap-4 pt-1">
+                {/* Status badge */}
+                <div>
+                  {viewConsent.status === "active"
+                    ? <Badge variant="secondary" className="text-xs bg-chart-5/10 text-chart-5 border-chart-5/20">Active</Badge>
+                    : <Badge variant="secondary" className="text-xs bg-destructive/10 text-destructive border-destructive/20">Revoked</Badge>}
+                </div>
+
+                {/* Disclosure details */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Receiving Party</p>
+                    <p className="text-sm font-medium text-foreground">{viewConsent.receivingParty}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Purpose of Disclosure</p>
+                    <p className="text-sm font-medium text-foreground">{viewConsent.purpose}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Expiration Date</p>
+                    <p className="text-sm font-medium text-foreground">{viewConsent.expiration ? format(new Date(viewConsent.expiration + "T00:00:00"), "MM/dd/yyyy") : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Created</p>
+                    <p className="text-sm font-medium text-foreground">{viewConsent.createdAt ? new Date(viewConsent.createdAt).toLocaleString() : "—"}</p>
+                  </div>
+                </div>
+
+                {/* Information disclosed */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Information Disclosed</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {viewConsent.informationScope.split("; ").map((item, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs bg-muted text-foreground">{item}</Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Patient signature */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">Patient Signature</p>
+                  {viewConsent.patientSignature?.startsWith("data:image") ? (
+                    <div className="rounded-md border border-border bg-background p-3">
+                      <img src={viewConsent.patientSignature} alt="Patient signature" className="h-16 w-auto object-contain object-left" />
+                      {viewConsent.signedAt && (
+                        <p className="text-xs text-muted-foreground mt-2">Signed on {new Date(viewConsent.signedAt).toLocaleString()}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm italic text-foreground">{viewConsent.patientSignature || "—"}</p>
+                  )}
+                </div>
+
+                {/* Witness signature */}
+                {viewConsent.witnessSignature && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Witness Signature</p>
+                    <div className="rounded-md border border-border bg-muted/30 p-3">
+                      <img src={viewConsent.witnessSignature} alt="Witness signature" className="h-14 w-auto object-contain object-left" />
+                      {viewConsent.witnessName && (
+                        <p className="text-xs text-muted-foreground mt-2">Witnessed by <span className="font-medium text-foreground">{viewConsent.witnessName}</span></p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Revocation details */}
+                {viewConsent.status === "revoked" && (
+                  <>
+                    <Separator />
+                    <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3">
+                      <p className="text-xs font-semibold text-destructive mb-2">Revocation Details</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Revoked On</p>
+                          <p className="font-medium text-foreground">{viewConsent.revokedAt ? new Date(viewConsent.revokedAt).toLocaleString() : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Reason</p>
+                          <p className="font-medium text-foreground">{viewConsent.revocationReason || "No reason provided"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Federal notice */}
+                <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
+                  <p className="font-semibold text-foreground mb-1">Federal Prohibition Notice (42 CFR §2.32)</p>
+                  This information has been disclosed from records protected by federal confidentiality rules (42 CFR Part 2).
+                  Federal rules prohibit any further disclosure without express written consent of the patient or as otherwise
+                  permitted by 42 CFR Part 2.
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                {viewConsent.status === "active" && (
+                  <Button variant="destructive" size="sm" onClick={() => { setShowRevoke(viewConsent.id); setViewConsent(null); setError("") }}>
+                    <XCircle className="size-3 mr-1" />Revoke Consent
+                  </Button>
+                )}
+                <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setViewConsent(null)}>Close</Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </Card>
