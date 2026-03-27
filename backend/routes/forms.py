@@ -397,7 +397,9 @@ def _maybe_generate_recurring_forms(p: Patient, user, tenant_id: int):
 
         should_create = False
         if last_form is None:
-            should_create = True
+            # No forms exist yet for this template — don't auto-create;
+            # the first instance must be created manually.
+            pass
         elif last_form.status == "completed":
             reference_time = last_form.signed_at or last_form.updated_at
             if reference_time and (now - reference_time) >= interval:
