@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, Plus, Pencil, Trash2, Loader2, UserPlus, X } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, X } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,6 +22,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { listCareTeams, createCareTeam, updateCareTeam, deleteCareTeam, getUsersPicker } from "@/lib/api"
 import type { CareTeam } from "@/lib/api"
 
@@ -41,11 +49,12 @@ function MemberSelector({
   disabled?: boolean
 }) {
   const [search, setSearch] = useState("")
+  const [focused, setFocused] = useState(false)
   const selectedUsers = users.filter((u) => selected.includes(u.id))
-  const filtered = users.filter(
+  const available = users.filter((u) => !selected.includes(u.id))
+  const filtered = available.filter(
     (u) =>
-      !selected.includes(u.id) &&
-      (u.full_name || u.username).toLowerCase().includes(search.toLowerCase())
+      !search || (u.full_name || u.username).toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -74,10 +83,12 @@ function MemberSelector({
             placeholder="Search users to add..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
             className="h-8 text-sm"
           />
-          {search && filtered.length > 0 && (
-            <div className="rounded-md border border-border bg-card max-h-36 overflow-y-auto">
+          {focused && filtered.length > 0 && (
+            <div className="rounded-md border border-border bg-card max-h-48 overflow-y-auto">
               {filtered.map((u) => (
                 <button
                   key={u.id}
@@ -90,13 +101,13 @@ function MemberSelector({
               ))}
             </div>
           )}
-          {search && filtered.length === 0 && (
+          {focused && search && filtered.length === 0 && (
             <p className="text-xs text-muted-foreground px-1">No matching users</p>
           )}
         </div>
       )}
-      {selectedUsers.length === 0 && !search && (
-        <p className="text-xs text-muted-foreground">No members added. Search above to add.</p>
+      {selectedUsers.length === 0 && !focused && (
+        <p className="text-xs text-muted-foreground">No members added. Click above to add.</p>
       )}
     </div>
   )
@@ -114,6 +125,8 @@ export function ManageCareTeamsView() {
   // Edit dialog
   const [editTeam, setEditTeam] = useState<CareTeam | null>(null)
   const [editName, setEditName] = useState("")
+  const [editDescription, setEditDescription] = useState("")
+  const [editLeadUserId, setEditLeadUserId] = useState<number | null>(null)
   const [editMemberIds, setEditMemberIds] = useState<number[]>([])
   const [editError, setEditError] = useState("")
   const [editLoading, setEditLoading] = useState(false)
@@ -121,6 +134,8 @@ export function ManageCareTeamsView() {
   // Create dialog
   const [showCreate, setShowCreate] = useState(false)
   const [createName, setCreateName] = useState("")
+  const [createDescription, setCreateDescription] = useState("")
+  const [createLeadUserId, setCreateLeadUserId] = useState<number | null>(null)
   const [createMemberIds, setCreateMemberIds] = useState<number[]>([])
   const [createError, setCreateError] = useState("")
   const [createLoading, setCreateLoading] = useState(false)
@@ -144,6 +159,8 @@ export function ManageCareTeamsView() {
   const openEdit = (team: CareTeam) => {
     setEditTeam(team)
     setEditName(team.name)
+    setEditDescription(team.description || "")
+    setEditLeadUserId(team.leadUserId)
     setEditMemberIds(team.members.map((m) => m.userId))
     setEditError("")
   }
@@ -157,7 +174,7 @@ export function ManageCareTeamsView() {
     setEditLoading(true)
     setEditError("")
     try {
-      await updateCareTeam(editTeam.id, { name: editName.trim(), memberIds: editMemberIds })
+      await updateCareTeam(editTeam.id, { name: editName.trim(), description: editDescription.trim(), leadUserId: editLeadUserId, memberIds: editMemberIds })
       setEditTeam(null)
       fetchAll()
     } catch (err: unknown) {
@@ -169,6 +186,8 @@ export function ManageCareTeamsView() {
 
   const openCreate = () => {
     setCreateName("")
+    setCreateDescription("")
+    setCreateLeadUserId(null)
     setCreateMemberIds([])
     setCreateError("")
     setShowCreate(true)
@@ -182,7 +201,7 @@ export function ManageCareTeamsView() {
     setCreateLoading(true)
     setCreateError("")
     try {
-      await createCareTeam({ name: createName.trim(), memberIds: createMemberIds })
+      await createCareTeam({ name: createName.trim(), description: createDescription.trim() || undefined, leadUserId: createLeadUserId, memberIds: createMemberIds })
       setShowCreate(false)
       fetchAll()
     } catch (err: unknown) {
@@ -205,8 +224,6 @@ export function ManageCareTeamsView() {
     }
   }
 
-  const totalMembers = teams.reduce((sum, t) => sum + t.members.length, 0)
-
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
@@ -221,28 +238,6 @@ export function ManageCareTeamsView() {
           <Plus className="mr-2 size-4" />
           New Care Team
         </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Users className="size-3.5 text-foreground" />
-              <p className="text-xs text-muted-foreground font-medium">Total Teams</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-foreground">{teams.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <UserPlus className="size-3.5 text-primary" />
-              <p className="text-xs text-muted-foreground font-medium">Total Memberships</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-primary">{totalMembers}</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Loading / Error */}
@@ -274,8 +269,9 @@ export function ManageCareTeamsView() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-xs font-semibold text-muted-foreground">Team</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Team Lead</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Members</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Patients</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Active Patients</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground w-24" />
                 </TableRow>
               </TableHeader>
@@ -284,6 +280,10 @@ export function ManageCareTeamsView() {
                   <TableRow key={team.id}>
                     <TableCell>
                       <p className="text-sm font-medium text-foreground">{team.name}</p>
+                      {team.description && <p className="text-xs text-muted-foreground mt-0.5 max-w-[250px] break-words whitespace-normal">{team.description}</p>}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="text-sm text-muted-foreground">{team.leadUserName || "—"}</span>
                     </TableCell>
                     <TableCell>
                       {team.members.length > 0 ? (
@@ -338,7 +338,7 @@ export function ManageCareTeamsView() {
                 ))}
                 {teams.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-sm text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-sm text-muted-foreground">
                       No care teams yet. Create one to get started.
                     </TableCell>
                   </TableRow>
@@ -360,13 +360,45 @@ export function ManageCareTeamsView() {
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Team Name</Label>
+              <Label className="text-sm font-medium text-foreground">Team Name <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="e.g. Morning Shift Team"
                 value={editName}
                 onChange={(e) => { setEditName(e.target.value); setEditError("") }}
                 disabled={editLoading}
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium text-foreground">Description</Label>
+              <Textarea
+                placeholder="Brief description of this team's role"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                disabled={editLoading}
+                rows={2}
+                maxLength={150}
+                className="resize-none"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium text-foreground">Team Lead</Label>
+              <Select
+                value={editLeadUserId?.toString() || "none"}
+                onValueChange={(v) => setEditLeadUserId(v === "none" ? null : Number(v))}
+                disabled={editLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a team lead" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No lead assigned</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id.toString()}>
+                      {u.full_name ? `${u.full_name} (${u.username})` : u.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium text-foreground">Members</Label>
@@ -410,13 +442,45 @@ export function ManageCareTeamsView() {
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Team Name</Label>
+              <Label className="text-sm font-medium text-foreground">Team Name <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="e.g. Morning Shift Team"
                 value={createName}
                 onChange={(e) => { setCreateName(e.target.value); setCreateError("") }}
                 disabled={createLoading}
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium text-foreground">Description</Label>
+              <Textarea
+                placeholder="Brief description of this team's role"
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                disabled={createLoading}
+                rows={2}
+                maxLength={150}
+                className="resize-none"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-sm font-medium text-foreground">Team Lead</Label>
+              <Select
+                value={createLeadUserId?.toString() || "none"}
+                onValueChange={(v) => setCreateLeadUserId(v === "none" ? null : Number(v))}
+                disabled={createLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a team lead" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No lead assigned</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id.toString()}>
+                      {u.full_name ? `${u.full_name} (${u.username})` : u.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-medium text-foreground">Members</Label>

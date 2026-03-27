@@ -358,7 +358,10 @@ class CareTeam(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    lead_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
+    lead_user = db.relationship("User", foreign_keys=[lead_user_id], lazy="joined")
     members = db.relationship("CareTeamMember", backref="care_team", cascade="all, delete-orphan", lazy="joined")
 
     __table_args__ = (

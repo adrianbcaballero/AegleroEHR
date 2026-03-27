@@ -76,6 +76,9 @@ const ACTION_LABELS: Record<string, string> = {
   MFA_TOGGLE: "MFA Toggled",
   ASAM_SCORE: "ASAM Score",
   PART2_CREATE: "Part 2 Consent Created",
+  CARETEAM_CREATE: "Care Team Created",
+  CARETEAM_UPDATE: "Care Team Updated",
+  CARETEAM_DELETE: "Care Team Deleted",
 }
 
 function actionLabel(action: string): string {

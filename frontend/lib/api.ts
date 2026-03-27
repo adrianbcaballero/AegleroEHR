@@ -741,6 +741,9 @@ export interface CareTeamMember {
 export interface CareTeam {
   id: number
   name: string
+  description: string | null
+  leadUserId: number | null
+  leadUserName: string | null
   members: CareTeamMember[]
   patientCount: number
 }
@@ -749,11 +752,11 @@ export function listCareTeams() {
   return apiGet<CareTeam[]>("/api/careteams")
 }
 
-export function createCareTeam(data: { name: string; memberIds?: number[] }) {
+export function createCareTeam(data: { name: string; description?: string; leadUserId?: number | null; memberIds?: number[] }) {
   return apiPost<CareTeam>("/api/careteams", data)
 }
 
-export function updateCareTeam(teamId: number, data: { name?: string; memberIds?: number[] }) {
+export function updateCareTeam(teamId: number, data: { name?: string; description?: string; leadUserId?: number | null; memberIds?: number[] }) {
   return apiPut<CareTeam>(`/api/careteams/${teamId}`, data)
 }
 
