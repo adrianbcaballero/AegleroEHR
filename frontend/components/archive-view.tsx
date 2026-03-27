@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { searchArchive } from "@/lib/api"
 import type { Patient } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
@@ -137,7 +137,8 @@ export function ArchiveView({ userPermissions = [] }: { userPermissions?: string
                     onClick={() => setSelectedPatientId(p.id)}
                     className="flex items-center gap-3 p-3 rounded-lg border border-border/60 hover:bg-muted/40 transition-colors text-left w-full"
                   >
-                    <Avatar className="size-9 shrink-0">
+                    <Avatar className="size-12 shrink-0">
+                      {p.photo && <AvatarImage src={p.photo} alt={`${p.firstName} ${p.lastName}`} />}
                       <AvatarFallback className="bg-muted text-muted-foreground text-sm font-semibold">
                         {p.firstName[0]}{p.lastName[0]}
                       </AvatarFallback>
