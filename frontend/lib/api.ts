@@ -304,6 +304,12 @@ export interface SystemUser {
   locked_until: string | null
   last_login: string | null
   avatar: string | null
+  state_license: string | null
+  npi_number: string | null
+  dea_number: string | null
+  primary_license: string | null
+  secondary_license: string | null
+  nadean_number: string | null
 }
 
 export function getUsers() {
@@ -318,7 +324,7 @@ export function lockUser(userId: number) {
   return apiPost<{ ok: boolean }>(`/api/users/${userId}/lock`, {})
 }
 
-export function updateUser(userId: number, data: { username?: string; roleId?: number; full_name?: string; credentials?: string[] }) {
+export function updateUser(userId: number, data: { username?: string; roleId?: number; full_name?: string; email?: string; phone?: string; credentials?: string[]; state_license?: string; npi_number?: string; dea_number?: string; primary_license?: string; secondary_license?: string; nadean_number?: string }) {
   return apiPut<{ ok: boolean; user: SystemUser }>(`/api/users/${userId}`, data)
 }
 
@@ -331,6 +337,12 @@ export function createUser(data: {
   email?: string;
   phone?: string;
   credentials?: string[];
+  state_license?: string;
+  npi_number?: string;
+  dea_number?: string;
+  primary_license?: string;
+  secondary_license?: string;
+  nadean_number?: string;
 }) {
   return apiPost<{ ok: boolean; user: SystemUser; inviteToken?: string; inviteUrl?: string }>("/api/users", data)
 }

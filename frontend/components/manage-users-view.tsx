@@ -180,6 +180,12 @@ export function ManageUsersView() {
   const [editPhone, setEditPhone] = useState("")
   const [editCredentials, setEditCredentials] = useState<string[]>([])
   const [editCareTeamIds, setEditCareTeamIds] = useState<number[]>([])
+  const [editStateLicense, setEditStateLicense] = useState("")
+  const [editNpi, setEditNpi] = useState("")
+  const [editDea, setEditDea] = useState("")
+  const [editPrimaryLicense, setEditPrimaryLicense] = useState("")
+  const [editSecondaryLicense, setEditSecondaryLicense] = useState("")
+  const [editNadean, setEditNadean] = useState("")
   const [editError, setEditError] = useState("")
   const [editLoading, setEditLoading] = useState(false)
 
@@ -194,6 +200,12 @@ export function ManageUsersView() {
   const [createPhone, setCreatePhone] = useState("")
   const [createCredentials, setCreateCredentials] = useState<string[]>([])
   const [createCareTeamIds, setCreateCareTeamIds] = useState<number[]>([])
+  const [createStateLicense, setCreateStateLicense] = useState("")
+  const [createNpi, setCreateNpi] = useState("")
+  const [createDea, setCreateDea] = useState("")
+  const [createPrimaryLicense, setCreatePrimaryLicense] = useState("")
+  const [createSecondaryLicense, setCreateSecondaryLicense] = useState("")
+  const [createNadean, setCreateNadean] = useState("")
   const [createError, setCreateError] = useState("")
   const [createLoading, setCreateLoading] = useState(false)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
@@ -252,6 +264,12 @@ export function ManageUsersView() {
     setCreatePhone("")
     setCreateCredentials([])
     setCreateCareTeamIds([])
+    setCreateStateLicense("")
+    setCreateNpi("")
+    setCreateDea("")
+    setCreatePrimaryLicense("")
+    setCreateSecondaryLicense("")
+    setCreateNadean("")
     setCreateError("")
     setInviteLink(null)
     setCopied(false)
@@ -259,8 +277,16 @@ export function ManageUsersView() {
   }
 
   const handleCreateUser = async () => {
+    if (!createFullName.trim()) {
+      setCreateError("Full name is required")
+      return
+    }
     if (!createUsername.trim() || createUsername.trim().length < 3) {
       setCreateError("Username must be at least 3 characters")
+      return
+    }
+    if (!createEmail.trim()) {
+      setCreateError("Email is required")
       return
     }
     if (createMethod === "password" && (!createPassword || createPassword.length < 12)) {
@@ -281,10 +307,16 @@ export function ManageUsersView() {
         method: createMethod,
         password: createMethod === "password" ? createPassword : undefined,
         roleId: createRoleId,
-        full_name: createFullName.trim() || undefined,
-        email: createEmail.trim() || undefined,
+        full_name: createFullName.trim(),
+        email: createEmail.trim(),
         phone: createPhone.trim() || undefined,
         credentials: createCredentials,
+        state_license: createStateLicense.trim() || undefined,
+        npi_number: createNpi.trim() || undefined,
+        dea_number: createDea.trim() || undefined,
+        primary_license: createPrimaryLicense.trim() || undefined,
+        secondary_license: createSecondaryLicense.trim() || undefined,
+        nadean_number: createNadean.trim() || undefined,
       })
       if (createCareTeamIds.length > 0) {
         await setUserCareTeams(result.user.id, createCareTeamIds)
@@ -331,13 +363,27 @@ export function ManageUsersView() {
     setEditPhone(user.phone || "")
     setEditCredentials(user.credentials || [])
     setEditCareTeamIds(user.careTeamIds || [])
+    setEditStateLicense(user.state_license || "")
+    setEditNpi(user.npi_number || "")
+    setEditDea(user.dea_number || "")
+    setEditPrimaryLicense(user.primary_license || "")
+    setEditSecondaryLicense(user.secondary_license || "")
+    setEditNadean(user.nadean_number || "")
     setEditError("")
   }
 
   const handleEditUser = async () => {
     if (!editDialogUser) return
+    if (!editFullName.trim()) {
+      setEditError("Full name is required")
+      return
+    }
     if (!editUsername.trim() || editUsername.trim().length < 3) {
       setEditError("Username must be at least 3 characters")
+      return
+    }
+    if (!editEmail.trim()) {
+      setEditError("Email is required")
       return
     }
     if (!editRoleId) {
@@ -348,7 +394,7 @@ export function ManageUsersView() {
     setEditLoading(true)
     setEditError("")
 
-    const updates: { username?: string; roleId?: number; full_name?: string; email?: string; phone?: string; credentials?: string[] } = {}
+    const updates: Record<string, unknown> = {}
     if (editUsername !== editDialogUser.username) updates.username = editUsername.trim()
     if (editRoleId !== editDialogUser.roleId) updates.roleId = editRoleId
     if (editFullName !== (editDialogUser.full_name || "")) updates.full_name = editFullName.trim()
@@ -358,6 +404,12 @@ export function ManageUsersView() {
       editCredentials.length === editDialogUser.credentials.length &&
       editCredentials.every((c) => editDialogUser.credentials.includes(c))
     if (!credsSame) updates.credentials = editCredentials
+    if (editStateLicense !== (editDialogUser.state_license || "")) updates.state_license = editStateLicense.trim()
+    if (editNpi !== (editDialogUser.npi_number || "")) updates.npi_number = editNpi.trim()
+    if (editDea !== (editDialogUser.dea_number || "")) updates.dea_number = editDea.trim()
+    if (editPrimaryLicense !== (editDialogUser.primary_license || "")) updates.primary_license = editPrimaryLicense.trim()
+    if (editSecondaryLicense !== (editDialogUser.secondary_license || "")) updates.secondary_license = editSecondaryLicense.trim()
+    if (editNadean !== (editDialogUser.nadean_number || "")) updates.nadean_number = editNadean.trim()
 
     const origTeamIds = editDialogUser.careTeamIds || []
     const teamsSame =
@@ -684,7 +736,7 @@ export function ManageUsersView() {
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Full Name</Label>
+              <Label className="text-sm font-medium text-foreground">Full Name <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="Full name"
                 value={editFullName}
@@ -693,7 +745,7 @@ export function ManageUsersView() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Username</Label>
+              <Label className="text-sm font-medium text-foreground">Username <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="Username (min 3 characters)"
                 value={editUsername}
@@ -704,7 +756,7 @@ export function ManageUsersView() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-sm font-medium text-foreground">
-                  <Mail className="inline h-3.5 w-3.5 mr-1" />Email
+                  <Mail className="inline h-3.5 w-3.5 mr-1" />Email <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="email"
@@ -728,7 +780,7 @@ export function ManageUsersView() {
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Role</Label>
+              <Label className="text-sm font-medium text-foreground">Role <span className="text-destructive">*</span></Label>
               <Select
                 value={editRoleId?.toString() || ""}
                 onValueChange={(v) => { setEditRoleId(Number(v)); setEditError("") }}
@@ -753,6 +805,37 @@ export function ManageUsersView() {
                 onChange={setEditCredentials}
                 disabled={editLoading}
               />
+            </div>
+            {/* License / Identifier fields */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">State License</Label>
+                <Input placeholder="e.g. TX-12345" value={editStateLicense} onChange={(e) => setEditStateLicense(e.target.value)} disabled={editLoading} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">NPI Number</Label>
+                <Input placeholder="10-digit NPI" value={editNpi} onChange={(e) => setEditNpi(e.target.value)} disabled={editLoading} maxLength={10} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">DEA Number</Label>
+                <Input placeholder="DEA number" value={editDea} onChange={(e) => setEditDea(e.target.value)} disabled={editLoading} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">NADEAN Number</Label>
+                <Input placeholder="NADEAN number" value={editNadean} onChange={(e) => setEditNadean(e.target.value)} disabled={editLoading} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Primary License #</Label>
+                <Input placeholder="Primary license" value={editPrimaryLicense} onChange={(e) => setEditPrimaryLicense(e.target.value)} disabled={editLoading} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Secondary License #</Label>
+                <Input placeholder="Secondary license" value={editSecondaryLicense} onChange={(e) => setEditSecondaryLicense(e.target.value)} disabled={editLoading} />
+              </div>
             </div>
             {careTeams.length > 0 && (
               <div className="flex flex-col gap-1.5">
@@ -878,7 +961,7 @@ export function ManageUsersView() {
           ) : (
           <div className="flex flex-col gap-4 py-2">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Full Name</Label>
+              <Label className="text-sm font-medium text-foreground">Full Name <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="Full name"
                 value={createFullName}
@@ -887,7 +970,7 @@ export function ManageUsersView() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Username</Label>
+              <Label className="text-sm font-medium text-foreground">Username <span className="text-destructive">*</span></Label>
               <Input
                 placeholder="Username (min 3 characters)"
                 value={createUsername}
@@ -898,7 +981,7 @@ export function ManageUsersView() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-sm font-medium text-foreground">
-                  <Mail className="inline h-3.5 w-3.5 mr-1" />Email
+                  <Mail className="inline h-3.5 w-3.5 mr-1" />Email <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="email"
@@ -969,7 +1052,7 @@ export function ManageUsersView() {
               </div>
             )}
             <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Role</Label>
+              <Label className="text-sm font-medium text-foreground">Role <span className="text-destructive">*</span></Label>
               <Select
                 value={createRoleId?.toString() || ""}
                 onValueChange={(v) => { setCreateRoleId(Number(v)); setCreateError("") }}
@@ -994,6 +1077,37 @@ export function ManageUsersView() {
                 onChange={setCreateCredentials}
                 disabled={createLoading}
               />
+            </div>
+            {/* License / Identifier fields */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">State License</Label>
+                <Input placeholder="e.g. TX-12345" value={createStateLicense} onChange={(e) => setCreateStateLicense(e.target.value)} disabled={createLoading} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">NPI Number</Label>
+                <Input placeholder="10-digit NPI" value={createNpi} onChange={(e) => setCreateNpi(e.target.value)} disabled={createLoading} maxLength={10} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">DEA Number</Label>
+                <Input placeholder="DEA number" value={createDea} onChange={(e) => setCreateDea(e.target.value)} disabled={createLoading} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">NADEAN Number</Label>
+                <Input placeholder="NADEAN number" value={createNadean} onChange={(e) => setCreateNadean(e.target.value)} disabled={createLoading} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Primary License #</Label>
+                <Input placeholder="Primary license" value={createPrimaryLicense} onChange={(e) => setCreatePrimaryLicense(e.target.value)} disabled={createLoading} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-sm font-medium text-foreground">Secondary License #</Label>
+                <Input placeholder="Secondary license" value={createSecondaryLicense} onChange={(e) => setCreateSecondaryLicense(e.target.value)} disabled={createLoading} />
+              </div>
             </div>
             {careTeams.length > 0 && (
               <div className="flex flex-col gap-1.5">

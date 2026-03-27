@@ -32,6 +32,12 @@ def _serialize_user(u: User):
         "last_login": u.last_login.isoformat() if u.last_login else None,
         "careTeamIds": care_team_ids,
         "avatar": u.avatar,
+        "state_license": u.state_license,
+        "npi_number": u.npi_number,
+        "dea_number": u.dea_number,
+        "primary_license": u.primary_license,
+        "secondary_license": u.secondary_license,
+        "nadean_number": u.nadean_number,
     }
 
 
@@ -176,11 +182,15 @@ def update_user(user_id: int):
 
     if "full_name" in data:
         new_name = (data["full_name"] or "").strip()
+        if not new_name:
+            return {"error": "full name cannot be empty"}, 400
         changes.append(f"name → '{new_name}'")
-        u.full_name = new_name or None
+        u.full_name = new_name
 
     if "email" in data:
-        new_email = (data["email"] or "").strip() or None
+        new_email = (data["email"] or "").strip()
+        if not new_email:
+            return {"error": "email cannot be empty"}, 400
         changes.append(f"email → '{new_email}'")
         u.email = new_email
 
@@ -195,6 +205,12 @@ def update_user(user_id: int):
             return {"error": "credentials must be a list"}, 400
         u.credentials = creds
         changes.append(f"credentials updated")
+
+    for field in ("state_license", "npi_number", "dea_number", "primary_license", "secondary_license", "nadean_number"):
+        if field in data:
+            val = (data[field] or "").strip() or None
+            setattr(u, field, val)
+            changes.append(f"{field} updated")
 
     if not changes:
         return {"error": "no fields to update"}, 400
@@ -228,13 +244,25 @@ def create_user():
     phone = (data.get("phone") or "").strip() or None
     credentials = data.get("credentials", [])
     method = (data.get("method") or "password").strip()
+    state_license = (data.get("state_license") or "").strip() or None
+    npi_number = (data.get("npi_number") or "").strip() or None
+    dea_number = (data.get("dea_number") or "").strip() or None
+    primary_license = (data.get("primary_license") or "").strip() or None
+    secondary_license = (data.get("secondary_license") or "").strip() or None
+    nadean_number = (data.get("nadean_number") or "").strip() or None
 
     if method not in ("password", "invite"):
         return {"error": "method must be 'password' or 'invite'"}, 400
 
+    if not full_name:
+        return {"error": "full name is required"}, 400
+
     if not username or len(username) < 3:
         log_access(g.user.id, "USER_CREATE", "users", "FAILED", ip, description="User creation failed — username must be at least 3 characters")
         return {"error": "username must be at least 3 characters"}, 400
+
+    if not email:
+        return {"error": "email is required"}, 400
 
     # Validate password only for password method
     password_hash = None
@@ -276,6 +304,12 @@ def create_user():
         full_name=full_name,
         email=email,
         phone=phone,
+        state_license=state_license,
+        npi_number=npi_number,
+        dea_number=dea_number,
+        primary_license=primary_license,
+        secondary_license=secondary_license,
+        nadean_number=nadean_number,
     )
 
     db.session.add(u)

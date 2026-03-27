@@ -131,6 +131,14 @@ class User(db.Model):
     email = db.Column(db.String(255), nullable=True)
     phone = db.Column(db.String(30), nullable=True)
 
+    # Professional license / identifier fields
+    state_license = db.Column(db.String(50), nullable=True)
+    npi_number = db.Column(db.String(10), nullable=True)
+    dea_number = db.Column(db.String(20), nullable=True)
+    primary_license = db.Column(db.String(50), nullable=True)
+    secondary_license = db.Column(db.String(50), nullable=True)
+    nadean_number = db.Column(db.String(20), nullable=True)
+
     last_login = db.Column(db.DateTime(timezone=True), nullable=True)
     agreed_to_terms_at = db.Column(db.DateTime(timezone=True), nullable=True)
 

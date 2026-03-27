@@ -141,6 +141,7 @@ def seed():
             role_id=t1_roles["admin"].id,
             credentials=[],
             full_name="Morgan Lee",
+            email="morgan.lee@sunrisedetox.example",
             signature_data=_make_svg_signature("Morgan Lee"),
         )
         t1_psych = User(
@@ -150,6 +151,11 @@ def seed():
             role_id=t1_roles["psychiatrist"].id,
             credentials=["MD", "ABPN"],
             full_name="Dr. Fierro",
+            email="fierro@sunrisedetox.example",
+            npi_number="1234567890",
+            dea_number="AF1234567",
+            state_license="TX-MD-44210",
+            primary_license="MD-44210",
             signature_data=_make_svg_signature("Dr. Fierro"),
         )
         t1_psych2 = User(
@@ -159,6 +165,11 @@ def seed():
             role_id=t1_roles["psychiatrist"].id,
             credentials=["MD", "FASAM"],
             full_name="Dr. Nakamura",
+            email="nakamura@sunrisedetox.example",
+            npi_number="9876543210",
+            dea_number="AN9876543",
+            state_license="TX-MD-55891",
+            primary_license="MD-55891",
             signature_data=_make_svg_signature("Dr. Nakamura"),
         )
         t1_nurse1 = User(
@@ -168,6 +179,10 @@ def seed():
             role_id=t1_nurse_role.id,
             credentials=["RN", "CARN"],
             full_name="Priya Sharma",
+            email="priya.sharma@sunrisedetox.example",
+            npi_number="5551234567",
+            state_license="TX-RN-78432",
+            primary_license="RN-78432",
             signature_data=_make_svg_signature("Priya Sharma"),
         )
         t1_tech = User(
@@ -177,6 +192,9 @@ def seed():
             role_id=t1_roles["technician"].id,
             credentials=["LCDC"],
             full_name="Jordan Kim",
+            email="jordan.kim@sunrisedetox.example",
+            state_license="TX-LCDC-10234",
+            primary_license="LCDC-10234",
             signature_data=_make_svg_signature("Jordan Kim"),
         )
         t1_tech2 = User(
@@ -186,6 +204,8 @@ def seed():
             role_id=t1_roles["technician"].id,
             credentials=["LCDC-I"],
             full_name="Dani Orozco",
+            email="dani.orozco@sunrisedetox.example",
+            state_license="TX-LCDC-I-5678",
             signature_data=_make_svg_signature("Dani Orozco"),
         )
         t1_frontdesk = User(
@@ -195,6 +215,7 @@ def seed():
             role_id=t1_frontdesk_role.id,
             credentials=[],
             full_name="Taylor Brooks",
+            email="taylor.brooks@sunrisedetox.example",
             signature_data=_make_svg_signature("Taylor Brooks"),
         )
         t1_auditor = User(
@@ -204,6 +225,7 @@ def seed():
             role_id=t1_roles["auditor"].id,
             credentials=[],
             full_name="Sam Reeves",
+            email="sam.reeves@sunrisedetox.example",
             signature_data=_make_svg_signature("Sam Reeves"),
         )
 
@@ -217,6 +239,7 @@ def seed():
             role_id=t2_roles["admin"].id,
             credentials=[],
             full_name="Casey Zhang",
+            email="casey.zhang@clearpath.example",
             signature_data=_make_svg_signature("Casey Zhang"),
         )
         t2_psych = User(
@@ -226,6 +249,10 @@ def seed():
             role_id=t2_roles["psychiatrist"].id,
             credentials=["MD", "FASAM"],
             full_name="Dr. Santos",
+            email="santos@clearpath.example",
+            npi_number="4445556667",
+            dea_number="AS4445556",
+            state_license="TX-MD-33012",
             signature_data=_make_svg_signature("Dr. Santos"),
         )
         t2_tech = User(
@@ -235,6 +262,8 @@ def seed():
             role_id=t2_roles["technician"].id,
             credentials=["RN"],
             full_name="Alex Rivera",
+            email="alex.rivera@clearpath.example",
+            state_license="TX-RN-91023",
             signature_data=_make_svg_signature("Alex Rivera"),
         )
 
