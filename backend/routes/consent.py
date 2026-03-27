@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from flask import Blueprint, request, g
 
@@ -18,7 +18,7 @@ def _serialize(c: Part2Consent):
         "receivingParty": c.receiving_party,
         "purpose": c.purpose,
         "informationScope": c.information_scope,
-        "expiration": c.expiration,
+        "expiration": c.expiration.isoformat() if c.expiration else None,
         "status": c.status,
         "patientSignature": c.patient_signature,
         "signedAt": c.signed_at.isoformat() if c.signed_at else None,
@@ -65,7 +65,7 @@ def create_consent(patient_id):
     receiving_party = (data.get("receivingParty") or "").strip()
     purpose = (data.get("purpose") or "").strip()
     information_scope = (data.get("informationScope") or "").strip()
-    expiration = (data.get("expiration") or "").strip()
+    expiration_raw = (data.get("expiration") or "").strip()
     patient_signature = (data.get("patientSignature") or "").strip()
 
     if not receiving_party:
@@ -74,8 +74,14 @@ def create_consent(patient_id):
         return {"error": "purpose is required"}, 400
     if not information_scope:
         return {"error": "informationScope is required"}, 400
-    if not expiration:
+    if not expiration_raw:
         return {"error": "expiration is required"}, 400
+    try:
+        expiration = date.fromisoformat(expiration_raw)
+    except ValueError:
+        return {"error": "expiration must be a valid date (YYYY-MM-DD)"}, 400
+    if expiration <= date.today():
+        return {"error": "expiration must be a future date"}, 400
     if not patient_signature:
         return {"error": "patientSignature is required"}, 400
 

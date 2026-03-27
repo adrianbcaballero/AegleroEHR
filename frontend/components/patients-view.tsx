@@ -22,6 +22,7 @@ import {
   Camera,
   Eye,
   ImagePlus,
+  CalendarIcon,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -61,6 +62,8 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
 
 
 // Default categories that always appear as tabs even with 0 forms — cannot be "deleted" by archiving templates
@@ -662,9 +665,15 @@ function NewFormDialog({ patientCode, onCreated, categoryFilter }: { patientCode
 }
 
 // ------- 42 CFR Part 2 Consent Section -------
-const DEFAULT_SCOPE =
-  "Information relating to the patient's diagnosis, prognosis, and treatment for substance use disorder (SUD), " +
-  "including but not limited to alcohol and/or drug use treatment records."
+const DISCLOSURE_CATEGORIES = [
+  "SUD Diagnosis & Treatment",
+  "Medication History",
+  "Mental Health Records",
+  "HIV/AIDS Status",
+  "Attendance & Compliance",
+  "Discharge Summary",
+  "Lab & Drug Screen Results",
+] as const
 
 function Part2ConsentSection({ patientCode }: { patientCode: string }) {
   const [consents, setConsents] = useState<Part2Consent[]>([])
@@ -677,10 +686,14 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
   // New consent form state
   const [receivingParty, setReceivingParty] = useState("")
   const [purpose, setPurpose] = useState("")
-  const [informationScope, setInformationScope] = useState(DEFAULT_SCOPE)
-  const [expiration, setExpiration] = useState("")
-  const [patientSignature, setPatientSignature] = useState("")
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [otherScope, setOtherScope] = useState("")
+  const [expirationDate, setExpirationDate] = useState<Date | undefined>(undefined)
   const [acknowledged, setAcknowledged] = useState(false)
+
+  // Patient signature canvas
+  const sigCanvasRef = useRef<HTMLCanvasElement>(null)
+  const sigDrawing = useRef(false)
 
   // Revoke form state
   const [revokeReason, setRevokeReason] = useState("")
@@ -695,24 +708,69 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
 
   useEffect(() => { load() }, [load])
 
+  // Touch support for patient signature canvas
+  useEffect(() => {
+    const canvas = sigCanvasRef.current
+    if (!canvas || !showNew) return
+    const getPos = (e: TouchEvent) => {
+      const r = canvas.getBoundingClientRect()
+      const t = e.touches[0]
+      return { x: (t.clientX - r.left) * (canvas.width / r.width), y: (t.clientY - r.top) * (canvas.height / r.height) }
+    }
+    const onStart = (e: TouchEvent) => { e.preventDefault(); sigDrawing.current = true; const ctx = canvas.getContext("2d"); if (!ctx) return; const { x, y } = getPos(e); ctx.beginPath(); ctx.moveTo(x, y) }
+    const onMove = (e: TouchEvent) => { e.preventDefault(); if (!sigDrawing.current) return; const ctx = canvas.getContext("2d"); if (!ctx) return; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.strokeStyle = "#1a1a2e"; const { x, y } = getPos(e); ctx.lineTo(x, y); ctx.stroke() }
+    const onEnd = () => { sigDrawing.current = false }
+    canvas.addEventListener("touchstart", onStart, { passive: false })
+    canvas.addEventListener("touchmove", onMove, { passive: false })
+    canvas.addEventListener("touchend", onEnd)
+    return () => { canvas.removeEventListener("touchstart", onStart); canvas.removeEventListener("touchmove", onMove); canvas.removeEventListener("touchend", onEnd) }
+  }, [showNew])
+
   const activeConsent = consents.find((c) => c.status === "active")
 
   const resetNewForm = () => {
     setReceivingParty("")
     setPurpose("")
-    setInformationScope(DEFAULT_SCOPE)
-    setExpiration("")
-    setPatientSignature("")
+    setSelectedCategories([])
+    setOtherScope("")
+    setExpirationDate(undefined)
     setAcknowledged(false)
     setError("")
+    const ctx = sigCanvasRef.current?.getContext("2d")
+    if (ctx && sigCanvasRef.current) ctx.clearRect(0, 0, sigCanvasRef.current.width, sigCanvasRef.current.height)
+  }
+
+  const buildScope = () => {
+    const parts = [...selectedCategories]
+    const other = otherScope.trim()
+    if (other) parts.push(other)
+    return parts.join("; ")
+  }
+
+  const getSigDataUrl = () => {
+    const canvas = sigCanvasRef.current
+    if (!canvas) return ""
+    return canvas.toDataURL("image/png")
+  }
+
+  const isSigEmpty = () => {
+    const canvas = sigCanvasRef.current
+    if (!canvas) return true
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return true
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+    for (let i = 3; i < data.length; i += 4) { if (data[i] > 0) return false }
+    return true
   }
 
   const handleCreate = async () => {
     if (!acknowledged) { setError("Patient must acknowledge their rights before signing."); return }
+    if (isSigEmpty()) { setError("Patient signature is required."); return }
     setSubmitting(true)
     setError("")
     try {
-      await createPart2Consent(patientCode, { receivingParty, purpose, informationScope, expiration, patientSignature })
+      const expiration = expirationDate ? format(expirationDate, "yyyy-MM-dd") : ""
+      await createPart2Consent(patientCode, { receivingParty, purpose, informationScope: buildScope(), expiration, patientSignature: getSigDataUrl() })
       setShowNew(false)
       resetNewForm()
       load()
@@ -763,7 +821,7 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
               <ShieldCheck className="size-4 text-chart-5 shrink-0 mt-0.5" />
               <div className="text-xs text-foreground">
                 <span className="font-semibold">Active consent on file</span>
-                {" — "} Expires: <span className="font-medium">{activeConsent.expiration}</span>
+                {" — "} Expires: <span className="font-medium">{activeConsent.expiration ? format(new Date(activeConsent.expiration + "T00:00:00"), "MM/dd/yyyy") : "—"}</span>
                 {" · "} Disclosed to: <span className="font-medium">{activeConsent.receivingParty}</span>
               </div>
             </div>
@@ -796,7 +854,7 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
                 <TableRow key={c.id}>
                   <TableCell className="text-sm font-medium text-foreground">{c.receivingParty}</TableCell>
                   <TableCell className="hidden sm:table-cell text-xs text-muted-foreground max-w-[200px] truncate">{c.purpose}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{c.expiration}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.expiration ? format(new Date(c.expiration + "T00:00:00"), "MM/dd/yyyy") : "—"}</TableCell>
                   <TableCell>
                     {c.status === "active"
                       ? <Badge variant="secondary" className="text-[10px] bg-chart-5/10 text-chart-5 border-chart-5/20">Active</Badge>
@@ -847,14 +905,37 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
               <Input placeholder="e.g., Insurance billing, continuity of care, court order" value={purpose}
                 onChange={(e) => setPurpose(e.target.value)} className="h-9" />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label className="text-xs font-medium text-foreground">Information to be Disclosed <span className="text-destructive">*</span></Label>
-              <Textarea rows={3} value={informationScope} onChange={(e) => setInformationScope(e.target.value)} className="text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                {DISCLOSURE_CATEGORIES.map((cat) => (
+                  <div key={cat} className="flex items-center gap-2">
+                    <Checkbox id={`scope-${cat}`} checked={selectedCategories.includes(cat)}
+                      onCheckedChange={(v) => setSelectedCategories((prev) => v ? [...prev, cat] : prev.filter((c) => c !== cat))} />
+                    <Label htmlFor={`scope-${cat}`} className="text-xs text-foreground cursor-pointer">{cat}</Label>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col gap-1.5 pt-1">
+                <Label className="text-xs font-medium text-muted-foreground">Other (specify)</Label>
+                <Input placeholder="Additional information categories" value={otherScope}
+                  onChange={(e) => setOtherScope(e.target.value)} className="h-9 text-sm" />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-medium text-foreground">Consent Expires <span className="text-destructive">*</span></Label>
-              <Input placeholder="e.g., 12/31/2026 or Upon completion of treatment" value={expiration}
-                onChange={(e) => setExpiration(e.target.value)} className="h-9" />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={`h-9 justify-start text-left font-normal bg-transparent ${!expirationDate ? "text-muted-foreground" : "text-foreground"}`}>
+                    <CalendarIcon className="mr-2 size-4" />
+                    {expirationDate ? format(expirationDate, "MM/dd/yyyy") : "Select expiration date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={expirationDate} onSelect={setExpirationDate}
+                    disabled={(date) => date <= new Date()} autoFocus />
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Patient rights acknowledgment */}
@@ -872,10 +953,21 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
               </Label>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium text-foreground">Patient Signature (type full name) <span className="text-destructive">*</span></Label>
-              <Input placeholder="Patient's full name as signature" value={patientSignature}
-                onChange={(e) => setPatientSignature(e.target.value)} className="h-9 italic" />
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs font-medium text-foreground">Patient Signature <span className="text-destructive">*</span></Label>
+              <div className="relative rounded-md border border-border bg-background">
+                <canvas ref={sigCanvasRef} width={440} height={160} className="w-full cursor-crosshair"
+                  onMouseDown={(e) => { sigDrawing.current = true; const ctx = sigCanvasRef.current?.getContext("2d"); if (!ctx) return; const r = sigCanvasRef.current!.getBoundingClientRect(); ctx.beginPath(); ctx.moveTo((e.clientX - r.left) * (440 / r.width), (e.clientY - r.top) * (160 / r.height)) }}
+                  onMouseMove={(e) => { if (!sigDrawing.current) return; const ctx = sigCanvasRef.current?.getContext("2d"); if (!ctx) return; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.strokeStyle = "#1a1a2e"; const r = sigCanvasRef.current!.getBoundingClientRect(); ctx.lineTo((e.clientX - r.left) * (440 / r.width), (e.clientY - r.top) * (160 / r.height)); ctx.stroke() }}
+                  onMouseUp={() => { sigDrawing.current = false }}
+                  onMouseLeave={() => { sigDrawing.current = false }}
+                />
+                <p className="absolute bottom-2 right-3 text-[10px] text-muted-foreground/40 pointer-events-none select-none">sign above</p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" className="self-start h-7 text-xs text-muted-foreground"
+                onClick={() => { const ctx = sigCanvasRef.current?.getContext("2d"); if (ctx && sigCanvasRef.current) ctx.clearRect(0, 0, sigCanvasRef.current.width, sigCanvasRef.current.height) }}>
+                Clear Signature
+              </Button>
             </div>
 
             {error && <p className="text-xs text-destructive">{error}</p>}
@@ -883,7 +975,7 @@ function Part2ConsentSection({ patientCode }: { patientCode: string }) {
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" className="bg-transparent text-foreground" onClick={() => { setShowNew(false); resetNewForm() }} disabled={submitting}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={submitting || !receivingParty || !purpose || !informationScope || !expiration || !patientSignature}>
+            <Button onClick={handleCreate} disabled={submitting || !receivingParty || !purpose || (selectedCategories.length === 0 && !otherScope.trim()) || !expirationDate}>
               {submitting ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
               Record Consent
             </Button>

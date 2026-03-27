@@ -499,13 +499,13 @@ class Part2Consent(db.Model):
     receiving_party = db.Column(db.String(200), nullable=False)
     purpose = db.Column(db.Text, nullable=False)
     information_scope = db.Column(db.Text, nullable=False)
-    expiration = db.Column(db.String(200), nullable=False)
+    expiration = db.Column(db.Date, nullable=False)
 
     # status: active / revoked
     status = db.Column(db.String(20), nullable=False, default="active")
 
-    # Patient signature
-    patient_signature = db.Column(db.String(200), nullable=True)
+    # Patient signature (base64 PNG data URL)
+    patient_signature = db.Column(db.Text, nullable=True)
     signed_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # Revocation tracking
