@@ -33,8 +33,8 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getAvailableTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams } from "@/lib/api"
-import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent, CareTeam } from "@/lib/api"
+import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getAvailableTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams, getBeds } from "@/lib/api"
+import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent, CareTeam, Bed } from "@/lib/api"
 
 import {
   Table,
@@ -1205,6 +1205,10 @@ export function PatientProfileView({
   const [actionError, setActionError] = useState("")
   const [showDischarge, setShowDischarge] = useState(false)
   const [dischargeReason, setDischargeReason] = useState("completed")
+  const [showAdmit, setShowAdmit] = useState(false)
+  const [beds, setBeds] = useState<Bed[]>([])
+  const [selectedBedId, setSelectedBedId] = useState<string>("")
+  const [loadingBeds, setLoadingBeds] = useState(false)
   const [consentRefreshKey, setConsentRefreshKey] = useState(0)
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [hasActiveConsent, setHasActiveConsent] = useState(false)
@@ -1259,13 +1263,23 @@ export function PatientProfileView({
   const ef = (field: string) => (e: { target: { value: string } }) =>
     setEditForm((prev) => ({ ...prev, [field]: e.target.value }))
 
+  const openAdmitDialog = () => {
+    setShowAdmit(true)
+    setSelectedBedId("")
+    setActionError("")
+    setLoadingBeds(true)
+    getBeds().then(setBeds).catch(() => {}).finally(() => setLoadingBeds(false))
+  }
+
   const handleAdmit = async () => {
     if (!patient) return
     setActionLoading(true)
     setActionError("")
     try {
-      const updated = await admitPatient(patient.id)
+      const bedId = selectedBedId ? parseInt(selectedBedId) : undefined
+      const updated = await admitPatient(patient.id, bedId)
       setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
+      setShowAdmit(false)
     } catch (e: unknown) {
       setActionError(e instanceof Error ? e.message : "Failed to admit patient")
     } finally {
@@ -1461,7 +1475,7 @@ export function PatientProfileView({
             {patient.riskLevel} risk
           </Badge>
           {canAdmit && patient.status !== "active" && (
-            <Button size="sm" onClick={handleAdmit} disabled={actionLoading} className="gap-1.5">
+            <Button size="sm" onClick={openAdmitDialog} disabled={actionLoading} className="gap-1.5">
               <LogIn className="size-3.5" />
               {patient.status === "inactive" ? "Re-admit" : "Admit"}
             </Button>
@@ -1504,6 +1518,70 @@ export function PatientProfileView({
               <Button variant="outline" onClick={() => setShowDischarge(false)} disabled={actionLoading}>Cancel</Button>
               <Button variant="destructive" onClick={handleDischarge} disabled={actionLoading}>
                 {actionLoading ? <Loader2 className="size-4 animate-spin" /> : "Discharge"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admit Dialog */}
+      <Dialog open={showAdmit} onOpenChange={setShowAdmit}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">
+              {patient.status === "inactive" ? "Re-admit" : "Admit"} Patient
+            </DialogTitle>
+            <DialogDescription>
+              {patient.firstName} {patient.lastName} will be admitted. Optionally assign a bed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground">Bed Assignment (optional)</Label>
+              {loadingBeds ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (() => {
+                const available = beds.filter((b) => b.status === "available" && b.isActive)
+                const units = [...new Set(available.map((b) => b.unit || "Unassigned"))]
+                return available.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No available beds at this time.</p>
+                ) : (
+                  <Select value={selectedBedId} onValueChange={(v) => setSelectedBedId(v === "none" ? "" : v)}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="No bed (assign later)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No bed (assign later)</SelectItem>
+                      {units.map((unit) => {
+                        const unitBeds = available.filter((b) => (b.unit || "Unassigned") === unit)
+                        return (
+                          <div key={unit}>
+                            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{unit}</p>
+                            {unitBeds.map((b) => (
+                              <SelectItem key={b.id} value={String(b.id)}>
+                                {b.displayName}
+                                {b.notes && <span className="text-muted-foreground ml-1">— {b.notes}</span>}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                )
+              })()}
+            </div>
+
+            {actionError && <p className="text-xs text-destructive">{actionError}</p>}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" className="bg-transparent text-foreground" onClick={() => setShowAdmit(false)} disabled={actionLoading}>Cancel</Button>
+              <Button onClick={handleAdmit} disabled={actionLoading}>
+                {actionLoading ? <Loader2 className="size-4 animate-spin mr-2" /> : <LogIn className="size-3.5 mr-1.5" />}
+                {patient.status === "inactive" ? "Re-admit" : "Confirm Admission"}
               </Button>
             </div>
           </div>

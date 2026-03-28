@@ -173,8 +173,8 @@ export function updatePatient(patientCode: string, data: Record<string, unknown>
   return apiPut<Patient>(`/api/patients/${patientCode}`, data)
 }
 
-export function admitPatient(patientCode: string) {
-  return apiPost<Patient>(`/api/patients/${patientCode}/admit`)
+export function admitPatient(patientCode: string, bedId?: number) {
+  return apiPost<Patient>(`/api/patients/${patientCode}/admit`, bedId ? { bedId } : {})
 }
 
 export function dischargePatient(patientCode: string, reason: string) {

@@ -316,16 +316,12 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                         <div
                           key={bed.id}
                           className={`relative rounded-lg border ${cfg.border} ${cfg.bg} p-3 flex flex-col gap-2 transition-colors ${
-                            bed.status === "occupied"
-                              ? "cursor-pointer hover:bg-primary/10"
-                              : bed.status === "available"
+                            bed.status === "available"
                               ? "cursor-pointer hover:bg-accent/10"
                               : ""
                           }`}
                           onClick={() => {
-                            if (bed.status === "occupied" && bed.patient) {
-                              setSelectedPatientId(bed.patient.id)
-                            } else if (bed.status === "available") {
+                            if (bed.status === "available") {
                               setAssignPatientCode("")
                               setAssignError("")
                               setAssignDialog({ bed })
