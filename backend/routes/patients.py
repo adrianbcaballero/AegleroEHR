@@ -97,7 +97,9 @@ def _serialize_patient(p: Patient):
         "pharmacy": p.pharmacy,
         "currentLoc": p.current_loc,
         "assignedBedId": p.assigned_bed_id,
+        "createdAt": p.created_at.isoformat() if p.created_at else None,
         "admittedAt": p.admitted_at.isoformat() if p.admitted_at else None,
+        "readmissionCount": p.readmission_count,
         "dischargedAt": p.discharged_at.isoformat() if p.discharged_at else None,
         "dischargeReason": p.discharge_reason,
         "careTeamId": p.care_team_id,
@@ -541,6 +543,8 @@ def admit_patient(patient_id):
         return {"error": "Cannot admit — required forms not completed", "missingForms": missing}, 409
 
     is_readmit = p.status == "inactive"
+    if is_readmit:
+        p.readmission_count = (p.readmission_count or 0) + 1
     p.admitted_at = datetime.now(timezone.utc)
     p.discharged_at = None
     p.discharge_reason = None

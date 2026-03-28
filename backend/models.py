@@ -255,9 +255,13 @@ class Patient(db.Model):
     # ASAM Level of Care — updated automatically when ASAM assessment form is completed
     current_loc = db.Column(db.String(10), nullable=True)
 
+    # Registration timestamp
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, server_default=db.text("now()"))
+
     # Admission / discharge — tracks the current episode of care
     # On readmission, admitted_at is updated and discharge fields are cleared
     admitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    readmission_count = db.Column(db.Integer, default=0, nullable=False, server_default=db.text("0"))
     discharged_at = db.Column(db.DateTime(timezone=True), nullable=True)
     discharge_reason = db.Column(db.String(80), nullable=True)  # completed / ama / transferred / other
 

@@ -228,6 +228,8 @@ export interface Patient {
   pharmacy: string | null
   photo: string | null
   assignedBedId: number | null
+  createdAt: string | null
+  readmissionCount: number
 }
 
 export interface PatientDetail extends Patient {}

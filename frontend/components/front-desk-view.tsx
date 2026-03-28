@@ -89,6 +89,12 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
   const [statusDialog, setStatusDialog] = useState<{ bed: Bed; action: "available" | "cleaning" } | null>(null)
   const [statusChanging, setStatusChanging] = useState(false)
 
+  // Occupied bed action dialog (cleaning or transfer)
+  const [occupiedDialog, setOccupiedDialog] = useState<{ bed: Bed } | null>(null)
+  const [transferTarget, setTransferTarget] = useState<number | null>(null)
+  const [transferring, setTransferring] = useState(false)
+  const [transferError, setTransferError] = useState("")
+
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM)
   const [selectedCareTeamId, setSelectedCareTeamId] = useState("")
   const [careTeams, setCareTeams] = useState<CareTeam[]>([])
@@ -177,6 +183,34 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
       fetchBeds()
     } catch { /* ignore */ }
     finally { setStatusChanging(false) }
+  }
+
+  const handleSetToCleaning = async () => {
+    if (!occupiedDialog) return
+    setTransferring(true)
+    try {
+      await assignBed(occupiedDialog.bed.id, null)
+      setOccupiedDialog(null)
+      fetchBeds()
+    } catch { /* ignore */ }
+    finally { setTransferring(false) }
+  }
+
+  const handleTransfer = async () => {
+    if (!occupiedDialog || !transferTarget) return
+    const patient = occupiedDialog.bed.patient
+    if (!patient) return
+    setTransferring(true)
+    setTransferError("")
+    try {
+      await assignBed(transferTarget, patient.id)
+      setOccupiedDialog(null)
+      fetchBeds()
+    } catch (e: unknown) {
+      setTransferError(e instanceof Error ? e.message : "Transfer failed")
+    } finally {
+      setTransferring(false)
+    }
   }
 
   // Active (admitted) patients without a bed assigned — candidates for assignment
@@ -269,9 +303,14 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                     <p className="font-medium text-sm text-foreground">{p.firstName} {p.lastName}</p>
                     <p className="text-xs text-muted-foreground">{p.id} &middot; {p.insurance || "No insurance on file"}</p>
                   </div>
-                  <Badge variant="secondary" className={`text-xs shrink-0 ${riskColors[p.riskLevel] || ""}`}>
-                    {p.riskLevel} risk
-                  </Badge>
+                  {p.createdAt && (
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      {(() => {
+                        const diff = Math.floor((Date.now() - new Date(p.createdAt).getTime()) / 86_400_000)
+                        return diff === 0 ? "Registered today" : `Waiting ${diff} day${diff === 1 ? "" : "s"}`
+                      })()}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -336,7 +375,9 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                             } else if (bed.status === "cleaning") {
                               setStatusDialog({ bed, action: "available" })
                             } else if (bed.status === "occupied" && userPermissions.includes("frontdesk.beds.manage")) {
-                              setStatusDialog({ bed, action: "cleaning" })
+                              setTransferTarget(null)
+                              setTransferError("")
+                              setOccupiedDialog({ bed })
                             }
                           }}
                         >
@@ -442,6 +483,60 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
             <Button onClick={handleStatusChange} disabled={statusChanging}>
               {statusChanging ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
               {statusDialog?.action === "cleaning" ? "Set to Cleaning" : "Mark Available"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Occupied Bed Actions Dialog */}
+      <Dialog open={!!occupiedDialog} onOpenChange={(v) => { if (!v) { setOccupiedDialog(null); setTransferTarget(null); setTransferError("") } }}>
+        <DialogContent className="sm:max-w-sm max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">
+              {occupiedDialog?.bed.displayName} — {occupiedDialog?.bed.patient?.firstName} {occupiedDialog?.bed.patient?.lastName}
+            </DialogTitle>
+            <DialogDescription>
+              Choose an action for this occupied bed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 pt-1">
+            {/* Transfer to another bed */}
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-foreground">Transfer to Another Bed</p>
+              <Select value={transferTarget ? String(transferTarget) : ""} onValueChange={(v) => setTransferTarget(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select destination bed…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {beds.filter((b) => b.status === "available" && b.id !== occupiedDialog?.bed.id).length === 0 ? (
+                    <SelectItem value="_none" disabled>No available beds</SelectItem>
+                  ) : (
+                    beds
+                      .filter((b) => b.status === "available" && b.id !== occupiedDialog?.bed.id)
+                      .map((b) => (
+                        <SelectItem key={b.id} value={String(b.id)}>
+                          {b.displayName}{b.unit ? ` (${b.unit})` : ""}
+                        </SelectItem>
+                      ))
+                  )}
+                </SelectContent>
+              </Select>
+              {transferError && <p className="text-sm text-destructive">{transferError}</p>}
+              <Button onClick={handleTransfer} disabled={transferring || !transferTarget} className="w-full">
+                {transferring ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+                Transfer Patient
+              </Button>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
+            </div>
+
+            {/* Set to cleaning */}
+            <Button variant="outline" onClick={handleSetToCleaning} disabled={transferring} className="w-full">
+              {transferring ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              Unassign &amp; Set to Cleaning
             </Button>
           </div>
         </DialogContent>
