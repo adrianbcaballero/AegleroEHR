@@ -227,6 +227,7 @@ export interface Patient {
   primaryCarePhysician: string | null
   pharmacy: string | null
   photo: string | null
+  assignedBedId: number | null
 }
 
 export interface PatientDetail extends Patient {}

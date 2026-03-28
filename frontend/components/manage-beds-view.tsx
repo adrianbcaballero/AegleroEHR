@@ -21,13 +21,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -41,15 +34,9 @@ const STATUS_LABELS: Record<string, string> = {
   available: "Available",
   occupied: "Occupied",
   cleaning: "Cleaning",
-  out_of_service: "Out of Service",
+  out_of_service: "Decommissioned",
 }
 
-const STATUS_BADGE_CLASSES: Record<string, string> = {
-  available: "bg-emerald-500/15 text-emerald-700 border-emerald-200",
-  occupied: "bg-blue-500/15 text-blue-700 border-blue-200",
-  cleaning: "bg-amber-500/15 text-amber-700 border-amber-200",
-  out_of_service: "bg-red-500/15 text-red-700 border-red-200",
-}
 
 interface BedForm {
   bedLabel: string
@@ -228,7 +215,9 @@ export function ManageBedsView() {
   }
 
   const toggleActive = async (bed: Bed) => {
-    await updateBed(bed.id, { isActive: !bed.isActive })
+    const updates: Record<string, unknown> = { isActive: !bed.isActive }
+    if (!bed.isActive) updates.status = "available"
+    await updateBed(bed.id, updates)
     load()
   }
 
@@ -413,7 +402,7 @@ export function ManageBedsView() {
                         )}
                         <Badge
                           variant="outline"
-                          className={`text-xs shrink-0 ${STATUS_BADGE_CLASSES[bed.status] || ""}`}
+                          className="text-xs shrink-0 bg-muted text-muted-foreground"
                         >
                           {STATUS_LABELS[bed.status] || bed.status}
                         </Badge>
@@ -576,24 +565,6 @@ export function ManageBedsView() {
               </div>
             </div>
 
-            {editingBed && (
-              <div className="flex flex-col gap-1.5">
-                <Label>Status</Label>
-                <Select value={bedForm.status} onValueChange={(v) => setBedForm({ ...bedForm, status: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="cleaning">Cleaning</SelectItem>
-                    <SelectItem value="out_of_service">Out of Service</SelectItem>
-                  </SelectContent>
-                </Select>
-                {editingBed.status === "occupied" && (
-                  <p className="text-xs text-muted-foreground">
-                    Bed is occupied — status is managed via patient assignment.
-                  </p>
-                )}
-              </div>
-            )}
 
             <div className="flex flex-col gap-1.5">
               <Label>Notes</Label>

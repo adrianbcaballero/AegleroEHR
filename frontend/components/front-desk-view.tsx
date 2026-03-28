@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Loader2, UserPlus, ClipboardList, BedDouble, RefreshCw, Camera, X } from "lucide-react"
+import { Plus, Loader2, UserPlus, ClipboardList, BedDouble, Camera, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getPatients, createPatient, getBeds, assignBed, listCareTeams } from "@/lib/api"
+import { getPatients, createPatient, getBeds, assignBed, updateBed, listCareTeams } from "@/lib/api"
 import type { Patient, Bed, CareTeam } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
 import { ManageBedsView } from "@/components/manage-beds-view"
@@ -36,9 +36,8 @@ const riskColors: Record<string, string> = {
 
 const bedStatusConfig: Record<string, { label: string; border: string; bg: string; dot: string }> = {
   occupied:       { label: "Occupied",       border: "border-primary/40",     bg: "bg-primary/5",     dot: "bg-primary" },
-  available:      { label: "Available",      border: "border-accent/40",      bg: "bg-accent/5",      dot: "bg-accent" },
+  available:      { label: "Available",      border: "border-green-500/40",   bg: "bg-green-500/5",   dot: "bg-green-500" },
   cleaning:       { label: "Cleaning",       border: "border-chart-4/40",     bg: "bg-chart-4/5",     dot: "bg-chart-4" },
-  out_of_service: { label: "Out of Service", border: "border-muted-foreground/30", bg: "bg-muted/40", dot: "bg-muted-foreground" },
 }
 
 const EMPTY_FORM = {
@@ -85,6 +84,10 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
   const [assignPatientCode, setAssignPatientCode] = useState("")
   const [assigning, setAssigning] = useState(false)
   const [assignError, setAssignError] = useState("")
+
+  // Bed status change confirmation dialog
+  const [statusDialog, setStatusDialog] = useState<{ bed: Bed; action: "available" | "cleaning" } | null>(null)
+  const [statusChanging, setStatusChanging] = useState(false)
 
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM)
   const [selectedCareTeamId, setSelectedCareTeamId] = useState("")
@@ -161,18 +164,26 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
     }
   }
 
-  const handleUnassign = async (bed: Bed) => {
+  const handleStatusChange = async () => {
+    if (!statusDialog) return
+    setStatusChanging(true)
     try {
-      await assignBed(bed.id, null)
+      if (statusDialog.action === "available") {
+        await updateBed(statusDialog.bed.id, { status: "available" })
+      } else {
+        await assignBed(statusDialog.bed.id, null)
+      }
+      setStatusDialog(null)
       fetchBeds()
     } catch { /* ignore */ }
+    finally { setStatusChanging(false) }
   }
 
   // Active (admitted) patients without a bed assigned — candidates for assignment
   const [activePatients, setActivePatients] = useState<Patient[]>([])
   useEffect(() => {
     getPatients()
-      .then((all) => setActivePatients(all.filter((p) => p.status === "active")))
+      .then((all) => setActivePatients(all.filter((p) => p.status === "active" && !p.assignedBedId)))
       .catch(() => {})
   }, [beds]) // re-fetch when beds change to keep list fresh
 
@@ -287,9 +298,6 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                   Manage Beds
                 </Button>
               )}
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={fetchBeds}>
-                <RefreshCw className="size-3.5 text-muted-foreground" />
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -316,8 +324,8 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                         <div
                           key={bed.id}
                           className={`relative rounded-lg border ${cfg.border} ${cfg.bg} p-3 flex flex-col gap-2 transition-colors ${
-                            bed.status === "available"
-                              ? "cursor-pointer hover:bg-accent/10"
+                            bed.status === "available" || bed.status === "cleaning" || bed.status === "occupied"
+                              ? "cursor-pointer hover:bg-muted/40"
                               : ""
                           }`}
                           onClick={() => {
@@ -325,6 +333,10 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                               setAssignPatientCode("")
                               setAssignError("")
                               setAssignDialog({ bed })
+                            } else if (bed.status === "cleaning") {
+                              setStatusDialog({ bed, action: "available" })
+                            } else if (bed.status === "occupied" && userPermissions.includes("frontdesk.beds.manage")) {
+                              setStatusDialog({ bed, action: "cleaning" })
                             }
                           }}
                         >
@@ -357,15 +369,6 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                             <p className="text-[11px] text-muted-foreground">{cfg.label}</p>
                           )}
 
-                          {/* Unassign button for occupied beds */}
-                          {bed.status === "occupied" && userPermissions.includes("frontdesk.beds.manage") && (
-                            <button
-                              className="text-[10px] text-muted-foreground hover:text-destructive transition-colors text-left"
-                              onClick={(e: { stopPropagation: () => void }) => { e.stopPropagation(); handleUnassign(bed) }}
-                            >
-                              Unassign
-                            </button>
-                          )}
                         </div>
                       )
                     })}
@@ -417,6 +420,29 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                 {assigning ? <Loader2 className="size-4 animate-spin" /> : "Assign"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bed Status Change Confirmation Dialog */}
+      <Dialog open={!!statusDialog} onOpenChange={(v) => { if (!v) setStatusDialog(null) }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-foreground">
+              {statusDialog?.action === "cleaning" ? "Set Bed to Cleaning" : "Mark Bed Available"}
+            </DialogTitle>
+            <DialogDescription>
+              {statusDialog?.action === "cleaning"
+                ? `This will unassign the patient from ${statusDialog?.bed.displayName} and set the bed to cleaning.`
+                : `Mark ${statusDialog?.bed.displayName} as available and ready for a new patient.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setStatusDialog(null)} disabled={statusChanging}>Cancel</Button>
+            <Button onClick={handleStatusChange} disabled={statusChanging}>
+              {statusChanging ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              {statusDialog?.action === "cleaning" ? "Set to Cleaning" : "Mark Available"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

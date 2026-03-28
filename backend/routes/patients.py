@@ -561,8 +561,12 @@ def admit_patient(patient_id):
     db.session.commit()
 
     action = "PATIENT_READMIT" if is_readmit else "PATIENT_ADMIT"
-    log_access(g.user.id, action, f"patient/{p.patient_code}", "SUCCESS", ip,
-               description=f"{'Readmitted' if is_readmit else 'Admitted'} {p.first_name} {p.last_name} ({p.patient_code})")
+    desc = f"{'Readmitted' if is_readmit else 'Admitted'} {p.first_name} {p.last_name} ({p.patient_code})"
+    if bed_id and p.assigned_bed_id:
+        bed_obj = Bed.query.get(bed_id)
+        if bed_obj:
+            desc += f" — assigned to bed '{bed_obj.display_name}'"
+    log_access(g.user.id, action, f"patient/{p.patient_code}", "SUCCESS", ip, description=desc)
     return _serialize_patient(p), 200
 
 
