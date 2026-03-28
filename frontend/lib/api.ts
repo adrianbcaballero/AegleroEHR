@@ -165,6 +165,22 @@ export function getPatient(patientId: string) {
   return apiGet<PatientDetail>(`/api/patients/${patientId}`)
 }
 
+export interface DuplicateMatch {
+  id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string | null
+  ssnLast4: string | null
+  status: string
+  admittedAt: string | null
+  dischargedAt: string | null
+  readmissionCount: number
+}
+
+export function checkDuplicatePatient(data: { firstName: string; lastName: string; dateOfBirth?: string; ssnLast4?: string }) {
+  return apiPost<{ matches: DuplicateMatch[] }>("/api/patients/check-duplicate", data)
+}
+
 export function createPatient(data: Record<string, unknown>) {
   return apiPost<Patient>("/api/patients", data)
 }

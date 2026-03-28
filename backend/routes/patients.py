@@ -188,6 +188,68 @@ def get_patient(patient_id):
 
 
 
+@patients_bp.post("/check-duplicate")
+@require_auth(permission="patients.create")
+def check_duplicate():
+    """
+    POST /api/patients/check-duplicate
+    Body: { firstName, lastName, dateOfBirth?, ssnLast4? }
+    Returns matching existing patients so front desk can avoid duplicates.
+    """
+    data = request.get_json(silent=True) or {}
+    first_name = (data.get("firstName") or "").strip().lower()
+    last_name = (data.get("lastName") or "").strip().lower()
+    dob = (data.get("dateOfBirth") or "").strip() or None
+    ssn = (data.get("ssnLast4") or "").strip() or None
+
+    if not first_name or not last_name:
+        return {"matches": []}, 200
+
+    query = tenant_query(Patient)
+    matches = []
+
+    # Match by name + DOB (strongest match)
+    if dob:
+        parsed = parse_date_iso(dob)
+        if parsed and parsed != "INVALID":
+            name_dob = query.filter(
+                db.func.lower(Patient.first_name) == first_name,
+                db.func.lower(Patient.last_name) == last_name,
+                Patient.date_of_birth == parsed,
+            ).all()
+            matches.extend(name_dob)
+
+    # Match by SSN last 4 (if provided and not already matched)
+    if ssn and len(ssn) == 4:
+        matched_ids = {m.id for m in matches}
+        ssn_matches = query.filter(Patient.ssn_last4 == ssn).all()
+        matches.extend(m for m in ssn_matches if m.id not in matched_ids)
+
+    # Fuzzy: same name without DOB (weaker signal, only if no DOB provided)
+    if not dob and not ssn:
+        name_only = query.filter(
+            db.func.lower(Patient.first_name) == first_name,
+            db.func.lower(Patient.last_name) == last_name,
+        ).all()
+        matched_ids = {m.id for m in matches}
+        matches.extend(m for m in name_only if m.id not in matched_ids)
+
+    return {"matches": [
+        {
+            "id": p.patient_code,
+            "firstName": p.first_name,
+            "lastName": p.last_name,
+            "dateOfBirth": p.date_of_birth.isoformat() if p.date_of_birth else None,
+            "ssnLast4": p.ssn_last4,
+            "status": p.status,
+            "admittedAt": p.admitted_at.isoformat() if p.admitted_at else None,
+            "dischargedAt": p.discharged_at.isoformat() if p.discharged_at else None,
+            "readmissionCount": p.readmission_count,
+        }
+        for p in matches
+    ]}, 200
+
+
 @patients_bp.post("")
 @require_auth(permission="patients.create")
 def create_patient():

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Plus, Loader2, UserPlus, ClipboardList, BedDouble, Camera, X } from "lucide-react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { Plus, Loader2, UserPlus, ClipboardList, BedDouble, Camera, X, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getPatients, createPatient, getBeds, assignBed, updateBed, listCareTeams } from "@/lib/api"
-import type { Patient, Bed, CareTeam } from "@/lib/api"
+import { getPatients, createPatient, checkDuplicatePatient, getBeds, assignBed, updateBed, listCareTeams } from "@/lib/api"
+import type { Patient, Bed, CareTeam, DuplicateMatch } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
 import { ManageBedsView } from "@/components/manage-beds-view"
 
@@ -102,8 +102,40 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
   const [addError, setAddError] = useState("")
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
-  const sf = (field: keyof FormData) => (e: { target: { value: string } }) =>
-    setFormData((prev: FormData) => ({ ...prev, [field]: e.target.value }))
+  // Duplicate detection
+  const [duplicates, setDuplicates] = useState<DuplicateMatch[]>([])
+  const [dupChecking, setDupChecking] = useState(false)
+  const [dupDismissed, setDupDismissed] = useState(false)
+  const dupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const checkDuplicates = useCallback((fd: FormData) => {
+    if (dupTimer.current) clearTimeout(dupTimer.current)
+    const first = fd.firstName.trim()
+    const last = fd.lastName.trim()
+    if (!first || !last) { setDuplicates([]); return }
+    dupTimer.current = setTimeout(async () => {
+      setDupChecking(true)
+      try {
+        const res = await checkDuplicatePatient({
+          firstName: first,
+          lastName: last,
+          dateOfBirth: fd.dateOfBirth || undefined,
+          ssnLast4: fd.ssnLast4 || undefined,
+        })
+        setDuplicates(res.matches)
+        setDupDismissed(false)
+      } catch { setDuplicates([]) }
+      finally { setDupChecking(false) }
+    }, 500)
+  }, [])
+
+  const sf = (field: keyof FormData) => (e: { target: { value: string } }) => {
+    const updated = { ...formData, [field]: e.target.value }
+    setFormData(updated)
+    if (field === "firstName" || field === "lastName" || field === "dateOfBirth" || field === "ssnLast4") {
+      checkDuplicates(updated)
+    }
+  }
 
   const fetchPending = useCallback(() => {
     setLoading(true)
@@ -127,7 +159,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
     listCareTeams().then(setCareTeams).catch(() => {})
   }, [fetchPending, fetchBeds])
 
-  const resetForm = () => { setFormData(EMPTY_FORM); setSelectedCareTeamId(""); setAddError(""); setPhotoPreview(null) }
+  const resetForm = () => { setFormData(EMPTY_FORM); setSelectedCareTeamId(""); setAddError(""); setPhotoPreview(null); setDuplicates([]); setDupDismissed(false) }
 
   const handleAdd = async () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
@@ -594,6 +626,60 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
               <p className="text-xs text-muted-foreground">JPEG, PNG, or WebP — max 2 MB</p>
             </div>
           </div>
+
+          {/* Duplicate Warning */}
+          {duplicates.length > 0 && !dupDismissed && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    Possible existing patient{duplicates.length > 1 ? "s" : ""} found
+                  </p>
+                  <div className="flex flex-col gap-1.5 mt-2">
+                    {duplicates.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        className="flex items-center justify-between gap-2 p-2 rounded-md bg-amber-100/60 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors text-left"
+                        onClick={() => {
+                          setShowAdd(false)
+                          resetForm()
+                          setSelectedPatientId(d.id)
+                        }}
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{d.firstName} {d.lastName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {d.id}
+                            {d.dateOfBirth ? ` · DOB ${d.dateOfBirth}` : ""}
+                            {d.ssnLast4 ? ` · SSN ••••${d.ssnLast4}` : ""}
+                            {" · "}
+                            {d.status === "active" ? "Currently admitted" : d.status === "inactive" ? "Previously discharged" : d.status}
+                            {d.readmissionCount > 0 ? ` · ${d.readmissionCount} prior admission${d.readmissionCount > 1 ? "s" : ""}` : ""}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="text-xs shrink-0">View</Badge>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-amber-700 dark:text-amber-400 hover:underline mt-2"
+                    onClick={() => setDupDismissed(true)}
+                  >
+                    This is a different person — continue registration
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {dupChecking && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" />
+              Checking for existing records…
+            </div>
+          )}
 
           {/* Basic Information */}
           <div className="space-y-3">
