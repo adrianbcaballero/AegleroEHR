@@ -184,9 +184,9 @@ function FormFieldRenderer({ field, value, onChange, disabled }: { field: Templa
 
 // ─── Form Detail View ───
 function FormDetailView({
-  formId, patientCode, patientName, onBack, onDeleted,
+  formId, patientCode, patientName, onBack, onDeleted, readOnly = false,
 }: {
-  formId: number; patientCode: string; patientName: string; onBack: () => void; onDeleted: () => void
+  formId: number; patientCode: string; patientName: string; onBack: () => void; onDeleted: () => void; readOnly?: boolean
 }) {
   const [form, setForm] = useState<PatientFormEntry | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -361,8 +361,8 @@ function FormDetailView({
   const fields = form.templateFields || []
   const cfg = formStatusConfig[form.status] || formStatusConfig["draft"]
   const StatusIcon = cfg.icon
-  const canEdit = form.accessLevel === "edit" || form.accessLevel === "sign"
-  const canSign = form.accessLevel === "sign"
+  const canEdit = !readOnly && (form.accessLevel === "edit" || form.accessLevel === "sign")
+  const canSign = !readOnly && form.accessLevel === "sign"
 
   return (
     <div className="flex flex-col gap-6">
@@ -1220,6 +1220,7 @@ export function PatientProfileView({
   const canAdmit = userPermissions.includes("frontdesk.patients.pending")
   const canDischarge = userPermissions.includes("archive.manage")
   const canEdit = userPermissions.includes("patients.edit")
+  const canManageArchiveForms = userPermissions.includes("archive.forms.manage")
 
   const [careTeams, setCareTeams] = useState<CareTeam[]>([])
   const [editCareTeamId, setEditCareTeamId] = useState("")
@@ -1382,6 +1383,7 @@ export function PatientProfileView({
         patientName={`${patient.firstName} ${patient.lastName}`}
         onBack={() => { setSelectedFormId(null); fetchForms(); fetchPatient() }}
         onDeleted={() => { setSelectedFormId(null); fetchForms() }}
+        readOnly={(patient.status === "archived" || patient.status === "inactive") && !canManageArchiveForms}
       />
     )
   }
@@ -2005,7 +2007,7 @@ export function PatientProfileView({
                           {cat} Forms
                           <span className="ml-2 text-sm font-normal text-muted-foreground">({catForms.length})</span>
                         </CardTitle>
-                        {!isViewingPast && patient.status !== "archived" && patient.status !== "inactive" && (
+                        {((!isViewingPast && patient.status !== "archived" && patient.status !== "inactive") || canManageArchiveForms) && (
                           <NewFormDialog
                             patientCode={patient.id}
                             categoryFilter={cat}

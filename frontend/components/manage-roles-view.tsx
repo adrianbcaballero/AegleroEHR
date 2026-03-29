@@ -132,6 +132,12 @@ const BUNDLE_GROUPS: BundleGroup[] = [
         description: "Export patient records from the archive",
         permissions: ["archive.export"],
       },
+      {
+        key: "archive.forms.manage",
+        label: "Manage Archived Forms",
+        description: "Add, edit, and delete forms on archived or discharged patients",
+        permissions: ["archive.forms.manage"],
+      },
     ],
   },
   {

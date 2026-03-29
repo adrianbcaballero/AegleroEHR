@@ -533,12 +533,14 @@ def create_patient_form(patient_id):
         log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip, description=f"Form creation denied — role '{g.user.role_name}' lacks edit/sign access to template '{template.name}'")
         return {"error": "forbidden — insufficient access to this form template"}, 403
 
-    if p.status in ("archived", "inactive"):
+    can_manage_archive_forms = g.user.has_permission("archive.forms.manage")
+
+    if p.status in ("archived", "inactive") and not can_manage_archive_forms:
         log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip,
                    description=f"Form creation blocked — patient is {p.status}")
         return {"error": f"cannot add forms to a {p.status} patient"}, 409
 
-    if p.current_episode and p.current_episode.status == "discharged":
+    if p.current_episode and p.current_episode.status == "discharged" and not can_manage_archive_forms:
         log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip,
                    description="Form creation blocked — current episode is discharged")
         return {"error": "cannot add forms to a discharged episode"}, 409
@@ -585,6 +587,11 @@ def update_patient_form(patient_id, form_id):
     if not check_patient_access(p):
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Access denied to update form #{form_id} for patient {p.patient_code}")
         return {"error": "forbidden"}, 403
+
+    if p.status in ("archived", "inactive") and not g.user.has_permission("archive.forms.manage"):
+        log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip,
+                   description=f"Form update blocked — patient is {p.status}")
+        return {"error": f"cannot edit forms on a {p.status} patient"}, 409
 
     f = PatientForm.query.filter_by(id=form_id, patient_id=p.id).first()
     if not f:
@@ -647,6 +654,11 @@ def delete_patient_form(patient_id, form_id):
     if not check_patient_access(p):
         log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip)
         return {"error": "forbidden"}, 403
+
+    if p.status in ("archived", "inactive") and not g.user.has_permission("archive.forms.manage"):
+        log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip,
+                   description=f"Form delete blocked — patient is {p.status}")
+        return {"error": f"cannot delete forms on a {p.status} patient"}, 409
 
     f = PatientForm.query.filter_by(id=form_id, patient_id=p.id).first()
     if not f:
