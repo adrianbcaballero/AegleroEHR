@@ -258,12 +258,62 @@ class Patient(db.Model):
     # Registration timestamp
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, server_default=db.text("now()"))
 
-    # Admission / discharge — tracks the current episode of care
-    # On readmission, admitted_at is updated and discharge fields are cleared
+    # Admission / discharge — DEPRECATED: kept during transition, will be removed
+    # New code should use Episode model instead
     admitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
     readmission_count = db.Column(db.Integer, default=0, nullable=False, server_default=db.text("0"))
     discharged_at = db.Column(db.DateTime(timezone=True), nullable=True)
     discharge_reason = db.Column(db.String(80), nullable=True)  # completed / ama / transferred / other
+
+    # Current episode reference — quick access without joining
+    current_episode_id = db.Column(db.Integer, db.ForeignKey("episode.id", use_alter=True), nullable=True)
+    current_episode = db.relationship(
+        "Episode",
+        foreign_keys=[current_episode_id],
+        post_update=True,
+    )
+    episodes = db.relationship(
+        "Episode",
+        foreign_keys="Episode.patient_id",
+        backref="patient",
+        lazy="dynamic",
+        order_by="Episode.episode_number.desc()",
+    )
+
+
+class Episode(db.Model):
+    """
+    A single episode of care (admission through discharge).
+    Each patient may have multiple episodes across readmissions.
+    """
+    __tablename__ = "episode"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"), nullable=False, index=True)
+
+    episode_number = db.Column(db.Integer, nullable=False, default=1)
+    status = db.Column(db.String(20), nullable=False, default="pending")  # pending / active / discharged
+
+    admitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    discharged_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    discharge_reason = db.Column(db.String(80), nullable=True)
+
+    assigned_bed_id = db.Column(db.Integer, db.ForeignKey("bed.id"), nullable=True)
+    assigned_bed = db.relationship("Bed", foreign_keys=[assigned_bed_id])
+
+    primary_diagnosis = db.Column(db.String(120), nullable=True)
+
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        server_default=db.text("now()"),
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("patient_id", "episode_number", name="uq_patient_episode_number"),
+    )
 
 
 class UserSession(db.Model):
@@ -536,6 +586,7 @@ class PatientForm(db.Model):
     tenant_id = db.Column(db.Integer, db.ForeignKey("tenant.id"), nullable=False, index=True)
     patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"), nullable=False, index=True)
     template_id = db.Column(db.Integer, db.ForeignKey("form_template.id"), nullable=False, index=True)
+    episode_id = db.Column(db.Integer, db.ForeignKey("episode.id"), nullable=True, index=True)
 
     # JSON object: {field_label: value}
     form_data = db.Column(db.JSON, nullable=False, default=dict)
