@@ -2005,7 +2005,7 @@ export function PatientProfileView({
                           {cat} Forms
                           <span className="ml-2 text-sm font-normal text-muted-foreground">({catForms.length})</span>
                         </CardTitle>
-                        {!isViewingPast && (
+                        {!isViewingPast && patient.status !== "archived" && patient.status !== "inactive" && (
                           <NewFormDialog
                             patientCode={patient.id}
                             categoryFilter={cat}
