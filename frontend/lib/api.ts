@@ -244,6 +244,7 @@ export interface Patient {
   primaryDiagnosis: string | null
   insurance: string | null
   currentLoc: string | null
+  acuityFlags: Record<string, { active: boolean; description?: string }> | null
   admittedAt: string | null
   dischargedAt: string | null
   dischargeReason: string | null

@@ -25,6 +25,7 @@ import {
   CalendarIcon,
   ChevronDown,
   Circle,
+  Flag,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -70,6 +71,17 @@ import { format } from "date-fns"
 
 // Default categories that always appear as tabs even with 0 forms — cannot be "deleted" by archiving templates
 const DEFAULT_CATEGORIES = ["assessment", "clinical", "consent", "discharge", "flowsheet", "intake", "insurance"]
+
+const ACUITY_FLAGS = [
+  { key: "seizure_history", label: "Seizure History" },
+  { key: "cardiac_risk", label: "Cardiac Risk" },
+  { key: "fall_risk", label: "Fall Risk" },
+  { key: "suicide_risk", label: "Suicide/Self-Harm Risk" },
+  { key: "withdrawal_severe", label: "Severe Withdrawal Risk" },
+  { key: "pregnancy", label: "Pregnancy" },
+  { key: "infectious", label: "Infectious Disease Precaution" },
+  { key: "elopement_risk", label: "Elopement Risk" },
+] as const
 
 interface FormStatusEntry {
   icon: typeof CheckCircle2
@@ -1232,6 +1244,12 @@ export function PatientProfileView({
     return next
   })
   const [editError, setEditError] = useState("")
+  const [acuityOpen, setAcuityOpen] = useState(false)
+  const [acuitySaving, setAcuitySaving] = useState(false)
+  const [acuitySearch, setAcuitySearch] = useState("")
+  const [acuityAdding, setAcuityAdding] = useState<string | null>(null)
+  const [localFlags, setLocalFlags] = useState<Record<string, { active: boolean; description?: string }>>(patient?.acuityFlags || {})
+  useEffect(() => { setLocalFlags(patient?.acuityFlags || {}) }, [patient?.acuityFlags])
   const [viewingPhoto, setViewingPhoto] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -1858,6 +1876,139 @@ export function PatientProfileView({
 
       {/* 42 CFR Part 2 status banner */}
       <Part2StatusBanner patientCode={patient.id} refreshKey={consentRefreshKey} />
+
+      {/* Medical Acuity Flags banner */}
+      {(() => {
+        const flags = patient.acuityFlags || {}
+        const activeFlags = ACUITY_FLAGS.filter((f) => flags[f.key]?.active)
+
+        const setFlagDesc = (key: string, desc: string) => {
+          setLocalFlags((prev) => {
+            const current = prev[key] || { active: false }
+            return { ...prev, [key]: { ...current, description: desc } }
+          })
+        }
+        const addFlag = async (key: string) => {
+          const next = { ...localFlags, [key]: { active: true, description: "" } }
+          setLocalFlags(next)
+          setAcuityAdding(key)
+        }
+        const saveFlag = async (key: string) => {
+          setAcuitySaving(true)
+          try {
+            const updated = await updatePatient(patient.id, { acuityFlags: localFlags })
+            setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
+          } catch { /* ignore */ }
+          setAcuitySaving(false)
+          setAcuityAdding(null)
+          setAcuitySearch("")
+        }
+        const removeFlag = async (key: string) => {
+          const next = { ...localFlags, [key]: { active: false } }
+          setLocalFlags(next)
+          setAcuitySaving(true)
+          try {
+            const updated = await updatePatient(patient.id, { acuityFlags: next })
+            setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
+          } catch { /* ignore */ }
+          setAcuitySaving(false)
+          if (acuityAdding === key) setAcuityAdding(null)
+        }
+
+        const searchResults = acuitySearch.trim()
+          ? ACUITY_FLAGS.filter((f) =>
+              f.label.toLowerCase().includes(acuitySearch.toLowerCase()) &&
+              !localFlags[f.key]?.active
+            )
+          : []
+
+        return (
+          <div>
+            <div
+              className={`flex items-center gap-2 rounded-md px-3 py-2 cursor-pointer ${
+                activeFlags.length > 0
+                  ? "bg-orange-500/10 border border-orange-500/20"
+                  : "bg-muted/50 border border-border/60"
+              }`}
+              onClick={() => { if (canEdit) setAcuityOpen(!acuityOpen) }}
+            >
+              <Flag className={`size-4 shrink-0 ${activeFlags.length > 0 ? "text-orange-500" : "text-muted-foreground"}`} />
+              {activeFlags.length > 0 ? (
+                <div className="flex items-center gap-1.5 flex-wrap text-xs text-foreground">
+                  {activeFlags.map((f) => (
+                    <Badge key={f.key} variant="secondary" className="text-[10px] bg-orange-500/15 text-orange-700 border-orange-500/20 px-1.5 py-0">
+                      {f.label}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground font-medium">None</span>
+              )}
+              {canEdit && <ChevronDown className={`size-3.5 ml-auto text-muted-foreground transition-transform ${acuityOpen ? "rotate-180" : ""}`} />}
+            </div>
+            {acuityOpen && canEdit && (
+              <div className="border border-border/60 rounded-md mt-1 p-3 space-y-2 bg-background">
+                {/* Active flags with remove */}
+                {ACUITY_FLAGS.filter((f) => localFlags[f.key]?.active).map((f) => (
+                  <div key={f.key} className="flex items-center gap-2 text-xs">
+                    <Badge variant="secondary" className="text-[10px] bg-orange-500/15 text-orange-700 border-orange-500/20 px-1.5 py-0">
+                      {f.label}
+                    </Badge>
+                    {localFlags[f.key]?.description && (
+                      <span className="text-muted-foreground truncate">{localFlags[f.key].description}</span>
+                    )}
+                    <button className="ml-auto text-muted-foreground hover:text-destructive" onClick={() => removeFlag(f.key)}>
+                      <XCircle className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {/* Adding a new flag — description input */}
+                {acuityAdding && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-[10px] bg-orange-500/15 text-orange-700 border-orange-500/20 px-1.5 py-0 shrink-0">
+                      {ACUITY_FLAGS.find((f) => f.key === acuityAdding)?.label}
+                    </Badge>
+                    <Input
+                      className="h-6 text-xs flex-1"
+                      placeholder="Optional description..."
+                      autoFocus
+                      value={localFlags[acuityAdding]?.description || ""}
+                      onChange={(e) => setFlagDesc(acuityAdding, e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveFlag(acuityAdding) }}
+                    />
+                    <Button size="sm" className="h-6 text-xs px-2" onClick={() => saveFlag(acuityAdding)} disabled={acuitySaving}>
+                      {acuitySaving ? "…" : "Add"}
+                    </Button>
+                  </div>
+                )}
+                {/* Search bar */}
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                  <Input
+                    className="h-7 text-xs pl-7"
+                    placeholder="Search medical acuity to add..."
+                    value={acuitySearch}
+                    onChange={(e) => setAcuitySearch(e.target.value)}
+                  />
+                  {searchResults.length > 0 && (
+                    <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-md py-1">
+                      {searchResults.map((f) => (
+                        <button
+                          key={f.key}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent text-foreground"
+                          onClick={() => { addFlag(f.key); setAcuitySearch("") }}
+                        >
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Patient Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

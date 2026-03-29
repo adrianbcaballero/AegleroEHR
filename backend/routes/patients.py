@@ -101,6 +101,7 @@ def _serialize_patient(p: Patient):
         "primaryCarePhysician": p.primary_care_physician,
         "pharmacy": p.pharmacy,
         "currentLoc": p.current_loc,
+        "acuityFlags": p.acuity_flags,
         "assignedBedId": assigned_bed_id,
         "createdAt": p.created_at.isoformat() if p.created_at else None,
         "admittedAt": admitted_at.isoformat() if admitted_at else None,
@@ -559,6 +560,24 @@ def update_patient(patient_id):
 
     if "pharmacy" in data:
         p.pharmacy = (data["pharmacy"] or "").strip() or None
+
+    VALID_ACUITY_FLAGS = {
+        "seizure_history", "cardiac_risk", "fall_risk", "suicide_risk",
+        "withdrawal_severe", "pregnancy", "infectious", "elopement_risk",
+    }
+    if "acuityFlags" in data:
+        flags = data["acuityFlags"]
+        if flags is not None:
+            if not isinstance(flags, dict):
+                return {"error": "acuityFlags must be an object"}, 400
+            for key, val in flags.items():
+                if key not in VALID_ACUITY_FLAGS:
+                    return {"error": f"unknown acuity flag: {key}"}, 400
+                if not isinstance(val, dict) or "active" not in val:
+                    return {"error": f"each flag must have {{active, description?}}"}, 400
+            p.acuity_flags = flags
+        else:
+            p.acuity_flags = None
 
     if "photo" in data:
         photo_data = data["photo"]

@@ -248,6 +248,9 @@ class Patient(db.Model):
     # ASAM Level of Care — updated automatically when ASAM assessment form is completed
     current_loc = db.Column(db.String(10), nullable=True)
 
+    # Medical acuity flags — JSON object keyed by flag id with {active, description}
+    acuity_flags = db.Column(db.JSON, nullable=True)
+
     # Registration timestamp
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, server_default=db.text("now()"))
 
