@@ -33,8 +33,8 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getAvailableTemplates, getMe, admitPatient, dischargePatient, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams, getBeds } from "@/lib/api"
-import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent, CareTeam, Bed } from "@/lib/api"
+import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getAvailableTemplates, getMe, admitPatient, dischargePatient, readmitPatient, getPatientEpisodes, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams, getBeds } from "@/lib/api"
+import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent, EpisodeDetail, CareTeam, Bed } from "@/lib/api"
 
 import {
   Table,
@@ -1213,6 +1213,10 @@ export function PatientProfileView({
   const [checklistOpen, setChecklistOpen] = useState(false)
   const [hasActiveConsent, setHasActiveConsent] = useState(false)
 
+  // Episode state
+  const [episodes, setEpisodes] = useState<EpisodeDetail[]>([])
+  const [viewingEpisodeId, setViewingEpisodeId] = useState<number | null>(null) // null = current episode
+
   const canAdmit = userPermissions.includes("frontdesk.patients.pending")
   const canDischarge = userPermissions.includes("archive.manage")
   const canEdit = userPermissions.includes("patients.edit")
@@ -1320,6 +1324,7 @@ export function PatientProfileView({
       .then((r) => setCategories(r.categories))
       .catch(() => {})
     listCareTeams().then(setCareTeams).catch(() => {})
+    getPatientEpisodes(patientId).then(setEpisodes).catch(() => {})
   }, [patientId])
 
   useEffect(() => {
@@ -1328,13 +1333,17 @@ export function PatientProfileView({
       .catch(() => {})
   }, [patientId])
 
+  const viewingEpisode = viewingEpisodeId ? episodes.find((e) => e.id === viewingEpisodeId) : null
+  const isViewingPast = viewingEpisode !== null && viewingEpisode !== undefined
+
   const fetchForms = useCallback(async () => {
     setLoadingForms(true)
-    getPatientForms(patientId)
+    const epId = viewingEpisodeId ?? patient?.episodeId ?? undefined
+    getPatientForms(patientId, epId || undefined)
       .then(setForms)
       .catch(() => {})
       .finally(() => setLoadingForms(false))
-  }, [patientId]);
+  }, [patientId, viewingEpisodeId, patient?.episodeId]);
 
   useEffect(() => {
     Promise.resolve().then(() => fetchForms())
@@ -1458,9 +1467,32 @@ export function PatientProfileView({
           e.target.value = ""
         }} />
         <div>
-          <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">
-            {patient.firstName} {patient.lastName}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">
+              {patient.firstName} {patient.lastName}
+            </h1>
+            {episodes.length > 1 && (
+                <Select
+                  value={viewingEpisodeId ? String(viewingEpisodeId) : "current"}
+                  onValueChange={(v) => setViewingEpisodeId(v === "current" ? null : Number(v))}
+                >
+                  <SelectTrigger className="h-6 w-auto gap-1 px-2 text-xs border-border/60">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {episodes.map((ep) => (
+                      <SelectItem
+                        key={ep.id}
+                        value={ep.id === patient.episodeId ? "current" : String(ep.id)}
+                      >
+                        Episode #{ep.episodeNumber}
+                        {ep.status === "discharged" ? ` (discharged)` : ep.status === "pending" ? ` (pending)` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             {patient.id} &middot; {patient.insurance || "No insurance on file"}
           </p>
@@ -1474,13 +1506,30 @@ export function PatientProfileView({
           <Badge variant="secondary" className={`text-xs ${riskColors[patient.riskLevel] || ""}`}>
             {patient.riskLevel} risk
           </Badge>
-          {canAdmit && patient.status !== "active" && (
-            <Button size="sm" onClick={openAdmitDialog} disabled={actionLoading} className="gap-1.5">
+          {!isViewingPast && canAdmit && patient.status === "inactive" && (
+            <Button size="sm" onClick={async () => {
+              setActionLoading(true)
+              setActionError("")
+              try {
+                const updated = await readmitPatient(patient.id)
+                setPatient((p: PatientDetail | null) => p ? { ...p, ...updated } : null)
+                getPatientEpisodes(patientId).then(setEpisodes).catch(() => {})
+                setViewingEpisodeId(null)
+              } catch (e: unknown) {
+                setActionError(e instanceof Error ? e.message : "Failed to readmit patient")
+              } finally { setActionLoading(false) }
+            }} disabled={actionLoading} className="gap-1.5">
               <LogIn className="size-3.5" />
-              {patient.status === "inactive" ? "Re-admit" : "Admit"}
+              Return to Pending
             </Button>
           )}
-          {canDischarge && patient.status === "active" && (
+          {!isViewingPast && canAdmit && patient.status === "pending" && (
+            <Button size="sm" onClick={openAdmitDialog} disabled={actionLoading} className="gap-1.5">
+              <LogIn className="size-3.5" />
+              Admit
+            </Button>
+          )}
+          {!isViewingPast && canDischarge && patient.status === "active" && (
             <Button size="sm" variant="outline" onClick={() => setShowDischarge(true)} disabled={actionLoading} className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10">
               <LogOut className="size-3.5" />
               Discharge
@@ -1489,6 +1538,23 @@ export function PatientProfileView({
         </div>
       </div>
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
+
+      {/* Past episode banner */}
+      {isViewingPast && viewingEpisode && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Clock className="size-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Viewing <strong>Episode #{viewingEpisode.episodeNumber}</strong>
+              {viewingEpisode.dischargedAt && ` — discharged ${new Date(viewingEpisode.dischargedAt).toLocaleDateString()}`}
+              {viewingEpisode.dischargeReason && ` (${viewingEpisode.dischargeReason})`}
+            </p>
+          </div>
+          <Button size="sm" variant="outline" className="shrink-0 text-xs h-7" onClick={() => setViewingEpisodeId(null)}>
+            Return to Current
+          </Button>
+        </div>
+      )}
 
       {/* Discharge Dialog */}
       <Dialog open={showDischarge} onOpenChange={setShowDischarge}>
