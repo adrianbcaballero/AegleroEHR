@@ -439,12 +439,17 @@ def list_patient_forms(patient_id):
 
     _maybe_generate_recurring_forms(p, g.user, g.tenant_id)
 
-    forms = (
-        PatientForm.query
-        .filter_by(patient_id=p.id)
-        .order_by(PatientForm.created_at.desc())
-        .all()
-    )
+    # Optional episode filtering
+    episode_id = request.args.get("episode_id", type=int)
+    current_episode = request.args.get("current_episode", "").lower() == "true"
+
+    query = PatientForm.query.filter_by(patient_id=p.id)
+    if episode_id:
+        query = query.filter(db.or_(PatientForm.episode_id == episode_id, PatientForm.episode_id.is_(None)))
+    elif current_episode and p.current_episode_id:
+        query = query.filter(db.or_(PatientForm.episode_id == p.current_episode_id, PatientForm.episode_id.is_(None)))
+
+    forms = query.order_by(PatientForm.created_at.desc()).all()
 
     # Bulk load all templates and fillers needed
     template_ids = {f.template_id for f in forms}

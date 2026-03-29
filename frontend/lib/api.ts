@@ -201,6 +201,28 @@ export function dischargePatient(patientCode: string, reason: string) {
   return apiPost<Patient>(`/api/patients/${patientCode}/discharge`, { reason })
 }
 
+// ─── Episodes ───
+
+export interface EpisodeDetail {
+  id: number
+  episodeNumber: number
+  status: string
+  admittedAt: string | null
+  dischargedAt: string | null
+  dischargeReason: string | null
+  primaryDiagnosis: string | null
+  assignedBedId: number | null
+  createdAt: string | null
+}
+
+export function getPatientEpisodes(patientCode: string) {
+  return apiGet<EpisodeDetail[]>(`/api/patients/${patientCode}/episodes`)
+}
+
+export function getPatientEpisode(patientCode: string, episodeId: number) {
+  return apiGet<EpisodeDetail>(`/api/patients/${patientCode}/episodes/${episodeId}`)
+}
+
 export function searchArchive(params: { q?: string; ssn?: string }) {
   const query = new URLSearchParams()
   if (params.q) query.set("q", params.q)
@@ -542,8 +564,9 @@ export function deleteTemplate(templateId: number) {
   return apiDelete<{ ok: boolean }>(`/api/templates/${templateId}`)
 }
 
-export function getPatientForms(patientCode: string) {
-  return apiGet<PatientFormEntry[]>(`/api/patients/${patientCode}/forms`)
+export function getPatientForms(patientCode: string, episodeId?: number) {
+  const qs = episodeId ? `?episode_id=${episodeId}` : ""
+  return apiGet<PatientFormEntry[]>(`/api/patients/${patientCode}/forms${qs}`)
 }
 
 export function getPatientForm(patientCode: string, formId: number) {

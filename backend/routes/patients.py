@@ -820,6 +820,65 @@ def readmit_patient(patient_id):
     return _serialize_patient(p), 200
 
 
+# ─── EPISODES ───
+
+def _serialize_episode(ep: Episode):
+    return {
+        "id": ep.id,
+        "episodeNumber": ep.episode_number,
+        "status": ep.status,
+        "admittedAt": ep.admitted_at.isoformat() if ep.admitted_at else None,
+        "dischargedAt": ep.discharged_at.isoformat() if ep.discharged_at else None,
+        "dischargeReason": ep.discharge_reason,
+        "primaryDiagnosis": ep.primary_diagnosis,
+        "assignedBedId": ep.assigned_bed_id,
+        "createdAt": ep.created_at.isoformat() if ep.created_at else None,
+    }
+
+
+@patients_bp.get("/<patient_id>/episodes")
+@require_auth(permission="patients.view")
+def list_episodes(patient_id):
+    """GET /api/patients/<id>/episodes — all episodes for a patient, newest first."""
+    ip = client_ip()
+    p = get_patient_by_id_or_code(patient_id)
+    if not p:
+        return {"error": "patient not found"}, 404
+    if not check_patient_access(p):
+        return {"error": "forbidden"}, 403
+
+    episodes = (
+        Episode.query
+        .filter_by(patient_id=p.id, tenant_id=g.tenant_id)
+        .order_by(Episode.episode_number.desc())
+        .all()
+    )
+
+    log_access(g.user.id, "EPISODE_LIST", f"patient/{p.patient_code}/episodes", "SUCCESS", ip,
+               description=f"Viewed episode history for {p.first_name} {p.last_name} ({p.patient_code}) — {len(episodes)} episode(s)")
+    return [_serialize_episode(ep) for ep in episodes], 200
+
+
+@patients_bp.get("/<patient_id>/episodes/<int:episode_id>")
+@require_auth(permission="patients.view")
+def get_episode(patient_id, episode_id):
+    """GET /api/patients/<id>/episodes/<episode_id> — single episode detail."""
+    ip = client_ip()
+    p = get_patient_by_id_or_code(patient_id)
+    if not p:
+        return {"error": "patient not found"}, 404
+    if not check_patient_access(p):
+        return {"error": "forbidden"}, 403
+
+    ep = Episode.query.filter_by(id=episode_id, patient_id=p.id, tenant_id=g.tenant_id).first()
+    if not ep:
+        return {"error": "episode not found"}, 404
+
+    log_access(g.user.id, "EPISODE_VIEW", f"patient/{p.patient_code}/episodes/{ep.id}", "SUCCESS", ip,
+               description=f"Viewed Episode #{ep.episode_number} for {p.first_name} {p.last_name} ({p.patient_code})")
+    return _serialize_episode(ep), 200
+
+
 # ─── ARCHIVE ───
 
 @patients_bp.get("/archive/search")
