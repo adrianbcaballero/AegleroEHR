@@ -1225,6 +1225,12 @@ export function PatientProfileView({
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set(["basic", "clinical"]))
+  const toggleSection = (s: string) => setOpenSections((prev) => {
+    const next = new Set(prev)
+    if (next.has(s)) next.delete(s); else next.add(s)
+    return next
+  })
   const [editError, setEditError] = useState("")
   const [viewingPhoto, setViewingPhoto] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -1863,11 +1869,14 @@ export function PatientProfileView({
 
         {/* Basic Info */}
         <Card className="border-border/60">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-heading font-semibold text-foreground">Basic Information</CardTitle>
-            {canEdit && editingSection !== "basic" && (
+          <CardHeader className="pb-2 flex flex-row items-center justify-between cursor-pointer" onClick={() => toggleSection("basic")}>
+            <div className="flex items-center gap-2">
+              <ChevronDown className={`size-4 text-muted-foreground transition-transform ${openSections.has("basic") || editingSection === "basic" ? "rotate-0" : "-rotate-90"}`} />
+              <CardTitle className="text-sm font-heading font-semibold text-foreground">Basic Information</CardTitle>
+            </div>
+            {canEdit && editingSection !== "basic" && openSections.has("basic") && (
               <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
-                onClick={() => startEdit("basic", {
+                onClick={(e) => { e.stopPropagation(); startEdit("basic", {
                   firstName: patient.firstName || "",
                   lastName: patient.lastName || "",
                   dateOfBirth: patient.dateOfBirth || "",
@@ -1878,12 +1887,12 @@ export function PatientProfileView({
                   ethnicity: patient.ethnicity || "",
                   preferredLanguage: patient.preferredLanguage || "",
                   employmentStatus: patient.employmentStatus || "",
-                })}>
+                })}}>
                 <PenLine className="size-3.5" />
               </Button>
             )}
           </CardHeader>
-          <CardContent className="text-sm space-y-3">
+          {(openSections.has("basic") || editingSection === "basic") && <CardContent className="text-sm space-y-3">
             {editingSection === "basic" ? (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -1926,107 +1935,19 @@ export function PatientProfileView({
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Contact & Address */}
-        <Card className="border-border/60">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-heading font-semibold text-foreground">Contact & Address</CardTitle>
-            {canEdit && editingSection !== "contact" && (
-              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
-                onClick={() => startEdit("contact", {
-                  phone: patient.phone || "",
-                  email: patient.email || "",
-                  addressStreet: patient.addressStreet || "",
-                  addressCity: patient.addressCity || "",
-                  addressState: patient.addressState || "",
-                  addressZip: patient.addressZip || "",
-                })}>
-                <PenLine className="size-3.5" />
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="text-sm space-y-3">
-            {editingSection === "contact" ? (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><p className="text-xs text-muted-foreground mb-1">Phone</p><Input className="h-7 text-sm" value={editForm.phone} onChange={ef("phone")} /></div>
-                  <div><p className="text-xs text-muted-foreground mb-1">Email</p><Input className="h-7 text-sm" value={editForm.email} onChange={ef("email")} /></div>
-                  <div className="col-span-2"><p className="text-xs text-muted-foreground mb-1">Street</p><Input className="h-7 text-sm" value={editForm.addressStreet} onChange={ef("addressStreet")} /></div>
-                  <div><p className="text-xs text-muted-foreground mb-1">City</p><Input className="h-7 text-sm" value={editForm.addressCity} onChange={ef("addressCity")} /></div>
-                  <div><p className="text-xs text-muted-foreground mb-1">State</p><Input className="h-7 text-sm" value={editForm.addressState} onChange={ef("addressState")} /></div>
-                  <div><p className="text-xs text-muted-foreground mb-1">Zip</p><Input className="h-7 text-sm" value={editForm.addressZip} onChange={ef("addressZip")} /></div>
-                </div>
-                {editError && <p className="text-xs text-destructive">{editError}</p>}
-                <div className="flex gap-2 pt-1">
-                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
-                </div>
-              </>
-            ) : (
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.phone || "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Email</p><p className="font-medium text-foreground">{patient.email || "—"}</p></div>
-                <div className="col-span-2">
-                  <p className="text-xs text-muted-foreground">Address</p>
-                  <p className="font-medium text-foreground">
-                    {[patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean).join(", ") || "—"}
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Emergency Contact */}
-        <Card className="border-border/60">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-heading font-semibold text-foreground">Emergency Contact</CardTitle>
-            {canEdit && editingSection !== "emergency" && (
-              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
-                onClick={() => startEdit("emergency", {
-                  emergencyContactName: patient.emergencyContactName || "",
-                  emergencyContactPhone: patient.emergencyContactPhone || "",
-                  emergencyContactRelationship: patient.emergencyContactRelationship || "",
-                })}>
-                <PenLine className="size-3.5" />
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="text-sm space-y-3">
-            {editingSection === "emergency" ? (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><p className="text-xs text-muted-foreground mb-1">Name</p><Input className="h-7 text-sm" value={editForm.emergencyContactName} onChange={ef("emergencyContactName")} /></div>
-                  <div><p className="text-xs text-muted-foreground mb-1">Relationship</p><Input className="h-7 text-sm" value={editForm.emergencyContactRelationship} onChange={ef("emergencyContactRelationship")} /></div>
-                  <div><p className="text-xs text-muted-foreground mb-1">Phone</p><Input className="h-7 text-sm" value={editForm.emergencyContactPhone} onChange={ef("emergencyContactPhone")} /></div>
-                </div>
-                {editError && <p className="text-xs text-destructive">{editError}</p>}
-                <div className="flex gap-2 pt-1">
-                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
-                </div>
-              </>
-            ) : (
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium text-foreground">{patient.emergencyContactName || "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Relationship</p><p className="font-medium text-foreground">{patient.emergencyContactRelationship || "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.emergencyContactPhone || "—"}</p></div>
-              </div>
-            )}
-          </CardContent>
+          </CardContent>}
         </Card>
 
         {/* Clinical */}
         <Card className="border-border/60">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-heading font-semibold text-foreground">Clinical</CardTitle>
-            {canEdit && editingSection !== "clinical" && (
+          <CardHeader className="pb-2 flex flex-row items-center justify-between cursor-pointer" onClick={() => toggleSection("clinical")}>
+            <div className="flex items-center gap-2">
+              <ChevronDown className={`size-4 text-muted-foreground transition-transform ${openSections.has("clinical") || editingSection === "clinical" ? "rotate-0" : "-rotate-90"}`} />
+              <CardTitle className="text-sm font-heading font-semibold text-foreground">Clinical</CardTitle>
+            </div>
+            {canEdit && editingSection !== "clinical" && openSections.has("clinical") && (
               <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setEditCareTeamId(patient.careTeamId ? String(patient.careTeamId) : "none")
-                  startEdit("clinical", {
+                onClick={(e) => { e.stopPropagation(); setEditCareTeamId(patient.careTeamId ? String(patient.careTeamId) : "none"); startEdit("clinical", {
                     primaryDiagnosis: patient.primaryDiagnosis || "",
                     insurance: patient.insurance || "",
                     referringProvider: patient.referringProvider || "",
@@ -2034,13 +1955,12 @@ export function PatientProfileView({
                     pharmacy: patient.pharmacy || "",
                     currentMedications: patient.currentMedications || "",
                     allergies: patient.allergies || "",
-                  })
-                }}>
+                  })}}>
                 <PenLine className="size-3.5" />
               </Button>
             )}
           </CardHeader>
-          <CardContent className="text-sm space-y-3">
+          {(openSections.has("clinical") || editingSection === "clinical") && <CardContent className="text-sm space-y-3">
             {editingSection === "clinical" ? (
               <>
                 <div className="grid grid-cols-2 gap-3">
@@ -2087,7 +2007,102 @@ export function PatientProfileView({
                 <div><p className="text-xs text-muted-foreground">Allergies</p><p className="font-medium text-foreground whitespace-pre-line">{patient.allergies || "—"}</p></div>
               </div>
             )}
-          </CardContent>
+          </CardContent>}
+        </Card>
+
+        {/* Emergency Contact */}
+        <Card className="border-border/60">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between cursor-pointer" onClick={() => toggleSection("emergency")}>
+            <div className="flex items-center gap-2">
+              <ChevronDown className={`size-4 text-muted-foreground transition-transform ${openSections.has("emergency") || editingSection === "emergency" ? "rotate-0" : "-rotate-90"}`} />
+              <CardTitle className="text-sm font-heading font-semibold text-foreground">Emergency Contact</CardTitle>
+            </div>
+            {canEdit && editingSection !== "emergency" && openSections.has("emergency") && (
+              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); startEdit("emergency", {
+                  emergencyContactName: patient.emergencyContactName || "",
+                  emergencyContactPhone: patient.emergencyContactPhone || "",
+                  emergencyContactRelationship: patient.emergencyContactRelationship || "",
+                })}}>
+                <PenLine className="size-3.5" />
+              </Button>
+            )}
+          </CardHeader>
+          {(openSections.has("emergency") || editingSection === "emergency") && <CardContent className="text-sm space-y-3">
+            {editingSection === "emergency" ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground mb-1">Name</p><Input className="h-7 text-sm" value={editForm.emergencyContactName} onChange={ef("emergencyContactName")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Relationship</p><Input className="h-7 text-sm" value={editForm.emergencyContactRelationship} onChange={ef("emergencyContactRelationship")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Phone</p><Input className="h-7 text-sm" value={editForm.emergencyContactPhone} onChange={ef("emergencyContactPhone")} /></div>
+                </div>
+                {editError && <p className="text-xs text-destructive">{editError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium text-foreground">{patient.emergencyContactName || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Relationship</p><p className="font-medium text-foreground">{patient.emergencyContactRelationship || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.emergencyContactPhone || "—"}</p></div>
+              </div>
+            )}
+          </CardContent>}
+        </Card>
+
+        {/* Contact & Address */}
+        <Card className="border-border/60">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between cursor-pointer" onClick={() => toggleSection("contact")}>
+            <div className="flex items-center gap-2">
+              <ChevronDown className={`size-4 text-muted-foreground transition-transform ${openSections.has("contact") || editingSection === "contact" ? "rotate-0" : "-rotate-90"}`} />
+              <CardTitle className="text-sm font-heading font-semibold text-foreground">Contact & Address</CardTitle>
+            </div>
+            {canEdit && editingSection !== "contact" && openSections.has("contact") && (
+              <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); startEdit("contact", {
+                  phone: patient.phone || "",
+                  email: patient.email || "",
+                  addressStreet: patient.addressStreet || "",
+                  addressCity: patient.addressCity || "",
+                  addressState: patient.addressState || "",
+                  addressZip: patient.addressZip || "",
+                })}}>
+                <PenLine className="size-3.5" />
+              </Button>
+            )}
+          </CardHeader>
+          {(openSections.has("contact") || editingSection === "contact") && <CardContent className="text-sm space-y-3">
+            {editingSection === "contact" ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-muted-foreground mb-1">Phone</p><Input className="h-7 text-sm" value={editForm.phone} onChange={ef("phone")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Email</p><Input className="h-7 text-sm" value={editForm.email} onChange={ef("email")} /></div>
+                  <div className="col-span-2"><p className="text-xs text-muted-foreground mb-1">Street</p><Input className="h-7 text-sm" value={editForm.addressStreet} onChange={ef("addressStreet")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">City</p><Input className="h-7 text-sm" value={editForm.addressCity} onChange={ef("addressCity")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">State</p><Input className="h-7 text-sm" value={editForm.addressState} onChange={ef("addressState")} /></div>
+                  <div><p className="text-xs text-muted-foreground mb-1">Zip</p><Input className="h-7 text-sm" value={editForm.addressZip} onChange={ef("addressZip")} /></div>
+                </div>
+                {editError && <p className="text-xs text-destructive">{editError}</p>}
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save"}</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEdit} disabled={editSaving}>Cancel</Button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div><p className="text-xs text-muted-foreground">Phone</p><p className="font-medium text-foreground">{patient.phone || "—"}</p></div>
+                <div><p className="text-xs text-muted-foreground">Email</p><p className="font-medium text-foreground">{patient.email || "—"}</p></div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">Address</p>
+                  <p className="font-medium text-foreground">
+                    {[patient.addressStreet, patient.addressCity, patient.addressState, patient.addressZip].filter(Boolean).join(", ") || "—"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>}
         </Card>
       </div>
 
