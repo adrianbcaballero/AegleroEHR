@@ -1211,6 +1211,9 @@ export function PatientProfileView({
   const [loadingBeds, setLoadingBeds] = useState(false)
   const [consentRefreshKey, setConsentRefreshKey] = useState(0)
   const [checklistOpen, setChecklistOpen] = useState(false)
+  const [openAdmitCategories, setOpenAdmitCategories] = useState<Set<string>>(new Set())
+  const [dischargeChecklistOpen, setDischargeChecklistOpen] = useState(false)
+  const [openDischargeCategories, setOpenDischargeCategories] = useState<Set<string>>(new Set())
   const [hasActiveConsent, setHasActiveConsent] = useState(false)
 
   // Episode state
@@ -1659,61 +1662,100 @@ export function PatientProfileView({
       {/* Pending admission checklist */}
       {patient.status === "pending" && (() => {
         const requiredTemplates = templates.filter((t) => t.requiredForAdmission)
-        const checkItems: { label: string; done: boolean; action?: () => void }[] = []
 
-        // Required forms
+        // Group forms by category
+        const categoryMap = new Map<string, { tmpl: typeof requiredTemplates[0]; done: boolean }[]>()
         for (const tmpl of requiredTemplates) {
+          const cat = tmpl.category || "Uncategorized"
           const completed = forms.some((f) => f.templateId === tmpl.id && f.status === "completed")
-          checkItems.push({
-            label: tmpl.name,
-            done: completed,
-            action: () => {
-              const cat = tmpl.category
-              setActiveTab(cat)
-              const existing = forms.find((f) => f.templateId === tmpl.id)
-              if (existing) setSelectedFormId(existing.id)
-            },
-          })
+          if (!categoryMap.has(cat)) categoryMap.set(cat, [])
+          categoryMap.get(cat)!.push({ tmpl, done: completed })
         }
 
-        // 42 CFR Part 2 consent
-        checkItems.push({ label: "42 CFR Part 2 Consent", done: hasActiveConsent, action: () => setActiveTab("42-cfr-part-2") })
+        // Standalone items
+        const standaloneItems: { label: string; done: boolean; action?: () => void }[] = [
+          { label: "42 CFR Part 2 Consent", done: hasActiveConsent, action: () => setActiveTab("42-cfr-part-2") },
+          { label: "Insurance on file", done: !!(patient.insurance && patient.insurance.trim()) },
+          { label: "Emergency contact on file", done: !!(patient.emergencyContactName && patient.emergencyContactPhone) },
+        ]
 
-        // Insurance on file
-        checkItems.push({ label: "Insurance on file", done: !!(patient.insurance && patient.insurance.trim()) })
-
-        // Emergency contact
-        checkItems.push({ label: "Emergency contact on file", done: !!(patient.emergencyContactName && patient.emergencyContactPhone) })
-
-        const completedCount = checkItems.filter((i) => i.done).length
-        const allDone = completedCount === checkItems.length
+        const formsDone = requiredTemplates.filter((tmpl) => forms.some((f) => f.templateId === tmpl.id && f.status === "completed")).length
+        const standaloneDone = standaloneItems.filter((i) => i.done).length
+        const totalItems = requiredTemplates.length + standaloneItems.length
+        const completedCount = formsDone + standaloneDone
+        const allDone = completedCount === totalItems
 
         return (
-          <div className={`rounded-lg border ${allDone ? "border-chart-5/30 bg-chart-5/10" : "border-chart-4/30 bg-chart-4/10"}`}>
+          <div className={`rounded-md border ${allDone ? "border-chart-5/30 bg-chart-5/10" : "border-chart-4/30 bg-chart-4/10"}`}>
             <button
               onClick={() => setChecklistOpen((o) => !o)}
-              className="flex items-center gap-3 w-full p-4 text-left"
+              className="flex items-center gap-2 w-full px-3 py-2 text-left"
             >
               {allDone
                 ? <CheckCircle2 className="size-4 text-chart-5 shrink-0" />
                 : <AlertTriangle className="size-4 text-chart-4 shrink-0" />}
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${allDone ? "text-chart-5" : "text-chart-4"}`}>
-                  {allDone ? "Ready for Admission" : "Pending Admission"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {completedCount} of {checkItems.length} requirements completed
-                </p>
-              </div>
+              <span className={`flex-1 text-xs font-semibold ${allDone ? "text-chart-5" : "text-chart-4"}`}>
+                {allDone ? "Ready for Admission" : "Pending Admission"}
+              </span>
               <ChevronDown className={`size-4 text-muted-foreground transition-transform ${checklistOpen ? "rotate-180" : ""}`} />
             </button>
 
             {checklistOpen && (
-              <div className="px-4 pb-4 flex flex-col gap-1.5">
+              <div className="px-4 pb-4 flex flex-col gap-1">
                 <Separator />
-                {checkItems.map((item, i) => (
+                {/* Category-grouped forms */}
+                {[...categoryMap.entries()].map(([cat, items]) => {
+                  const catDone = items.every((i) => i.done)
+                  const catOpen = openAdmitCategories.has(cat)
+                  return (
+                    <div key={cat}>
+                      <button
+                        onClick={() => setOpenAdmitCategories((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(cat)) next.delete(cat); else next.add(cat)
+                          return next
+                        })}
+                        className="flex items-center gap-2.5 w-full py-2 px-2 rounded-md text-sm cursor-pointer hover:bg-muted/40 transition-colors"
+                      >
+                        {catDone
+                          ? <CheckCircle2 className="size-4 text-chart-5 shrink-0" />
+                          : <Circle className="size-4 text-muted-foreground/40 shrink-0" />}
+                        <span className={`flex-1 text-left ${catDone ? "text-muted-foreground line-through" : "text-foreground font-medium"}`}>
+                          {cat}
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            ({items.filter((i) => i.done).length}/{items.length})
+                          </span>
+                        </span>
+                        <ChevronDown className={`size-3 text-muted-foreground transition-transform ${catOpen ? "rotate-180" : ""}`} />
+                      </button>
+                      {catOpen && (
+                        <div className="ml-6 flex flex-col gap-0.5">
+                          {items.map(({ tmpl, done }) => (
+                            <div
+                              key={tmpl.id}
+                              className="flex items-center gap-2.5 py-1.5 px-2 rounded-md text-sm cursor-pointer hover:bg-muted/40 transition-colors"
+                              onClick={() => {
+                                setActiveTab(tmpl.category || "Uncategorized")
+                                const existing = forms.find((f) => f.templateId === tmpl.id)
+                                if (existing) setSelectedFormId(existing.id)
+                              }}
+                            >
+                              {done
+                                ? <CheckCircle2 className="size-3.5 text-chart-5 shrink-0" />
+                                : <Circle className="size-3.5 text-muted-foreground/40 shrink-0" />}
+                              <span className={done ? "text-muted-foreground line-through" : "text-foreground"}>{tmpl.name}</span>
+                              {!done && <ChevronRight className="size-3 text-muted-foreground ml-auto" />}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {/* Standalone items */}
+                {standaloneItems.map((item, i) => (
                   <div
-                    key={i}
+                    key={`standalone-${i}`}
                     className={`flex items-center gap-2.5 py-1.5 px-2 rounded-md text-sm ${item.action ? "cursor-pointer hover:bg-muted/40 transition-colors" : ""}`}
                     onClick={item.action}
                   >
@@ -1724,6 +1766,98 @@ export function PatientProfileView({
                     {!item.done && item.action && <ChevronRight className="size-3 text-muted-foreground ml-auto" />}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Discharge checklist */}
+      {patient.status === "active" && (() => {
+        const dischargeTemplates = templates.filter((t) => t.requiredForDischarge)
+        if (dischargeTemplates.length === 0) return null
+
+        // Group by category
+        const categoryMap = new Map<string, { tmpl: typeof dischargeTemplates[0]; done: boolean }[]>()
+        for (const tmpl of dischargeTemplates) {
+          const cat = tmpl.category || "Uncategorized"
+          const completed = forms.some((f) => f.templateId === tmpl.id && f.status === "completed")
+          if (!categoryMap.has(cat)) categoryMap.set(cat, [])
+          categoryMap.get(cat)!.push({ tmpl, done: completed })
+        }
+
+        const totalItems = dischargeTemplates.length
+        const completedCount = dischargeTemplates.filter((tmpl) =>
+          forms.some((f) => f.templateId === tmpl.id && f.status === "completed")
+        ).length
+        const allDone = completedCount === totalItems
+
+        return (
+          <div className={`rounded-md border ${allDone ? "border-chart-5/30 bg-chart-5/10" : "border-chart-4/30 bg-chart-4/10"}`}>
+            <button
+              onClick={() => setDischargeChecklistOpen((o) => !o)}
+              className="flex items-center gap-2 w-full px-3 py-2 text-left"
+            >
+              {allDone
+                ? <CheckCircle2 className="size-4 text-chart-5 shrink-0" />
+                : <AlertTriangle className="size-4 text-chart-4 shrink-0" />}
+              <span className={`flex-1 text-xs font-semibold ${allDone ? "text-chart-5" : "text-chart-4"}`}>
+                {allDone ? "Ready for Discharge" : "Discharge Requirements"}
+              </span>
+              <ChevronDown className={`size-4 text-muted-foreground transition-transform ${dischargeChecklistOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {dischargeChecklistOpen && (
+              <div className="px-4 pb-4 flex flex-col gap-1">
+                <Separator />
+                {[...categoryMap.entries()].map(([cat, items]) => {
+                  const catDone = items.every((i) => i.done)
+                  const catOpen = openDischargeCategories.has(cat)
+                  return (
+                    <div key={cat}>
+                      <button
+                        onClick={() => setOpenDischargeCategories((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(cat)) next.delete(cat); else next.add(cat)
+                          return next
+                        })}
+                        className="flex items-center gap-2.5 w-full py-2 px-2 rounded-md text-sm cursor-pointer hover:bg-muted/40 transition-colors"
+                      >
+                        {catDone
+                          ? <CheckCircle2 className="size-4 text-chart-5 shrink-0" />
+                          : <Circle className="size-4 text-muted-foreground/40 shrink-0" />}
+                        <span className={`flex-1 text-left ${catDone ? "text-muted-foreground line-through" : "text-foreground font-medium"}`}>
+                          {cat}
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            ({items.filter((i) => i.done).length}/{items.length})
+                          </span>
+                        </span>
+                        <ChevronDown className={`size-3 text-muted-foreground transition-transform ${catOpen ? "rotate-180" : ""}`} />
+                      </button>
+                      {catOpen && (
+                        <div className="ml-6 flex flex-col gap-0.5">
+                          {items.map(({ tmpl, done }) => (
+                            <div
+                              key={tmpl.id}
+                              className="flex items-center gap-2.5 py-1.5 px-2 rounded-md text-sm cursor-pointer hover:bg-muted/40 transition-colors"
+                              onClick={() => {
+                                setActiveTab(tmpl.category || "Uncategorized")
+                                const existing = forms.find((f) => f.templateId === tmpl.id)
+                                if (existing) setSelectedFormId(existing.id)
+                              }}
+                            >
+                              {done
+                                ? <CheckCircle2 className="size-3.5 text-chart-5 shrink-0" />
+                                : <Circle className="size-3.5 text-muted-foreground/40 shrink-0" />}
+                              <span className={done ? "text-muted-foreground line-through" : "text-foreground"}>{tmpl.name}</span>
+                              {!done && <ChevronRight className="size-3 text-muted-foreground ml-auto" />}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
