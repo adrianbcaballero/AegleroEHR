@@ -28,8 +28,12 @@ def _serialize_bed(bed: Bed):
             "id": patient.patient_code,
             "firstName": patient.first_name,
             "lastName": patient.last_name,
-            "admittedAt": patient.admitted_at.isoformat() if patient.admitted_at else None,
-            "primaryDiagnosis": patient.primary_diagnosis,
+            "admittedAt": (patient.current_episode.admitted_at.isoformat()
+                           if patient.current_episode and patient.current_episode.admitted_at
+                           else (patient.admitted_at.isoformat() if patient.admitted_at else None)),
+            "primaryDiagnosis": (patient.current_episode.primary_diagnosis
+                                  if patient.current_episode and patient.current_episode.primary_diagnosis
+                                  else patient.primary_diagnosis),
             "insurance": patient.insurance,
             "riskLevel": patient.risk_level,
         } if occupied else None,
@@ -205,7 +209,10 @@ def assign_bed(bed_id):
             if old_bed:
                 old_bed.status = "cleaning"
 
+        # Dual-write bed assignment to patient and episode
         patient.assigned_bed_id = bed_id
+        if patient.current_episode:
+            patient.current_episode.assigned_bed_id = bed_id
         bed.status = "available"  # "occupied" is derived; reset any cleaning/OOS flag
         db.session.commit()
 
@@ -219,6 +226,8 @@ def assign_bed(bed_id):
                        description=f"Unassigned {current.first_name} {current.last_name} "
                        f"from bed '{bed.display_name}'")
             current.assigned_bed_id = None
+            if current.current_episode:
+                current.current_episode.assigned_bed_id = None
             bed.status = "cleaning"
             db.session.commit()
 

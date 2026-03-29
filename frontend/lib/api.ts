@@ -193,6 +193,10 @@ export function admitPatient(patientCode: string, bedId?: number) {
   return apiPost<Patient>(`/api/patients/${patientCode}/admit`, bedId ? { bedId } : {})
 }
 
+export function readmitPatient(patientCode: string) {
+  return apiPost<Patient>(`/api/patients/${patientCode}/readmit`, {})
+}
+
 export function dischargePatient(patientCode: string, reason: string) {
   return apiPost<Patient>(`/api/patients/${patientCode}/discharge`, { reason })
 }
@@ -246,6 +250,9 @@ export interface Patient {
   assignedBedId: number | null
   createdAt: string | null
   readmissionCount: number
+  episodeId: number | null
+  episodeNumber: number | null
+  episodeCount: number
 }
 
 export interface PatientDetail extends Patient {}
@@ -483,6 +490,7 @@ export interface PatientFormEntry {
   templateFields?: TemplateField[]
   createdAt: string | null
   updatedAt: string | null
+  episodeId: number | null
   accessLevel: "view" | "edit" | "sign" | null
 }
 

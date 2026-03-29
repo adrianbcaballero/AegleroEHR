@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from auth_middleware import require_auth
 from extensions import db
-from models import Patient, User, FormTemplate, PatientForm, Bed, CareTeam, CareTeamMember
+from models import Patient, Episode, User, FormTemplate, PatientForm, Bed, CareTeam, CareTeamMember
 
 import base64
 import re
@@ -63,6 +63,14 @@ def _serialize_patient(p: Patient):
     #assigned provider display
     provider_name = provider_display_name(p.assigned_provider_id)
 
+    # Read from current episode if available, fall back to old Patient columns during transition
+    ep = p.current_episode
+    admitted_at = (ep.admitted_at if ep else None) or p.admitted_at
+    discharged_at = (ep.discharged_at if ep else None) or p.discharged_at
+    discharge_reason = (ep.discharge_reason if ep else None) or p.discharge_reason
+    assigned_bed_id = (ep.assigned_bed_id if ep else None) or p.assigned_bed_id
+    episode_count = p.episodes.count() if p.current_episode_id else 0
+
     return {
         # frontend uses string IDs like PT-001
         "id": p.patient_code,
@@ -72,7 +80,7 @@ def _serialize_patient(p: Patient):
         "phone": p.phone,
         "email": p.email,
         "status": p.status,
-        "primaryDiagnosis": p.primary_diagnosis,
+        "primaryDiagnosis": (ep.primary_diagnosis if ep else None) or p.primary_diagnosis,
         "insurance": p.insurance,
         "riskLevel": p.risk_level,
         "assignedProvider": provider_name,
@@ -96,15 +104,19 @@ def _serialize_patient(p: Patient):
         "primaryCarePhysician": p.primary_care_physician,
         "pharmacy": p.pharmacy,
         "currentLoc": p.current_loc,
-        "assignedBedId": p.assigned_bed_id,
+        "assignedBedId": assigned_bed_id,
         "createdAt": p.created_at.isoformat() if p.created_at else None,
-        "admittedAt": p.admitted_at.isoformat() if p.admitted_at else None,
+        "admittedAt": admitted_at.isoformat() if admitted_at else None,
         "readmissionCount": p.readmission_count,
-        "dischargedAt": p.discharged_at.isoformat() if p.discharged_at else None,
-        "dischargeReason": p.discharge_reason,
+        "dischargedAt": discharged_at.isoformat() if discharged_at else None,
+        "dischargeReason": discharge_reason,
         "careTeamId": p.care_team_id,
         "careTeamName": p.care_team.name if p.care_team else None,
         "photo": p.photo,
+        # Episode fields
+        "episodeId": ep.id if ep else None,
+        "episodeNumber": ep.episode_number if ep else None,
+        "episodeCount": episode_count,
     }
 
 
@@ -386,7 +398,7 @@ def create_patient():
         p.patient_code = patient_code
         db.session.add(p)
         try:
-            db.session.commit()
+            db.session.flush()
             break
         except IntegrityError:
             db.session.rollback()
@@ -395,7 +407,21 @@ def create_patient():
                 return {"error": "could not generate a unique patient code, please try again"}, 500
             patient_code = _next_patient_code()
 
-    log_access(g.user.id, "PATIENT_CREATE", f"patient/{p.patient_code}", "SUCCESS", ip)
+    # Create Episode #1 for this patient
+    ep = Episode(
+        tenant_id=g.tenant_id,
+        patient_id=p.id,
+        episode_number=1,
+        status=status,
+        primary_diagnosis=p.primary_diagnosis,
+    )
+    db.session.add(ep)
+    db.session.flush()
+    p.current_episode_id = ep.id
+    db.session.commit()
+
+    log_access(g.user.id, "PATIENT_CREATE", f"patient/{p.patient_code}", "SUCCESS", ip,
+               description=f"Registered {p.first_name} {p.last_name} ({p.patient_code}) — Episode #1 created")
     return _serialize_patient(p), 201
 
 
@@ -587,8 +613,14 @@ def admit_patient(patient_id):
         return {"error": "forbidden"}, 403
     if p.status == "active":
         return {"error": "patient is already admitted"}, 409
+    if p.status == "inactive":
+        return {"error": "patient is discharged — use readmit first"}, 409
 
-    # Check all required-for-admission templates have completed forms
+    ep = p.current_episode
+    if not ep:
+        return {"error": "no current episode found for patient"}, 500
+
+    # Check all required-for-admission templates have completed forms for THIS episode
     required_templates = (
         FormTemplate.query
         .filter_by(tenant_id=g.tenant_id, required_for_admission=True, status="active")
@@ -596,18 +628,26 @@ def admit_patient(patient_id):
     )
     missing = []
     for tmpl in required_templates:
-        completed = PatientForm.query.filter_by(
-            patient_id=p.id, template_id=tmpl.id, status="completed"
+        completed = PatientForm.query.filter(
+            PatientForm.patient_id == p.id,
+            PatientForm.template_id == tmpl.id,
+            PatientForm.status == "completed",
+            # Scope to current episode; also match legacy forms with no episode_id
+            db.or_(PatientForm.episode_id == ep.id, PatientForm.episode_id.is_(None)),
         ).first()
         if not completed:
             missing.append(tmpl.name)
     if missing:
         return {"error": "Cannot admit — required forms not completed", "missingForms": missing}, 409
 
-    is_readmit = p.status == "inactive"
-    if is_readmit:
-        p.readmission_count = (p.readmission_count or 0) + 1
-    p.admitted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+
+    # Update episode
+    ep.admitted_at = now
+    ep.status = "active"
+
+    # Dual-write to old Patient columns during transition
+    p.admitted_at = now
     p.discharged_at = None
     p.discharge_reason = None
     p.status = "active"
@@ -621,18 +661,19 @@ def admit_patient(patient_id):
         current = bed.current_patient
         if current and current.status == "active" and current.id != p.id:
             return {"error": f"bed is already occupied by {current.first_name} {current.last_name}"}, 409
+        # Dual-write bed assignment
+        ep.assigned_bed_id = bed_id
         p.assigned_bed_id = bed_id
         bed.status = "available"
 
     db.session.commit()
 
-    action = "PATIENT_READMIT" if is_readmit else "PATIENT_ADMIT"
-    desc = f"{'Readmitted' if is_readmit else 'Admitted'} {p.first_name} {p.last_name} ({p.patient_code})"
-    if bed_id and p.assigned_bed_id:
+    desc = f"Admitted {p.first_name} {p.last_name} ({p.patient_code}) — Episode #{ep.episode_number}"
+    if bed_id and ep.assigned_bed_id:
         bed_obj = Bed.query.get(bed_id)
         if bed_obj:
-            desc += f" — assigned to bed '{bed_obj.display_name}'"
-    log_access(g.user.id, action, f"patient/{p.patient_code}", "SUCCESS", ip, description=desc)
+            desc += f", assigned to bed '{bed_obj.display_name}'"
+    log_access(g.user.id, "PATIENT_ADMIT", f"patient/{p.patient_code}", "SUCCESS", ip, description=desc)
     return _serialize_patient(p), 200
 
 
@@ -655,7 +696,11 @@ def discharge_patient(patient_id):
     if reason not in VALID_DISCHARGE_REASONS:
         return {"error": f"reason must be one of {sorted(VALID_DISCHARGE_REASONS)}"}, 400
 
-    # Check all required-for-discharge templates have completed forms
+    ep = p.current_episode
+    if not ep:
+        return {"error": "no current episode found for patient"}, 500
+
+    # Check all required-for-discharge templates have completed forms for THIS episode
     required_templates = (
         FormTemplate.query
         .filter_by(tenant_id=g.tenant_id, required_for_discharge=True, status="active")
@@ -663,28 +708,41 @@ def discharge_patient(patient_id):
     )
     missing = []
     for tmpl in required_templates:
-        completed = PatientForm.query.filter_by(
-            patient_id=p.id, template_id=tmpl.id, status="completed"
+        completed = PatientForm.query.filter(
+            PatientForm.patient_id == p.id,
+            PatientForm.template_id == tmpl.id,
+            PatientForm.status == "completed",
+            db.or_(PatientForm.episode_id == ep.id, PatientForm.episode_id.is_(None)),
         ).first()
         if not completed:
             missing.append(tmpl.name)
     if missing:
         return {"error": "Cannot discharge — required forms not completed", "missingForms": missing}, 409
 
-    p.discharged_at = datetime.now(timezone.utc)
-    p.discharge_reason = reason
-    p.status = "inactive"
+    now = datetime.now(timezone.utc)
 
-    # Release bed — mark it as cleaning so staff can turn it around
-    if p.assigned_bed_id:
-        bed = Bed.query.get(p.assigned_bed_id)
+    # Update episode
+    ep.discharged_at = now
+    ep.discharge_reason = reason
+    ep.status = "discharged"
+
+    # Release bed from episode
+    if ep.assigned_bed_id:
+        bed = Bed.query.get(ep.assigned_bed_id)
         if bed:
             bed.status = "cleaning"
+        ep.assigned_bed_id = None
+
+    # Dual-write to old Patient columns during transition
+    p.discharged_at = now
+    p.discharge_reason = reason
+    p.status = "inactive"
+    if p.assigned_bed_id:
         p.assigned_bed_id = None
 
     db.session.commit()
 
-    # Auto-create a Discharge Summary draft if the template exists and no open draft
+    # Auto-create a Discharge Summary draft if the template exists and no open draft for this episode
     discharge_template = (
         FormTemplate.query
         .filter_by(tenant_id=g.tenant_id, name="Discharge Summary", status="active")
@@ -692,13 +750,14 @@ def discharge_patient(patient_id):
     )
     if discharge_template:
         existing_draft = PatientForm.query.filter_by(
-            patient_id=p.id, template_id=discharge_template.id, status="draft"
+            patient_id=p.id, template_id=discharge_template.id, status="draft", episode_id=ep.id,
         ).first()
         if not existing_draft:
             db.session.add(PatientForm(
                 tenant_id=g.tenant_id,
                 patient_id=p.id,
                 template_id=discharge_template.id,
+                episode_id=ep.id,
                 form_data={},
                 status="draft",
             ))
@@ -706,7 +765,58 @@ def discharge_patient(patient_id):
 
     reason_labels = {"completed": "Completed Treatment", "ama": "AMA", "transferred": "Transferred", "other": "Other"}
     log_access(g.user.id, "PATIENT_DISCHARGE", f"patient/{p.patient_code}", "SUCCESS", ip,
-               description=f"Discharged {p.first_name} {p.last_name} ({p.patient_code}) — reason: {reason_labels.get(reason, reason)}")
+               description=f"Discharged {p.first_name} {p.last_name} ({p.patient_code}) — Episode #{ep.episode_number}, reason: {reason_labels.get(reason, reason)}")
+    return _serialize_patient(p), 200
+
+
+@patients_bp.post("/<patient_id>/readmit")
+@require_auth(permission="frontdesk.patients.pending")
+def readmit_patient(patient_id):
+    """
+    POST /api/patients/<id>/readmit
+    Creates a new Episode and returns the patient to pending status.
+    Only works on discharged (inactive) patients.
+    """
+    ip = client_ip()
+    p = get_patient_by_id_or_code(patient_id)
+    if not p:
+        log_access(g.user.id, "PATIENT_READMIT", f"patient/{patient_id}", "FAILED", ip, description="Patient not found")
+        return {"error": "patient not found"}, 404
+    if not check_patient_access(p):
+        return {"error": "forbidden"}, 403
+    if p.status == "active":
+        return {"error": "patient is currently admitted"}, 409
+    if p.status == "pending":
+        return {"error": "patient is already pending admission"}, 409
+
+    p.readmission_count = (p.readmission_count or 0) + 1
+    new_episode_number = p.readmission_count + 1
+
+    # Create new episode
+    ep = Episode(
+        tenant_id=g.tenant_id,
+        patient_id=p.id,
+        episode_number=new_episode_number,
+        status="pending",
+        primary_diagnosis=p.primary_diagnosis,
+    )
+    db.session.add(ep)
+    db.session.flush()
+
+    # Point patient to new episode, return to pending
+    p.current_episode_id = ep.id
+    p.status = "pending"
+
+    # Dual-write: clear old admission fields during transition
+    p.admitted_at = None
+    p.discharged_at = None
+    p.discharge_reason = None
+    p.assigned_bed_id = None
+
+    db.session.commit()
+
+    log_access(g.user.id, "PATIENT_READMIT", f"patient/{p.patient_code}", "SUCCESS", ip,
+               description=f"Readmitted {p.first_name} {p.last_name} ({p.patient_code}) — Episode #{ep.episode_number} created, returned to pending")
     return _serialize_patient(p), 200
 
 

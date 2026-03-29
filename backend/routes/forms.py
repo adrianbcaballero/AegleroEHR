@@ -91,6 +91,7 @@ def _serialize_form(f: PatientForm, template: FormTemplate | None = None, filler
         "signedAt": f.signed_at.isoformat() if f.signed_at else None,
         "createdAt": f.created_at.isoformat() if f.created_at else None,
         "updatedAt": f.updated_at.isoformat() if f.updated_at else None,
+        "episodeId": f.episode_id,
         "accessLevel": access_level,
     }
 
@@ -410,6 +411,7 @@ def _maybe_generate_recurring_forms(p: Patient, user, tenant_id: int):
                 tenant_id=tenant_id,
                 patient_id=p.id,
                 template_id=template.id,
+                episode_id=p.current_episode_id,
                 form_data={},
                 status="draft",
             ))
@@ -540,6 +542,7 @@ def create_patient_form(patient_id):
         tenant_id=g.tenant_id,
         patient_id=p.id,
         template_id=template_id,
+        episode_id=p.current_episode_id,
         form_data=form_data,
         status=status,
         filled_by=g.user.id,
