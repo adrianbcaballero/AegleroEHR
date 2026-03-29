@@ -223,10 +223,12 @@ export function getPatientEpisode(patientCode: string, episodeId: number) {
   return apiGet<EpisodeDetail>(`/api/patients/${patientCode}/episodes/${episodeId}`)
 }
 
-export function searchArchive(params: { q?: string; ssn?: string }) {
+export function searchArchive(params: { q?: string; ssn?: string; dischargedFrom?: string; dischargedTo?: string }) {
   const query = new URLSearchParams()
   if (params.q) query.set("q", params.q)
   if (params.ssn) query.set("ssn", params.ssn)
+  if (params.dischargedFrom) query.set("discharged_from", params.dischargedFrom)
+  if (params.dischargedTo) query.set("discharged_to", params.dischargedTo)
   return apiGet<Patient[]>(`/api/patients/archive/search?${query.toString()}`)
 }
 
