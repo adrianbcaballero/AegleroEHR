@@ -63,12 +63,11 @@ def _serialize_patient(p: Patient):
     #assigned provider display
     provider_name = provider_display_name(p.assigned_provider_id)
 
-    # Read from current episode if available, fall back to old Patient columns during transition
     ep = p.current_episode
-    admitted_at = (ep.admitted_at if ep else None) or p.admitted_at
-    discharged_at = (ep.discharged_at if ep else None) or p.discharged_at
-    discharge_reason = (ep.discharge_reason if ep else None) or p.discharge_reason
-    assigned_bed_id = (ep.assigned_bed_id if ep else None) or p.assigned_bed_id
+    admitted_at = ep.admitted_at if ep else None
+    discharged_at = ep.discharged_at if ep else None
+    discharge_reason = ep.discharge_reason if ep else None
+    assigned_bed_id = ep.assigned_bed_id if ep else None
     episode_count = p.episodes.count() if p.current_episode_id else 0
 
     return {
@@ -254,8 +253,10 @@ def check_duplicate():
             "dateOfBirth": p.date_of_birth.isoformat() if p.date_of_birth else None,
             "ssnLast4": p.ssn_last4,
             "status": p.status,
-            "admittedAt": p.admitted_at.isoformat() if p.admitted_at else None,
-            "dischargedAt": p.discharged_at.isoformat() if p.discharged_at else None,
+            "admittedAt": (p.current_episode.admitted_at.isoformat()
+                           if p.current_episode and p.current_episode.admitted_at else None),
+            "dischargedAt": (p.current_episode.discharged_at.isoformat()
+                              if p.current_episode and p.current_episode.discharged_at else None),
             "readmissionCount": p.readmission_count,
         }
         for p in matches
@@ -642,14 +643,8 @@ def admit_patient(patient_id):
 
     now = datetime.now(timezone.utc)
 
-    # Update episode
     ep.admitted_at = now
     ep.status = "active"
-
-    # Dual-write to old Patient columns during transition
-    p.admitted_at = now
-    p.discharged_at = None
-    p.discharge_reason = None
     p.status = "active"
 
     # Optional bed assignment on admit
@@ -661,9 +656,7 @@ def admit_patient(patient_id):
         current = bed.current_patient
         if current and current.status == "active" and current.id != p.id:
             return {"error": f"bed is already occupied by {current.first_name} {current.last_name}"}, 409
-        # Dual-write bed assignment
         ep.assigned_bed_id = bed_id
-        p.assigned_bed_id = bed_id
         bed.status = "available"
 
     db.session.commit()
@@ -733,12 +726,7 @@ def discharge_patient(patient_id):
             bed.status = "cleaning"
         ep.assigned_bed_id = None
 
-    # Dual-write to old Patient columns during transition
-    p.discharged_at = now
-    p.discharge_reason = reason
     p.status = "inactive"
-    if p.assigned_bed_id:
-        p.assigned_bed_id = None
 
     db.session.commit()
 
@@ -806,12 +794,6 @@ def readmit_patient(patient_id):
     # Point patient to new episode, return to pending
     p.current_episode_id = ep.id
     p.status = "pending"
-
-    # Dual-write: clear old admission fields during transition
-    p.admitted_at = None
-    p.discharged_at = None
-    p.discharge_reason = None
-    p.assigned_bed_id = None
 
     db.session.commit()
 

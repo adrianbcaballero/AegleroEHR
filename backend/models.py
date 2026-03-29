@@ -237,13 +237,6 @@ class Patient(db.Model):
 
     assigned_provider_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
 
-    # Bed assignment — FK to bed.id, null if unassigned
-    assigned_bed_id = db.Column(db.Integer, db.ForeignKey("bed.id"), nullable=True)
-    assigned_bed = db.relationship(
-        "Bed",
-        backref=db.backref("current_patient", uselist=False),
-        foreign_keys=[assigned_bed_id],
-    )
 
     # Care team — null means any authenticated user can view this patient ("Everyone")
     care_team_id = db.Column(db.Integer, db.ForeignKey("care_team.id"), nullable=True)
@@ -258,12 +251,7 @@ class Patient(db.Model):
     # Registration timestamp
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, server_default=db.text("now()"))
 
-    # Admission / discharge — DEPRECATED: kept during transition, will be removed
-    # New code should use Episode model instead
-    admitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
     readmission_count = db.Column(db.Integer, default=0, nullable=False, server_default=db.text("0"))
-    discharged_at = db.Column(db.DateTime(timezone=True), nullable=True)
-    discharge_reason = db.Column(db.String(80), nullable=True)  # completed / ama / transferred / other
 
     # Current episode reference — quick access without joining
     current_episode_id = db.Column(db.Integer, db.ForeignKey("episode.id", use_alter=True), nullable=True)
@@ -375,8 +363,8 @@ class LoginAttempt(db.Model):
 class Bed(db.Model):
     """
     Physical bed inventory for the tenant.
-    Occupied status is derived: if current_patient (backref from Patient.assigned_bed_id)
-    exists and patient.status == 'active', the bed is occupied.
+    Occupied status is derived from Episode: if an active episode is assigned to this bed,
+    the bed is occupied.
     """
     __tablename__ = "bed"
 
@@ -403,6 +391,12 @@ class Bed(db.Model):
 
     # Display ordering within a unit
     sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+    @property
+    def current_patient(self):
+        """Derive occupant from Episode: find active episode assigned to this bed."""
+        ep = Episode.query.filter_by(assigned_bed_id=self.id, status="active").first()
+        return ep.patient if ep else None
 
 
 class CareTeam(db.Model):

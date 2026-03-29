@@ -7,7 +7,7 @@ from werkzeug.security import check_password_hash
 
 from extensions import db
 import config
-from models import User, UserSession, Tenant, Patient, MfaPendingToken, InviteToken
+from models import User, UserSession, Tenant, Patient, Episode, MfaPendingToken, InviteToken
 from services.audit_logger import log_access
 from services.rate_limiter import is_rate_limited
 from services.helpers import client_ip, get_slug_from_host
@@ -151,9 +151,15 @@ def _create_session(user, tenant, t_id, ip, is_first_login, needs_mfa_setup):
 
     log_access(user.id, "LOGIN", "auth", "SUCCESS", ip, description=f"User '{user.username}' ({user.role_name}) logged in", tenant_id=t_id)
 
-    # Auto-archive inactive patients discharged 14+ days ago
+    # Auto-archive inactive patients discharged 14+ days ago (via Episode)
     cutoff = datetime.now(timezone.utc) - timedelta(days=14)
-    stale = Patient.query.filter_by(tenant_id=t_id, status="inactive").filter(Patient.discharged_at <= cutoff).all()
+    stale = (
+        Patient.query
+        .filter_by(tenant_id=t_id, status="inactive")
+        .join(Episode, Patient.current_episode_id == Episode.id)
+        .filter(Episode.discharged_at <= cutoff)
+        .all()
+    )
     for p in stale:
         p.status = "archived"
     if stale:

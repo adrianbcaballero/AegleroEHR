@@ -12,7 +12,7 @@ from werkzeug.security import generate_password_hash
 from app import create_app
 from extensions import db
 from models import (
-    Tenant, User, Patient, AuditLog, FormTemplate, FormTemplateAccess, PatientForm,
+    Tenant, User, Patient, Episode, AuditLog, FormTemplate, FormTemplateAccess, PatientForm,
     Role, RolePermission, Bed, CareTeam, CareTeamMember,
     SYSTEM_ROLE_PERMISSIONS,
 )
@@ -477,16 +477,6 @@ def seed():
         t1_patients = []
         for i, (first, last, dob, gender, pronouns, diag, ins, risk, care_team, status_info, clinical) in enumerate(t1_patient_data, start=1):
             pt_status = status_info["status"]
-            pt_admitted_at = None
-            pt_discharged_at = None
-            pt_discharge_reason = None
-
-            if pt_status == "active":
-                pt_admitted_at = seed_now - timedelta(days=status_info["admitted_days_ago"])
-            elif pt_status == "inactive":
-                pt_admitted_at = seed_now - timedelta(days=status_info["admitted_days_ago"])
-                pt_discharged_at = seed_now - timedelta(days=status_info["discharged_days_ago"])
-                pt_discharge_reason = status_info["discharge_reason"]
 
             p = Patient(
                 tenant_id=tenant1.id,
@@ -503,9 +493,6 @@ def seed():
                 primary_diagnosis=diag,
                 insurance=ins,
                 care_team_id=care_team.id,
-                admitted_at=pt_admitted_at,
-                discharged_at=pt_discharged_at,
-                discharge_reason=pt_discharge_reason,
                 # Demographics
                 marital_status=clinical.get("marital_status"),
                 preferred_language=clinical.get("preferred_language"),
@@ -559,11 +546,50 @@ def seed():
                 primary_diagnosis=diag,
                 insurance=ins,
                 care_team_id=ct_harbor.id,
-                admitted_at=seed_now - timedelta(days=i + 1),
             )
             t2_patients.append(p)
 
         db.session.add_all(t1_patients + t2_patients)
+        db.session.flush()  # get patient IDs for Episode creation
+
+        # ── Episodes for each patient ──
+        seed_now = datetime.now(timezone.utc)
+        for i, (first, last, dob, gender, pronouns, diag, ins, risk, care_team, status_info, clinical) in enumerate(t1_patient_data, start=1):
+            p = t1_patients[i - 1]
+            pt_status = status_info["status"]
+            ep_status = "pending" if pt_status == "pending" else ("active" if pt_status == "active" else "discharged")
+            ep_admitted = seed_now - timedelta(days=status_info["admitted_days_ago"]) if "admitted_days_ago" in status_info else None
+            ep_discharged = seed_now - timedelta(days=status_info["discharged_days_ago"]) if "discharged_days_ago" in status_info else None
+            ep_discharge_reason = status_info.get("discharge_reason")
+
+            ep = Episode(
+                tenant_id=tenant1.id,
+                patient_id=p.id,
+                episode_number=1,
+                status=ep_status,
+                admitted_at=ep_admitted,
+                discharged_at=ep_discharged,
+                discharge_reason=ep_discharge_reason,
+                primary_diagnosis=diag,
+            )
+            db.session.add(ep)
+            db.session.flush()
+            p.current_episode_id = ep.id
+
+        for i, (first, last, dob, gender, pronouns, diag, ins, risk) in enumerate(t2_data, start=1):
+            p = t2_patients[i - 1]
+            ep = Episode(
+                tenant_id=tenant2.id,
+                patient_id=p.id,
+                episode_number=1,
+                status="active",
+                admitted_at=seed_now - timedelta(days=i + 1),
+                primary_diagnosis=diag,
+            )
+            db.session.add(ep)
+            db.session.flush()
+            p.current_episode_id = ep.id
+
         db.session.commit()
 
         # ── Beds (Tenant 1 — Aeglero Detox) ──
@@ -597,11 +623,12 @@ def seed():
 
         db.session.flush()  # get bed IDs before assigning
 
-        # Assign active detox patients (indices 3-9, which are Emily through Ashley) to beds
+        # Assign active detox patients to beds via their current Episode
         active_detox = [p for p in t1_patients if p.status == "active" and p.care_team_id == ct_detox.id]
         available_beds = [b for b in t1_beds if b.status == "available"]
         for patient, bed in zip(active_detox, available_beds):
-            patient.assigned_bed_id = bed.id
+            if patient.current_episode:
+                patient.current_episode.assigned_bed_id = bed.id
 
         db.session.commit()
 
@@ -1174,7 +1201,7 @@ def seed():
         print(f"  Aeglero — {pending} pending, {active} active ({len(active_detox)} in beds + {active - len(active_detox)} IOP/PHP), {inactive} discharged")
         print(f"  Harbor  — {len(t2_patients)} active")
         print()
-        occupied = sum(1 for b in t1_beds if any(p.assigned_bed_id == b.id for p in t1_patients))
+        occupied = sum(1 for b in t1_beds if b.current_patient is not None)
         print(f"Beds (Aeglero): {len(t1_beds)} total — {occupied} occupied, 1 cleaning, 1 out of service")
         print("Form templates and sample forms created for both tenants.")
 

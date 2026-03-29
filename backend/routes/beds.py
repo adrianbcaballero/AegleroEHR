@@ -30,10 +30,10 @@ def _serialize_bed(bed: Bed):
             "lastName": patient.last_name,
             "admittedAt": (patient.current_episode.admitted_at.isoformat()
                            if patient.current_episode and patient.current_episode.admitted_at
-                           else (patient.admitted_at.isoformat() if patient.admitted_at else None)),
+                           else None),
             "primaryDiagnosis": (patient.current_episode.primary_diagnosis
-                                  if patient.current_episode and patient.current_episode.primary_diagnosis
-                                  else patient.primary_diagnosis),
+                                  if patient.current_episode
+                                  else None),
             "insurance": patient.insurance,
             "riskLevel": patient.risk_level,
         } if occupied else None,
@@ -203,16 +203,17 @@ def assign_bed(bed_id):
                 "error": f"bed is already occupied by {current.first_name} {current.last_name}"
             }, 409
 
+        ep = patient.current_episode
+        if not ep:
+            return {"error": "patient has no current episode"}, 500
+
         # If patient was in another bed, mark that bed as cleaning
-        if patient.assigned_bed_id and patient.assigned_bed_id != bed_id:
-            old_bed = Bed.query.get(patient.assigned_bed_id)
+        if ep.assigned_bed_id and ep.assigned_bed_id != bed_id:
+            old_bed = Bed.query.get(ep.assigned_bed_id)
             if old_bed:
                 old_bed.status = "cleaning"
 
-        # Dual-write bed assignment to patient and episode
-        patient.assigned_bed_id = bed_id
-        if patient.current_episode:
-            patient.current_episode.assigned_bed_id = bed_id
+        ep.assigned_bed_id = bed_id
         bed.status = "available"  # "occupied" is derived; reset any cleaning/OOS flag
         db.session.commit()
 
@@ -225,7 +226,6 @@ def assign_bed(bed_id):
             log_access(g.user.id, "BED_UNASSIGN", f"bed/{bed_id}", "SUCCESS", ip,
                        description=f"Unassigned {current.first_name} {current.last_name} "
                        f"from bed '{bed.display_name}'")
-            current.assigned_bed_id = None
             if current.current_episode:
                 current.current_episode.assigned_bed_id = None
             bed.status = "cleaning"
