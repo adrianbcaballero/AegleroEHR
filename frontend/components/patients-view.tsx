@@ -2005,11 +2005,13 @@ export function PatientProfileView({
                           {cat} Forms
                           <span className="ml-2 text-sm font-normal text-muted-foreground">({catForms.length})</span>
                         </CardTitle>
-                        <NewFormDialog
-                          patientCode={patient.id}
-                          categoryFilter={cat}
-                          onCreated={(formId) => { fetchForms(); setSelectedFormId(formId) }}
-                        />
+                        {!isViewingPast && (
+                          <NewFormDialog
+                            patientCode={patient.id}
+                            categoryFilter={cat}
+                            onCreated={(formId) => { fetchForms(); setSelectedFormId(formId) }}
+                          />
+                        )}
                       </div>
                     </CardHeader>
                     <CardContent className="p-0">

@@ -533,6 +533,11 @@ def create_patient_form(patient_id):
         log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip, description=f"Form creation denied — role '{g.user.role_name}' lacks edit/sign access to template '{template.name}'")
         return {"error": "forbidden — insufficient access to this form template"}, 403
 
+    if p.current_episode and p.current_episode.status == "discharged":
+        log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip,
+                   description="Form creation blocked — current episode is discharged")
+        return {"error": "cannot add forms to a discharged episode"}, 409
+
     form_data = data.get("formData", {})
     if not isinstance(form_data, dict):
         log_access(g.user.id, "FORM_CREATE", f"patient/{p.patient_code}/forms", "FAILED", ip, description="Form creation failed — formData must be an object")
