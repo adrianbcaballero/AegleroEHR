@@ -38,7 +38,6 @@ from services.helpers import client_ip, parse_date_iso, get_patient_by_id_or_cod
 
 patients_bp = Blueprint("patients", __name__, url_prefix="/api/patients")
 
-VALID_RISK = {"low", "moderate", "high"}
 VALID_STATUS = {"pending", "active", "inactive", "archived"}
 
 
@@ -81,7 +80,6 @@ def _serialize_patient(p: Patient):
         "status": p.status,
         "primaryDiagnosis": (ep.primary_diagnosis if ep else None) or p.primary_diagnosis,
         "insurance": p.insurance,
-        "riskLevel": p.risk_level,
         "assignedProvider": provider_name,
         "ssnLast4": p.ssn_last4,
         "gender": p.gender,
@@ -145,13 +143,11 @@ def list_patients():
     """
     search = (request.args.get("search") or "").strip()
     status = (request.args.get("status") or "").strip()
-    risk_level = (request.args.get("risk_level") or "").strip()
 
     q = tenant_query(Patient)
     q = _apply_rbac(q)
 
     if search:
-        # search across first/last name and patient_code
         like = f"%{search}%"
         q = q.filter(
             or_(
@@ -163,9 +159,6 @@ def list_patients():
 
     if status:
         q = q.filter(Patient.status == status)
-
-    if risk_level:
-        q = q.filter(Patient.risk_level == risk_level)
 
     q = q.order_by(Patient.last_name.asc(), Patient.first_name.asc())
 
@@ -293,15 +286,10 @@ def create_patient():
         return {"error": "dateOfBirth must be YYYY-MM-DD"}, 400
 
     status = (data.get("status") or "pending").strip()
-    risk = (data.get("riskLevel") or "low").strip()
 
     if status not in VALID_STATUS:
         log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description=f"Patient creation failed — invalid status '{status}'")
         return {"error": f"status must be one of {sorted(VALID_STATUS)}"}, 400
-
-    if risk not in VALID_RISK:
-        log_access(g.user.id, "PATIENT_CREATE", "patient", "FAILED", ip, description=f"Patient creation failed — invalid risk level '{risk}'")
-        return {"error": f"riskLevel must be one of {sorted(VALID_RISK)}"}, 400
 
     #assigned provider handling
     assigned_provider_id = data.get("assignedProviderId")
@@ -368,7 +356,6 @@ def create_patient():
         phone=(data.get("phone") or "").strip() or None,
         email=(data.get("email") or "").strip() or None,
         status=status,
-        risk_level=risk,
         primary_diagnosis=(data.get("primaryDiagnosis") or "").strip() or None,
         insurance=(data.get("insurance") or "").strip() or None,
         assigned_provider_id=assigned_provider_id,
@@ -481,12 +468,6 @@ def update_patient(patient_id):
         if status not in VALID_STATUS:
             return {"error": f"status must be one of {sorted(VALID_STATUS)}"}, 400
         p.status = status
-
-    if "riskLevel" in data:
-        risk = (data.get("riskLevel") or "").strip()
-        if risk not in VALID_RISK:
-            return {"error": f"riskLevel must be one of {sorted(VALID_RISK)}"}, 400
-        p.risk_level = risk
 
     if "assignedProviderId" in data:
         if not g.user.has_permission("patients.view.all"):

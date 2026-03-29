@@ -314,10 +314,10 @@ def seed():
 
         # Realistic patient data for a Texas detox/behavioral health facility
         t1_patient_data = [
-            # (first, last, dob, gender, pronouns, diagnosis, insurance, risk, care_team, status_info, extra_clinical)
+            # (first, last, dob, gender, pronouns, diagnosis, insurance, care_team, status_info, extra_clinical)
             # --- 3 Pending (intake team) ---
             ("Maria", "Gonzalez", date(1988, 3, 14), "Female", "She/Her",
-             "F10.239 Alcohol use disorder, severe", "Medicaid", "high", ct_intake,
+             "F10.239 Alcohol use disorder, severe", "Medicaid", ct_intake,
              {"status": "pending"},
              {"phone": "(512) 555-0101", "emergency_contact_name": "Rosa Gonzalez",
               "emergency_contact_phone": "(512) 555-8801", "emergency_contact_relationship": "Mother",
@@ -327,7 +327,7 @@ def seed():
               "address_state": "TX", "address_zip": "78741"}),
 
             ("James", "Carter", date(1995, 7, 22), "Male", "He/Him",
-             "F11.20 Opioid use disorder, severe", "Blue Shield", "high", ct_intake,
+             "F11.20 Opioid use disorder, severe", "Blue Shield", ct_intake,
              {"status": "pending"},
              {"phone": "(512) 555-0102", "emergency_contact_name": "Linda Carter",
               "emergency_contact_phone": "(512) 555-8802", "emergency_contact_relationship": "Mother",
@@ -339,7 +339,7 @@ def seed():
               "address_state": "TX", "address_zip": "78701"}),
 
             ("Brittany", "Marsh", date(2000, 1, 9), "Female", "She/Her",
-             "F14.20 Cocaine use disorder, moderate", "Aetna", "moderate", ct_intake,
+             "F14.20 Cocaine use disorder, moderate", "Aetna", ct_intake,
              {"status": "pending"},
              {"phone": "(512) 555-0103", "emergency_contact_name": "Kevin Marsh",
               "emergency_contact_phone": "(512) 555-8803", "emergency_contact_relationship": "Father",
@@ -350,7 +350,7 @@ def seed():
 
             # --- 8 Active / Admitted (detox unit team — in beds) ---
             ("Emily", "Tran", date(1990, 11, 5), "Female", "She/Her",
-             "F10.239 Alcohol use disorder, severe", "Aetna", "high", ct_detox,
+             "F10.239 Alcohol use disorder, severe", "Aetna", ct_detox,
              {"status": "active", "admitted_days_ago": 2},
              {"phone": "(512) 555-0104", "emergency_contact_name": "David Tran",
               "emergency_contact_phone": "(512) 555-8804", "emergency_contact_relationship": "Spouse",
@@ -363,7 +363,7 @@ def seed():
               "address_state": "TX", "address_zip": "78704"}),
 
             ("Robert", "Kim", date(1983, 2, 28), "Male", "He/Him",
-             "F11.20 Opioid use disorder, severe", "United Health", "high", ct_detox,
+             "F11.20 Opioid use disorder, severe", "United Health", ct_detox,
              {"status": "active", "admitted_days_ago": 4},
              {"phone": "(512) 555-0105", "emergency_contact_name": "Susan Kim",
               "emergency_contact_phone": "(512) 555-8805", "emergency_contact_relationship": "Wife",
@@ -376,7 +376,7 @@ def seed():
               "address_state": "TX", "address_zip": "78745"}),
 
             ("Carlos", "Mendez", date(1979, 5, 19), "Male", "He/Him",
-             "F10.239 Alcohol use disorder, severe", "Kaiser", "high", ct_detox,
+             "F10.239 Alcohol use disorder, severe", "Kaiser", ct_detox,
              {"status": "active", "admitted_days_ago": 1},
              {"phone": "(512) 555-0106", "emergency_contact_name": "Ana Mendez",
               "emergency_contact_phone": "(512) 555-8806", "emergency_contact_relationship": "Sister",
@@ -388,7 +388,7 @@ def seed():
               "address_state": "TX", "address_zip": "78702"}),
 
             ("Sandra", "Williams", date(2000, 9, 3), "Female", "She/Her",
-             "F13.20 Sedative use disorder, moderate", "Cigna", "moderate", ct_detox,
+             "F13.20 Sedative use disorder, moderate", "Cigna", ct_detox,
              {"status": "active", "admitted_days_ago": 3},
              {"phone": "(512) 555-0107", "emergency_contact_name": "Patricia Williams",
               "emergency_contact_phone": "(512) 555-8807", "emergency_contact_relationship": "Mother",
@@ -400,7 +400,7 @@ def seed():
               "address_state": "TX", "address_zip": "78723"}),
 
             ("Marcus", "Davis", date(1986, 12, 1), "Male", "He/Him",
-             "F11.20 Opioid use disorder, severe", "Medicaid", "high", ct_detox,
+             "F11.20 Opioid use disorder, severe", "Medicaid", ct_detox,
              {"status": "active", "admitted_days_ago": 5},
              {"phone": "(512) 555-0108", "emergency_contact_name": "Tanya Davis",
               "emergency_contact_phone": "(512) 555-8808", "emergency_contact_relationship": "Sister",
@@ -412,7 +412,7 @@ def seed():
               "address_state": "TX", "address_zip": "78752"}),
 
             ("Ashley", "Johnson", date(1992, 8, 11), "Female", "She/Her",
-             "F15.20 Stimulant use disorder, moderate", "Blue Shield", "moderate", ct_detox,
+             "F15.20 Stimulant use disorder, moderate", "Blue Shield", ct_detox,
              {"status": "active", "admitted_days_ago": 6},
              {"phone": "(512) 555-0109", "emergency_contact_name": "Mike Johnson",
               "emergency_contact_phone": "(512) 555-8809", "emergency_contact_relationship": "Brother",
@@ -425,7 +425,7 @@ def seed():
 
             # --- 2 Active (IOP/PHP team — no beds, outpatient) ---
             ("Rachel", "Lee", date(1997, 4, 17), "Female", "She/Her",
-             "F10.10 Alcohol use disorder, mild", "Aetna", "low", ct_iop,
+             "F10.10 Alcohol use disorder, mild", "Aetna", ct_iop,
              {"status": "active", "admitted_days_ago": 14},
              {"phone": "(512) 555-0110", "emergency_contact_name": "Tom Lee",
               "emergency_contact_phone": "(512) 555-8810", "emergency_contact_relationship": "Father",
@@ -437,7 +437,7 @@ def seed():
               "address_state": "TX", "address_zip": "78729"}),
 
             ("Diego", "Salazar", date(1991, 10, 25), "Male", "He/Him",
-             "F12.20 Cannabis use disorder, moderate", "Cigna", "low", ct_iop,
+             "F12.20 Cannabis use disorder, moderate", "Cigna", ct_iop,
              {"status": "active", "admitted_days_ago": 10},
              {"phone": "(512) 555-0111", "emergency_contact_name": "Carmen Salazar",
               "emergency_contact_phone": "(512) 555-8811", "emergency_contact_relationship": "Mother",
@@ -450,7 +450,7 @@ def seed():
 
             # --- 2 Discharged (completed program) ---
             ("Thomas", "Brown", date(1974, 1, 30), "Male", "He/Him",
-             "F10.239 Alcohol use disorder, severe", "Kaiser", "moderate", ct_detox,
+             "F10.239 Alcohol use disorder, severe", "Kaiser", ct_detox,
              {"status": "inactive", "admitted_days_ago": 21, "discharged_days_ago": 3, "discharge_reason": "completed"},
              {"phone": "(512) 555-0112", "emergency_contact_name": "Janet Brown",
               "emergency_contact_phone": "(512) 555-8812", "emergency_contact_relationship": "Wife",
@@ -462,7 +462,7 @@ def seed():
               "address_state": "TX", "address_zip": "78704"}),
 
             ("Keisha", "Robinson", date(1989, 6, 8), "Female", "She/Her",
-             "F11.20 Opioid use disorder, severe", "Medicaid", "high", ct_detox,
+             "F11.20 Opioid use disorder, severe", "Medicaid", ct_detox,
              {"status": "inactive", "admitted_days_ago": 30, "discharged_days_ago": 7, "discharge_reason": "completed"},
              {"phone": "(512) 555-0113", "emergency_contact_name": "Denise Robinson",
               "emergency_contact_phone": "(512) 555-8813", "emergency_contact_relationship": "Mother",
@@ -475,7 +475,7 @@ def seed():
         ]
 
         t1_patients = []
-        for i, (first, last, dob, gender, pronouns, diag, ins, risk, care_team, status_info, clinical) in enumerate(t1_patient_data, start=1):
+        for i, (first, last, dob, gender, pronouns, diag, ins, care_team, status_info, clinical) in enumerate(t1_patient_data, start=1):
             pt_status = status_info["status"]
 
             p = Patient(
@@ -489,7 +489,6 @@ def seed():
                 phone=clinical.get("phone", f"(512) 555-{i:04d}"),
                 email=f"{first.lower()}.{last.lower()}@example.com",
                 status=pt_status,
-                risk_level=risk,
                 primary_diagnosis=diag,
                 insurance=ins,
                 care_team_id=care_team.id,
@@ -520,17 +519,17 @@ def seed():
         t2_patients = []
         t2_data = [
             ("Luis", "Reyes", date(1990, 6, 10), "Male", "He/Him",
-             "F11.20 Opioid use disorder, severe", "Medi-Cal", "high"),
+             "F11.20 Opioid use disorder, severe", "Medi-Cal"),
             ("Tanya", "Nguyen", date(1985, 3, 22), "Female", "She/Her",
-             "F10.239 Alcohol use disorder, severe", "Aetna", "high"),
+             "F10.239 Alcohol use disorder, severe", "Aetna"),
             ("Derek", "Patel", date(1993, 9, 5), "Male", "He/Him",
-             "F14.20 Cocaine use disorder, moderate", "Medi-Cal", "moderate"),
+             "F14.20 Cocaine use disorder, moderate", "Medi-Cal"),
             ("Monica", "Torres", date(1978, 12, 15), "Female", "She/Her",
-             "F11.20 Opioid use disorder, severe", "Aetna", "high"),
+             "F11.20 Opioid use disorder, severe", "Aetna"),
             ("Kevin", "Okafor", date(2001, 1, 28), "Male", "He/Him",
-             "F12.20 Cannabis use disorder, mild", "Medi-Cal", "low"),
+             "F12.20 Cannabis use disorder, mild", "Medi-Cal"),
         ]
-        for i, (first, last, dob, gender, pronouns, diag, ins, risk) in enumerate(t2_data, start=1):
+        for i, (first, last, dob, gender, pronouns, diag, ins) in enumerate(t2_data, start=1):
             p = Patient(
                 tenant_id=tenant2.id,
                 patient_code=f"PT-{i:03d}",
@@ -542,7 +541,6 @@ def seed():
                 phone=f"(713) 555-{i:04d}",
                 email=f"{first.lower()}.{last.lower()}@harbor.example.com",
                 status="active",
-                risk_level=risk,
                 primary_diagnosis=diag,
                 insurance=ins,
                 care_team_id=ct_harbor.id,
@@ -554,7 +552,7 @@ def seed():
 
         # ── Episodes for each patient ──
         seed_now = datetime.now(timezone.utc)
-        for i, (first, last, dob, gender, pronouns, diag, ins, risk, care_team, status_info, clinical) in enumerate(t1_patient_data, start=1):
+        for i, (first, last, dob, gender, pronouns, diag, ins, care_team, status_info, clinical) in enumerate(t1_patient_data, start=1):
             p = t1_patients[i - 1]
             pt_status = status_info["status"]
             ep_status = "pending" if pt_status == "pending" else ("active" if pt_status == "active" else "discharged")
@@ -576,7 +574,7 @@ def seed():
             db.session.flush()
             p.current_episode_id = ep.id
 
-        for i, (first, last, dob, gender, pronouns, diag, ins, risk) in enumerate(t2_data, start=1):
+        for i, (first, last, dob, gender, pronouns, diag, ins) in enumerate(t2_data, start=1):
             p = t2_patients[i - 1]
             ep = Episode(
                 tenant_id=tenant2.id,

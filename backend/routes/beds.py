@@ -35,7 +35,6 @@ def _serialize_bed(bed: Bed):
                                   if patient.current_episode
                                   else None),
             "insurance": patient.insurance,
-            "riskLevel": patient.risk_level,
         } if occupied else None,
     }
 

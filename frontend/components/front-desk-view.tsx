@@ -28,12 +28,6 @@ import type { Patient, Bed, CareTeam, DuplicateMatch } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
 import { ManageBedsView } from "@/components/manage-beds-view"
 
-const riskColors: Record<string, string> = {
-  low: "bg-accent/10 text-accent border-accent/20",
-  moderate: "bg-chart-4/10 text-chart-4 border-chart-4/20",
-  high: "bg-destructive/10 text-destructive border-destructive/20",
-}
-
 const bedStatusConfig: Record<string, { label: string; border: string; bg: string; dot: string }> = {
   occupied:       { label: "Occupied",       border: "border-primary/40",     bg: "bg-primary/5",     dot: "bg-primary" },
   available:      { label: "Available",      border: "border-green-500/40",   bg: "bg-green-500/5",   dot: "bg-green-500" },
@@ -432,10 +426,8 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                                 <p className="text-[10px] text-muted-foreground truncate">{bed.patient.primaryDiagnosis}</p>
                               )}
                               <div className="flex items-center justify-between mt-0.5">
-                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${riskColors[bed.patient.riskLevel] ?? ""}`}>
-                                  {bed.patient.riskLevel}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground">{daysSince(bed.patient.admittedAt)}</span>
+                                <span className="text-[10px] text-muted-foreground truncate">{bed.patient.insurance || "No insurance"}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">{daysSince(bed.patient.admittedAt)}</span>
                               </div>
                             </div>
                           ) : (

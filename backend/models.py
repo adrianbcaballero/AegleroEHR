@@ -204,7 +204,6 @@ class Patient(db.Model):
     email = db.Column(db.String(120), nullable=True)
 
     status = db.Column(db.String(30), default="active", nullable=False)   #active/inactive/archived
-    risk_level = db.Column(db.String(20), default="low", nullable=False)  #low/moderate/high
 
     primary_diagnosis = db.Column(db.String(120), nullable=True)
     insurance = db.Column(db.String(120), nullable=True)

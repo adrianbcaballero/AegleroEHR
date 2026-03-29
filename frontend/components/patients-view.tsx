@@ -71,12 +71,6 @@ import { format } from "date-fns"
 // Default categories that always appear as tabs even with 0 forms — cannot be "deleted" by archiving templates
 const DEFAULT_CATEGORIES = ["assessment", "clinical", "consent", "discharge", "flowsheet", "intake", "insurance"]
 
-const riskColors: Record<string, string> = {
-  low: "bg-accent/10 text-accent border-accent/20",
-  moderate: "bg-chart-4/10 text-chart-4 border-chart-4/20",
-  high: "bg-destructive/10 text-destructive border-destructive/20",
-}
-
 interface FormStatusEntry {
   icon: typeof CheckCircle2
   color: string
@@ -1508,9 +1502,6 @@ export function PatientProfileView({
               LOC {patient.currentLoc}
             </Badge>
           )}
-          <Badge variant="secondary" className={`text-xs ${riskColors[patient.riskLevel] || ""}`}>
-            {patient.riskLevel} risk
-          </Badge>
           {!isViewingPast && canAdmit && patient.status === "inactive" && (
             <Button size="sm" onClick={async () => {
               setActionLoading(true)
@@ -2259,7 +2250,7 @@ function PatientTable({
           <TableHead className="text-xs font-semibold text-muted-foreground">Patient</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground hidden sm:table-cell">Insurance</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Care Team</TableHead>
-          <TableHead className="text-xs font-semibold text-muted-foreground">Risk</TableHead>
+          <TableHead className="text-xs font-semibold text-muted-foreground">LOC</TableHead>
           <TableHead className="text-xs font-semibold text-muted-foreground w-10" />
         </TableRow>
       </TableHeader>
@@ -2293,9 +2284,13 @@ function PatientTable({
               <span className="text-sm text-muted-foreground">{patient.careTeamName || "Unassigned"}</span>
             </TableCell>
             <TableCell>
-              <Badge variant="secondary" className={`text-[10px] capitalize ${riskColors[patient.riskLevel] || ""}`}>
-                {patient.riskLevel}
-              </Badge>
+              {patient.currentLoc ? (
+                <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                  {patient.currentLoc}
+                </Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+              )}
             </TableCell>
             <TableCell>
               <ChevronRight className="size-4 text-muted-foreground" />

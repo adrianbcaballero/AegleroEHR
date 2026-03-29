@@ -243,7 +243,6 @@ export interface Patient {
   status: string
   primaryDiagnosis: string | null
   insurance: string | null
-  riskLevel: string
   currentLoc: string | null
   admittedAt: string | null
   dischargedAt: string | null
@@ -710,7 +709,6 @@ export interface BedPatient {
   admittedAt: string | null
   primaryDiagnosis: string | null
   insurance: string | null
-  riskLevel: string
 }
 
 export interface Bed {
