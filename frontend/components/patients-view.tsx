@@ -1499,15 +1499,10 @@ export function PatientProfileView({
             )}
           </div>
           <p className="text-sm text-muted-foreground">
-            {patient.id} &middot; {patient.insurance || "No insurance on file"}
+            {patient.id} &middot; {patient.currentLoc ? `LOC ${patient.currentLoc}` : "LOC not assessed"}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {patient.currentLoc && (
-            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
-              LOC {patient.currentLoc}
-            </Badge>
-          )}
           {!isViewingPast && canAdmit && patient.status === "inactive" && (
             <Button size="sm" onClick={async () => {
               setActionLoading(true)
