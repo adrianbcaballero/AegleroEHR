@@ -17,6 +17,8 @@ import {
   Settings2,
   Trash2,
   Archive,
+  Eye,
+  PenLine,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -90,7 +92,7 @@ function TemplateEditorDialog({
   existingCategories = [],
 }: {
   existing?: FormTemplate
-  onSaved: () => void
+  onSaved: (createdId?: number) => void
   trigger: React.ReactNode
   existingCategories?: string[]
 }) {
@@ -108,6 +110,8 @@ function TemplateEditorDialog({
   const [requiredForDischarge, setRequiredForDischarge] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [previewing, setPreviewing] = useState(false)
+  const [previewData, setPreviewData] = useState<Record<string, unknown>>({})
 
   useEffect(() => {
     if (open) {
@@ -211,9 +215,9 @@ function TemplateEditorDialog({
       : createTemplate(payload)
 
     promise
-      .then(() => {
+      .then((result) => {
         setOpen(false)
-        onSaved()
+        onSaved(!existing ? result.id : undefined)
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to save"))
       .finally(() => setLoading(false))
@@ -344,102 +348,216 @@ function TemplateEditorDialog({
 
           {/* Fields */}
           <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium text-foreground">Fields</Label>
-            {fields.map((field, idx) => (
-              <div key={idx} className={`flex flex-col gap-2 p-3 border rounded-lg ${field.type === "section" ? "border-dashed border-muted-foreground/40 bg-muted/20" : "border-border"}`}>
-                <div className="flex items-center gap-2">
-                  {field.type === "section" ? (
-                    <p className="flex-1 text-xs text-muted-foreground italic">— Section Break —</p>
-                  ) : (
-                    <Input
-                      placeholder={field.type === "title" ? "Title text" : "Field label"}
-                      value={field.label}
-                      onChange={(e) => updateField(idx, "label", e.target.value)}
-                      className="flex-1"
-                    />
-                  )}
-                  <Select
-                    value={field.type}
-                    onValueChange={(val) => updateField(idx, "type", val)}
-                  >
-                    <SelectTrigger className="w-44">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FIELD_TYPES.map((ft) => (
-                        <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fields.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive shrink-0"
-                      onClick={() => removeField(idx)}
-                    >
-                      ×
-                    </Button>
-                  )}
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-foreground">Fields</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs bg-transparent text-foreground gap-1.5"
+                onClick={() => { setPreviewing(!previewing); if (!previewing) setPreviewData({}) }}
+              >
+                {previewing ? <><PenLine className="size-3" /> Editor</> : <><Eye className="size-3" /> Preview</>}
+              </Button>
+            </div>
+
+            {previewing ? (
+              /* ── Live Preview ── */
+              <div className="border border-border rounded-lg p-4 bg-muted/20">
+                <div className="flex flex-col gap-4">
+                  {name && <h2 className="text-lg font-bold text-foreground">{name}</h2>}
+                  {description && <p className="text-sm text-muted-foreground">{description}</p>}
+                  {name || description ? <Separator /> : null}
+                  {fields.map((field, idx) => {
+                    if (field.type === "section") return <Separator key={idx} className="my-1" />
+                    if (field.type === "title") return <h2 key={idx} className="text-xl font-bold text-foreground pt-1">{field.label || "Untitled"}</h2>
+
+                    const opts = field.options
+                      ? (Array.isArray(field.options) ? field.options : String(field.options).split(",").map((s: string) => s.trim()).filter(Boolean))
+                      : []
+                    const resolvedField = { ...field, options: opts }
+
+                    return (
+                      <div key={idx} className="flex flex-col gap-2">
+                        <Label className="text-sm font-medium text-foreground">
+                          {field.label || "Untitled field"}
+                          {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
+                        </Label>
+                        {field.type === "text" && (
+                          <Input placeholder={field.placeholder || field.label} value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                        )}
+                        {field.type === "textarea" && (
+                          <Textarea placeholder={field.placeholder || field.label} className="min-h-[80px]" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                        )}
+                        {field.type === "number" && (
+                          <Input type="number" placeholder={field.placeholder || field.label} value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                        )}
+                        {field.type === "date" && (
+                          <Input type="date" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                        )}
+                        {field.type === "checkbox" && (
+                          <div className="flex gap-3">
+                            {(resolvedField.options.length > 0 ? resolvedField.options : ["Yes", "No"]).map((o) => (
+                              <label key={o} className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox checked={previewData[field.label] === o} onCheckedChange={() => setPreviewData((p) => ({ ...p, [field.label]: o }))} />
+                                <span className="text-sm text-foreground">{o}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                        {field.type === "checkbox_group" && (
+                          <div className="flex flex-col gap-2">
+                            {resolvedField.options.map((o) => {
+                              const sel = Array.isArray(previewData[field.label]) ? (previewData[field.label] as string[]) : []
+                              return (
+                                <label key={o} className="flex items-center gap-2 cursor-pointer">
+                                  <Checkbox
+                                    checked={sel.includes(o)}
+                                    onCheckedChange={(c) => setPreviewData((p) => ({ ...p, [field.label]: c ? [...sel, o] : sel.filter((s) => s !== o) }))}
+                                  />
+                                  <span className="text-sm text-foreground">{o}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        )}
+                        {field.type === "select" && (
+                          <Select value={(previewData[field.label] as string) || ""} onValueChange={(v) => setPreviewData((p) => ({ ...p, [field.label]: v }))}>
+                            <SelectTrigger><SelectValue placeholder={`Select ${field.label.toLowerCase()}`} /></SelectTrigger>
+                            <SelectContent>
+                              {resolvedField.options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {field.type === "scale" && (() => {
+                          const mn = field.min ?? 0
+                          const mx = field.max ?? 3
+                          const cur = typeof previewData[field.label] === "number" ? (previewData[field.label] as number) : -1
+                          return (
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {Array.from({ length: mx - mn + 1 }, (_, i) => i + mn).map((n) => (
+                                  <button
+                                    key={n} type="button"
+                                    className={`size-10 rounded-lg border text-sm font-medium transition-colors ${cur === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-foreground border-border hover:bg-muted"}`}
+                                    onClick={() => setPreviewData((p) => ({ ...p, [field.label]: n }))}
+                                  >{n}</button>
+                                ))}
+                              </div>
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>{mn} = Not at all</span><span>{mx} = Nearly every day</span>
+                              </div>
+                            </div>
+                          )
+                        })()}
+                        {field.type === "signature" && (
+                          <Input placeholder="Type full name as signature" className="italic" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                        )}
+                      </div>
+                    )
+                  })}
+                  {fields.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No fields to preview.</p>}
                 </div>
-                {/* Placeholder text for text-like fields */}
-                {(field.type === "text" || field.type === "textarea" || field.type === "number") && (
-                  <div className="flex flex-col gap-1 ml-1">
-                    <Label className="text-xs text-muted-foreground">Placeholder text</Label>
-                    <Input
-                      placeholder="Greyed out hint text when empty..."
-                      value={field.placeholder || ""}
-                      onChange={(e) => updateField(idx, "placeholder", e.target.value)}
-                      className="text-sm"
-                    />
-                  </div>
-                )}
-                {/* Options for checkbox_group, select, checkbox */}
-                {(field.type === "checkbox_group" || field.type === "select" || field.type === "checkbox") && (
-                  <div className="flex flex-col gap-1 ml-1">
-                    <Label className="text-xs text-muted-foreground">Options (comma-separated)</Label>
-                    <Input
-                      placeholder={field.type === "checkbox" ? "Yes, No" : "Option 1, Option 2, Option 3"}
-                      value={Array.isArray(field.options) ? field.options.join(", ") : (field.options || "")}
-                      onChange={(e) => updateField(idx, "options", e.target.value)}
-                      className="text-sm"
-                    />
-                  </div>
-                )}
-                {/* Scale min/max */}
-                {field.type === "scale" && (
-                  <div className="flex gap-2 ml-1">
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs text-muted-foreground">Min</Label>
-                      <Input
-                        type="number"
-                        value={field.min ?? 0}
-                        onChange={(e) => updateField(idx, "min", parseInt(e.target.value) || 0)}
-                        className="w-20 text-sm"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label className="text-xs text-muted-foreground">Max</Label>
-                      <Input
-                        type="number"
-                        value={field.max ?? 3}
-                        onChange={(e) => updateField(idx, "max", parseInt(e.target.value) || 3)}
-                        className="w-20 text-sm"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
-            ))}
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-transparent text-foreground self-start"
-              onClick={() => setFields([...fields, { label: "", type: "text" }])}
-            >
-              <Plus className="mr-1 size-3" />
-              Add Field
-            </Button>
+            ) : (
+              /* ── Field Editor ── */
+              <>
+                {fields.map((field, idx) => (
+                  <div key={idx} className={`flex flex-col gap-2 p-3 border rounded-lg ${field.type === "section" ? "border-dashed border-muted-foreground/40 bg-muted/20" : "border-border"}`}>
+                    <div className="flex items-center gap-2">
+                      {field.type === "section" ? (
+                        <p className="flex-1 text-xs text-muted-foreground italic">— Section Break —</p>
+                      ) : (
+                        <Input
+                          placeholder={field.type === "title" ? "Title text" : "Field label"}
+                          value={field.label}
+                          onChange={(e) => updateField(idx, "label", e.target.value)}
+                          className="flex-1"
+                        />
+                      )}
+                      <Select
+                        value={field.type}
+                        onValueChange={(val) => updateField(idx, "type", val)}
+                      >
+                        <SelectTrigger className="w-44">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FIELD_TYPES.map((ft) => (
+                            <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fields.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-destructive shrink-0"
+                          onClick={() => removeField(idx)}
+                        >
+                          ×
+                        </Button>
+                      )}
+                    </div>
+                    {/* Placeholder text for text-like fields */}
+                    {(field.type === "text" || field.type === "textarea" || field.type === "number") && (
+                      <div className="flex flex-col gap-1 ml-1">
+                        <Label className="text-xs text-muted-foreground">Placeholder text</Label>
+                        <Input
+                          placeholder="Greyed out hint text when empty..."
+                          value={field.placeholder || ""}
+                          onChange={(e) => updateField(idx, "placeholder", e.target.value)}
+                          className="text-sm"
+                        />
+                      </div>
+                    )}
+                    {/* Options for checkbox_group, select, checkbox */}
+                    {(field.type === "checkbox_group" || field.type === "select" || field.type === "checkbox") && (
+                      <div className="flex flex-col gap-1 ml-1">
+                        <Label className="text-xs text-muted-foreground">Options (comma-separated)</Label>
+                        <Input
+                          placeholder={field.type === "checkbox" ? "Yes, No" : "Option 1, Option 2, Option 3"}
+                          value={Array.isArray(field.options) ? field.options.join(", ") : (field.options || "")}
+                          onChange={(e) => updateField(idx, "options", e.target.value)}
+                          className="text-sm"
+                        />
+                      </div>
+                    )}
+                    {/* Scale min/max */}
+                    {field.type === "scale" && (
+                      <div className="flex gap-2 ml-1">
+                        <div className="flex flex-col gap-1">
+                          <Label className="text-xs text-muted-foreground">Min</Label>
+                          <Input
+                            type="number"
+                            value={field.min ?? 0}
+                            onChange={(e) => updateField(idx, "min", parseInt(e.target.value) || 0)}
+                            className="w-20 text-sm"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label className="text-xs text-muted-foreground">Max</Label>
+                          <Input
+                            type="number"
+                            value={field.max ?? 3}
+                            onChange={(e) => updateField(idx, "max", parseInt(e.target.value) || 3)}
+                            className="w-20 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-transparent text-foreground self-start"
+                  onClick={() => setFields([...fields, { label: "", type: "text" }])}
+                >
+                  <Plus className="mr-1 size-3" />
+                  Add Field
+                </Button>
+              </>
+            )}
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -1057,7 +1175,7 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
             <>
               <CategoryManager onChanged={() => { fetchTemplates(); fetchCategories() }} />
               <TemplateEditorDialog
-                onSaved={fetchTemplates}
+                onSaved={(createdId) => { fetchTemplates(); if (createdId) setSelectedTemplateId(createdId) }}
                 existingCategories={allCategories}
                 trigger={
                   <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
