@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback} from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   GitBranch,
   Search,
@@ -19,6 +19,7 @@ import {
   Archive,
   Eye,
   PenLine,
+  GripVertical,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -56,7 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getTemplates, getTemplate, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories, deleteCategory, getRolesPicker } from "@/lib/api"
+import { getTemplates, getTemplate, createTemplate, updateTemplate, deleteTemplate, getCategories, updateCategories, deleteCategory, renameCategory, getRolesPicker } from "@/lib/api"
 import type { FormTemplate, TemplateField, RoleAccess, DeleteCategoryError } from "@/lib/api"
 
 type AccessLevel = "none" | "view" | "edit" | "sign"
@@ -890,6 +891,11 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
   const [error, setError] = useState("")
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeBlocked, setRemoveBlocked] = useState<{ cat: string; templates: { id: number; name: string }[] } | null>(null)
+  const [editingCat, setEditingCat] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState("")
+  const [renaming, setRenaming] = useState(false)
+  const dragItem = useRef<number | null>(null)
+  const dragOver = useRef<number | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -908,12 +914,20 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
     }
   }, [open])
 
-  const move = (idx: number, dir: -1 | 1) => {
+  const handleDragStart = (idx: number) => { dragItem.current = idx }
+  const handleDragEnter = (idx: number) => { dragOver.current = idx }
+  const handleDragEnd = () => {
+    if (dragItem.current === null || dragOver.current === null || dragItem.current === dragOver.current) {
+      dragItem.current = null
+      dragOver.current = null
+      return
+    }
     const next = [...categories]
-    const target = idx + dir
-    if (target < 0 || target >= next.length) return
-    ;[next[idx], next[target]] = [next[target], next[idx]]
+    const dragged = next.splice(dragItem.current, 1)[0]
+    next.splice(dragOver.current, 0, dragged)
     setCategories(next)
+    dragItem.current = null
+    dragOver.current = null
   }
 
   const addCat = () => {
@@ -945,6 +959,21 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
       .finally(() => setRemoving(null))
   }
 
+  const handleRename = (cat: string) => {
+    const newName = editValue.trim().toLowerCase().replace(/\s+/g, "-")
+    if (!newName || newName === cat) { setEditingCat(null); return }
+    setRenaming(true)
+    setError("")
+    renameCategory(cat, newName)
+      .then(() => {
+        setCategories((prev) => prev.map((c) => c === cat ? newName : c))
+        setEditingCat(null)
+        onChanged()
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Rename failed"))
+      .finally(() => setRenaming(false))
+  }
+
   const handleSave = () => {
     setSaving(true)
     setError("")
@@ -955,7 +984,7 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v: boolean) => { setOpen(v); setRemoveBlocked(null); setError("") }}>
+    <Dialog open={open} onOpenChange={(v: boolean) => { setOpen(v); setRemoveBlocked(null); setError(""); setEditingCat(null) }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="bg-transparent text-foreground">
           <Settings2 className="mr-2 size-4" /> Manage Categories
@@ -965,37 +994,44 @@ function CategoryManager({ onChanged }: { onChanged: () => void }) {
         <DialogHeader>
           <DialogTitle className="font-heading text-foreground">Manage Categories</DialogTitle>
           <DialogDescription>
-            Reorder categories using the arrows. Add custom categories or remove ones you created.
-            Default categories cannot be removed.
+            Drag to reorder. Click a custom category name to rename it.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2 max-h-72 overflow-y-auto py-1">
+        <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto py-1">
           {categories.map((cat: string, idx: number) => {
             const isDefault = defaultCategories.includes(cat)
             const isRemoving = removing === cat
+            const isEditing = editingCat === cat
             return (
               <div key={cat} className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30">
-                  <div className="flex flex-col gap-0.5">
-                    <button
-                      type="button"
-                      className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
-                      onClick={() => move(idx, -1)}
-                      disabled={idx === 0}
+                <div
+                  className="flex items-center gap-2 p-2 rounded-lg border border-border bg-muted/30"
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragEnter={() => handleDragEnter(idx)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  <GripVertical className="size-4 text-muted-foreground cursor-grab shrink-0" />
+                  {isEditing ? (
+                    <Input
+                      className="h-7 text-sm flex-1"
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleRename(cat); if (e.key === "Escape") setEditingCat(null) }}
+                      onBlur={() => handleRename(cat)}
+                      disabled={renaming}
+                    />
+                  ) : (
+                    <span
+                      className={`flex-1 text-sm capitalize text-foreground ${!isDefault ? "cursor-pointer hover:text-primary" : ""}`}
+                      onClick={() => { if (!isDefault) { setEditingCat(cat); setEditValue(cat) } }}
                     >
-                      <ChevronUp className="size-3.5 text-muted-foreground" />
-                    </button>
-                    <button
-                      type="button"
-                      className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
-                      onClick={() => move(idx, 1)}
-                      disabled={idx === categories.length - 1}
-                    >
-                      <ChevronDown className="size-3.5 text-muted-foreground" />
-                    </button>
-                  </div>
-                  <span className="flex-1 text-sm capitalize text-foreground">{cat}</span>
+                      {cat}
+                    </span>
+                  )}
                   {isDefault ? (
                     <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">default</span>
                   ) : (

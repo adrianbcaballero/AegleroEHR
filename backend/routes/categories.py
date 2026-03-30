@@ -114,6 +114,49 @@ def update_categories():
     }, 200
 
 
+@categories_bp.patch("/categories/<string:category>/rename")
+@require_auth(permission="workflows.manage")
+def rename_category(category):
+    ip = client_ip()
+    category = category.strip().lower()
+
+    if category in DEFAULT_CATEGORIES:
+        return {"error": f"'{category}' is a default category and cannot be renamed"}, 400
+
+    data = request.get_json(silent=True) or {}
+    new_name = (data.get("name") or "").strip().lower().replace(" ", "-")
+    if not new_name:
+        return {"error": "new name is required"}, 400
+    if new_name == category:
+        return {"error": "new name is the same as the current name"}, 400
+
+    tenant = Tenant.query.get(g.tenant_id)
+    if not tenant:
+        return {"error": "tenant not found"}, 404
+
+    current = list(tenant.category_order or [])
+    if new_name in current or new_name in DEFAULT_CATEGORIES:
+        return {"error": f"'{new_name}' already exists"}, 409
+
+    # Update category_order
+    if category in current:
+        idx = current.index(category)
+        current[idx] = new_name
+        tenant.category_order = current
+        flag_modified(tenant, "category_order")
+
+    # Update all templates using this category
+    templates = FormTemplate.query.filter_by(tenant_id=g.tenant_id, category=category).all()
+    for t in templates:
+        t.category = new_name
+
+    db.session.commit()
+
+    log_access(g.user.id, "CATEGORY_RENAME", f"categories/{category}", "SUCCESS", ip,
+               description=f"Renamed category '{category}' to '{new_name}' ({len(templates)} template(s) updated)")
+    return {"categories": current, "defaultCategories": DEFAULT_CATEGORIES}, 200
+
+
 @categories_bp.delete("/categories/<string:category>")
 @require_auth(permission="workflows.manage")
 def delete_category(category):

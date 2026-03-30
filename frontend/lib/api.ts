@@ -781,6 +781,10 @@ export function updateCategories(categories: string[]) {
   return apiPut<CategoriesResponse>("/api/categories", { categories })
 }
 
+export function renameCategory(category: string, newName: string) {
+  return apiPatch<CategoriesResponse>(`/api/categories/${encodeURIComponent(category)}/rename`, { name: newName })
+}
+
 export interface DeleteCategoryError extends Error {
   templates?: { id: number; name: string }[]
 }
