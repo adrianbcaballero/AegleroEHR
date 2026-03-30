@@ -392,6 +392,10 @@ function TemplateDetailPage({
       .then(([tmpl, all]) => {
         setTemplate(tmpl || null)
         setAllCategories([...new Set(all.map((t: FormTemplate) => t.category))])
+        if (tmpl) {
+          setEditFields(tmpl.fields.length > 0 ? tmpl.fields : [{ label: "", type: "text" }])
+          setFieldsDirty(false)
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -400,10 +404,6 @@ function TemplateDetailPage({
   useEffect(() => {
     Promise.resolve().then(() => fetchTemplate())
   }, [templateId, fetchTemplate])
-
-  useEffect(() => {
-    if (template) { setEditFields(template.fields.length > 0 ? template.fields : [{ label: "", type: "text" }]); setFieldsDirty(false) }
-  }, [template])
 
   const canManage = userRole === "admin" || userRole === "psychiatrist"
 
