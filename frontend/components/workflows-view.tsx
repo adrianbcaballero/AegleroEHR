@@ -423,6 +423,24 @@ function TemplateDetailPage({
     setEditFields([...editFields, { label: "", type: "text" }])
     setFieldsDirty(true)
   }
+  const fieldDragItem = useRef<number | null>(null)
+  const fieldDragOver = useRef<number | null>(null)
+  const handleFieldDragStart = (idx: number) => { fieldDragItem.current = idx }
+  const handleFieldDragEnter = (idx: number) => { fieldDragOver.current = idx }
+  const handleFieldDragEnd = () => {
+    if (fieldDragItem.current === null || fieldDragOver.current === null || fieldDragItem.current === fieldDragOver.current) {
+      fieldDragItem.current = null
+      fieldDragOver.current = null
+      return
+    }
+    const next = [...editFields]
+    const dragged = next.splice(fieldDragItem.current, 1)[0]
+    next.splice(fieldDragOver.current, 0, dragged)
+    setEditFields(next)
+    setFieldsDirty(true)
+    fieldDragItem.current = null
+    fieldDragOver.current = null
+  }
   const saveFields = async () => {
     if (!template) return
     const cleanFields = editFields.map((f) => {
@@ -748,8 +766,17 @@ function TemplateDetailPage({
             /* ── Field Editor ── */
             <div className="flex flex-col gap-2">
               {editFields.map((field, idx) => (
-                <div key={idx} className={`flex flex-col gap-2 p-3 border rounded-lg ${field.type === "section" ? "border-dashed border-muted-foreground/40 bg-muted/20" : "border-border"}`}>
+                <div
+                  key={idx}
+                  className={`flex flex-col gap-2 p-3 border rounded-lg ${field.type === "section" ? "border-dashed border-muted-foreground/40 bg-muted/20" : "border-border"}`}
+                  draggable
+                  onDragStart={() => handleFieldDragStart(idx)}
+                  onDragEnter={() => handleFieldDragEnter(idx)}
+                  onDragEnd={handleFieldDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                >
                   <div className="flex items-center gap-2">
+                    <GripVertical className="size-4 text-muted-foreground cursor-grab shrink-0" />
                     {field.type === "section" ? (
                       <p className="flex-1 text-xs text-muted-foreground italic">— Section Break —</p>
                     ) : (
