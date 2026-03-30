@@ -227,7 +227,7 @@ function TemplateEditorDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-foreground">
             {existing ? "Edit Template" : "Create New Template"}
@@ -345,229 +345,6 @@ function TemplateEditorDialog({
             <p className="text-xs text-muted-foreground">Set what each role can do with forms created from this template.</p>
           </div>
 
-          <Separator />
-
-          {/* Fields */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium text-foreground">Fields</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs bg-transparent text-foreground gap-1.5"
-                onClick={() => { setPreviewing(!previewing); if (!previewing) setPreviewData({}) }}
-              >
-                {previewing ? <><PenLine className="size-3" /> Editor</> : <><Eye className="size-3" /> Preview</>}
-              </Button>
-            </div>
-
-            {previewing ? (
-              /* ── Live Preview ── */
-              <div className="border border-border rounded-lg p-4 bg-muted/20">
-                <div className="flex flex-col gap-4">
-                  {name && <h2 className="text-lg font-bold text-foreground">{name}</h2>}
-                  {description && <p className="text-sm text-muted-foreground">{description}</p>}
-                  {name || description ? <Separator /> : null}
-                  {fields.map((field, idx) => {
-                    if (field.type === "section") return <Separator key={idx} className="my-1" />
-                    if (field.type === "title") return <h2 key={idx} className="text-xl font-bold text-foreground pt-1">{field.label || "Untitled"}</h2>
-
-                    const opts = field.options
-                      ? (Array.isArray(field.options) ? field.options : String(field.options).split(",").map((s: string) => s.trim()).filter(Boolean))
-                      : []
-                    const resolvedField = { ...field, options: opts }
-
-                    return (
-                      <div key={idx} className="flex flex-col gap-2">
-                        <Label className="text-sm font-medium text-foreground">
-                          {field.label || "Untitled field"}
-                          {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
-                        </Label>
-                        {field.type === "text" && (
-                          <Input placeholder={field.placeholder || field.label} value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
-                        )}
-                        {field.type === "textarea" && (
-                          <Textarea placeholder={field.placeholder || field.label} className="min-h-[80px]" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
-                        )}
-                        {field.type === "number" && (
-                          <Input type="number" placeholder={field.placeholder || field.label} value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
-                        )}
-                        {field.type === "date" && (
-                          <Input type="date" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
-                        )}
-                        {field.type === "checkbox" && (
-                          <div className="flex gap-3">
-                            {(resolvedField.options.length > 0 ? resolvedField.options : ["Yes", "No"]).map((o) => (
-                              <label key={o} className="flex items-center gap-2 cursor-pointer">
-                                <Checkbox checked={previewData[field.label] === o} onCheckedChange={() => setPreviewData((p) => ({ ...p, [field.label]: o }))} />
-                                <span className="text-sm text-foreground">{o}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                        {field.type === "checkbox_group" && (
-                          <div className="flex flex-col gap-2">
-                            {resolvedField.options.map((o) => {
-                              const sel = Array.isArray(previewData[field.label]) ? (previewData[field.label] as string[]) : []
-                              return (
-                                <label key={o} className="flex items-center gap-2 cursor-pointer">
-                                  <Checkbox
-                                    checked={sel.includes(o)}
-                                    onCheckedChange={(c) => setPreviewData((p) => ({ ...p, [field.label]: c ? [...sel, o] : sel.filter((s) => s !== o) }))}
-                                  />
-                                  <span className="text-sm text-foreground">{o}</span>
-                                </label>
-                              )
-                            })}
-                          </div>
-                        )}
-                        {field.type === "select" && (
-                          <Select value={(previewData[field.label] as string) || ""} onValueChange={(v) => setPreviewData((p) => ({ ...p, [field.label]: v }))}>
-                            <SelectTrigger><SelectValue placeholder={`Select ${field.label.toLowerCase()}`} /></SelectTrigger>
-                            <SelectContent>
-                              {resolvedField.options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        )}
-                        {field.type === "scale" && (() => {
-                          const mn = field.min ?? 0
-                          const mx = field.max ?? 3
-                          const cur = typeof previewData[field.label] === "number" ? (previewData[field.label] as number) : -1
-                          return (
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {Array.from({ length: mx - mn + 1 }, (_, i) => i + mn).map((n) => (
-                                  <button
-                                    key={n} type="button"
-                                    className={`size-10 rounded-lg border text-sm font-medium transition-colors ${cur === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-foreground border-border hover:bg-muted"}`}
-                                    onClick={() => setPreviewData((p) => ({ ...p, [field.label]: n }))}
-                                  >{n}</button>
-                                ))}
-                              </div>
-                              <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>{mn} = Not at all</span><span>{mx} = Nearly every day</span>
-                              </div>
-                            </div>
-                          )
-                        })()}
-                        {field.type === "signature" && (
-                          <Input placeholder="Type full name as signature" className="italic" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
-                        )}
-                      </div>
-                    )
-                  })}
-                  {fields.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No fields to preview.</p>}
-                </div>
-              </div>
-            ) : (
-              /* ── Field Editor ── */
-              <>
-                {fields.map((field, idx) => (
-                  <div key={idx} className={`flex flex-col gap-2 p-3 border rounded-lg ${field.type === "section" ? "border-dashed border-muted-foreground/40 bg-muted/20" : "border-border"}`}>
-                    <div className="flex items-center gap-2">
-                      {field.type === "section" ? (
-                        <p className="flex-1 text-xs text-muted-foreground italic">— Section Break —</p>
-                      ) : (
-                        <Input
-                          placeholder={field.type === "title" ? "Title text" : "Field label"}
-                          value={field.label}
-                          onChange={(e) => updateField(idx, "label", e.target.value)}
-                          className="flex-1"
-                        />
-                      )}
-                      <Select
-                        value={field.type}
-                        onValueChange={(val) => updateField(idx, "type", val)}
-                      >
-                        <SelectTrigger className="w-44">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {FIELD_TYPES.map((ft) => (
-                            <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {fields.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-destructive shrink-0"
-                          onClick={() => removeField(idx)}
-                        >
-                          ×
-                        </Button>
-                      )}
-                    </div>
-                    {/* Placeholder text for text-like fields */}
-                    {(field.type === "text" || field.type === "textarea" || field.type === "number") && (
-                      <div className="flex flex-col gap-1 ml-1">
-                        <Label className="text-xs text-muted-foreground">Placeholder text</Label>
-                        <Input
-                          placeholder="Greyed out hint text when empty..."
-                          value={field.placeholder || ""}
-                          onChange={(e) => updateField(idx, "placeholder", e.target.value)}
-                          className="text-sm"
-                        />
-                      </div>
-                    )}
-                    {/* Options for checkbox_group, select, checkbox */}
-                    {(field.type === "checkbox_group" || field.type === "select" || field.type === "checkbox") && (
-                      <div className="flex flex-col gap-1 ml-1">
-                        <Label className="text-xs text-muted-foreground">Options (comma-separated)</Label>
-                        <Input
-                          placeholder={field.type === "checkbox" ? "Yes, No" : "Option 1, Option 2, Option 3"}
-                          value={Array.isArray(field.options) ? field.options.join(", ") : (field.options || "")}
-                          onChange={(e) => updateField(idx, "options", e.target.value)}
-                          className="text-sm"
-                        />
-                      </div>
-                    )}
-                    {/* Scale min/max */}
-                    {field.type === "scale" && (
-                      <div className="flex gap-2 ml-1">
-                        <div className="flex flex-col gap-1">
-                          <Label className="text-xs text-muted-foreground">Min</Label>
-                          <Input
-                            type="number"
-                            value={field.min ?? 0}
-                            onChange={(e) => updateField(idx, "min", parseInt(e.target.value) || 0)}
-                            className="w-20 text-sm"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Label className="text-xs text-muted-foreground">Max</Label>
-                          <Input
-                            type="number"
-                            value={field.max ?? 3}
-                            onChange={(e) => updateField(idx, "max", parseInt(e.target.value) || 3)}
-                            className="w-20 text-sm"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {/* Optional toggle */}
-                    {field.type !== "section" && field.type !== "title" && (
-                      <label className="flex items-center gap-2 ml-1 cursor-pointer">
-                        <Checkbox checked={!!field.optional} onCheckedChange={(v) => updateField(idx, "optional", !!v)} />
-                        <span className="text-xs text-muted-foreground">Optional field</span>
-                      </label>
-                    )}
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-transparent text-foreground self-start"
-                  onClick={() => setFields([...fields, { label: "", type: "text" }])}
-                >
-                  <Plus className="mr-1 size-3" />
-                  Add Field
-                </Button>
-              </>
-            )}
-          </div>
-
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2">
@@ -603,6 +380,11 @@ function TemplateDetailPage({
   const [deleteError, setDeleteError] = useState("")
   const [archiving, setArchiving] = useState(false)
   const [archiveError, setArchiveError] = useState("")
+  const [editFields, setEditFields] = useState<TemplateField[]>([])
+  const [fieldsDirty, setFieldsDirty] = useState(false)
+  const [fieldsSaving, setFieldsSaving] = useState(false)
+  const [fieldsPreviewing, setFieldsPreviewing] = useState(false)
+  const [previewData, setPreviewData] = useState<Record<string, unknown>>({})
 
   const fetchTemplate = useCallback(async () => {
     setLoading(true)
@@ -619,7 +401,49 @@ function TemplateDetailPage({
     Promise.resolve().then(() => fetchTemplate())
   }, [templateId, fetchTemplate])
 
+  useEffect(() => {
+    if (template) { setEditFields(template.fields.length > 0 ? template.fields : [{ label: "", type: "text" }]); setFieldsDirty(false) }
+  }, [template])
+
   const canManage = userRole === "admin" || userRole === "psychiatrist"
+
+  const updateEditField = (index: number, key: string, value: unknown) => {
+    const updated = [...editFields]
+    updated[index] = { ...updated[index], [key]: value }
+    setEditFields(updated)
+    setFieldsDirty(true)
+  }
+  const removeEditField = (index: number) => {
+    if (editFields.length <= 1) return
+    setEditFields(editFields.filter((_, i) => i !== index))
+    setFieldsDirty(true)
+  }
+  const addEditField = () => {
+    setEditFields([...editFields, { label: "", type: "text" }])
+    setFieldsDirty(true)
+  }
+  const saveFields = async () => {
+    if (!template) return
+    const cleanFields = editFields.map((f) => {
+      const field: TemplateField = { label: f.type === "section" ? "---" : f.label.trim(), type: f.type }
+      if (f.options) {
+        const raw = Array.isArray(f.options) ? f.options.join(", ") : String(f.options)
+        field.options = raw.split(",").map((s: string) => s.trim()).filter(Boolean)
+      }
+      if (f.type === "scale") { field.min = f.min ?? 0; field.max = f.max ?? 3 }
+      if (f.placeholder?.trim()) { field.placeholder = f.placeholder.trim() }
+      if (f.optional) { field.optional = true }
+      return field
+    })
+    setFieldsSaving(true)
+    try {
+      await updateTemplate(template.id, { fields: cleanFields })
+      await fetchTemplate()
+      onRefresh()
+      setFieldsDirty(false)
+    } catch { /* ignore */ }
+    setFieldsSaving(false)
+  }
 
   const handleDelete = () => {
     if (!template) return
@@ -679,7 +503,7 @@ function TemplateDetailPage({
               existingCategories={allCategories}
               trigger={
                 <Button variant="outline" size="sm" className="bg-transparent text-foreground">
-                  <Pencil className="mr-1.5 size-3.5" /> Edit
+                  <Pencil className="mr-1.5 size-3.5" /> Edit Settings
                 </Button>
               }
             />
@@ -791,57 +615,265 @@ function TemplateDetailPage({
         </CardContent>
       </Card>
 
-      {/* Template Fields */}
+      {/* Template Fields — inline editor */}
       <Card className="border-border/60">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-heading font-semibold text-foreground">
-            Template Fields ({template.fields.length})
-          </CardTitle>
-          <CardDescription>The structure and fields used in this form template</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-heading font-semibold text-foreground">
+                Template Fields ({editFields.length})
+              </CardTitle>
+              <CardDescription>Configure the fields for this form template</CardDescription>
+            </div>
+            {canManage && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs bg-transparent text-foreground gap-1.5"
+                  onClick={() => { setFieldsPreviewing(!fieldsPreviewing); if (!fieldsPreviewing) setPreviewData({}) }}
+                >
+                  {fieldsPreviewing ? <><PenLine className="size-3" /> Editor</> : <><Eye className="size-3" /> Preview</>}
+                </Button>
+                {fieldsDirty && (
+                  <Button size="sm" className="h-7 text-xs" onClick={saveFields} disabled={fieldsSaving}>
+                    {fieldsSaving ? "Saving…" : "Save Fields"}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-2">
-            {template.fields.map((field, idx) => (
-              field.type === "section" ? (
-                <Separator key={idx} className="my-1" />
-              ) : field.type === "title" ? (
-                <h2 key={idx} className="text-xl font-bold text-foreground pt-1">{field.label}</h2>
-              ) : (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
-                    <div>
+          {fieldsPreviewing ? (
+            /* ── Live Preview ── */
+            <div className="border border-border rounded-lg p-4 bg-muted/20">
+              <div className="flex flex-col gap-4">
+                {template.name && <h2 className="text-lg font-bold text-foreground">{template.name}</h2>}
+                {template.description && <p className="text-sm text-muted-foreground">{template.description}</p>}
+                {(template.name || template.description) && <Separator />}
+                {editFields.map((field, idx) => {
+                  if (field.type === "section") return <Separator key={idx} className="my-1" />
+                  if (field.type === "title") return <h2 key={idx} className="text-xl font-bold text-foreground pt-1">{field.label || "Untitled"}</h2>
+
+                  const opts = field.options
+                    ? (Array.isArray(field.options) ? field.options : String(field.options).split(",").map((s: string) => s.trim()).filter(Boolean))
+                    : []
+                  const resolvedField = { ...field, options: opts }
+
+                  return (
+                    <div key={idx} className="flex flex-col gap-2">
+                      <Label className="text-sm font-medium text-foreground">
+                        {field.label || "Untitled field"}
+                        {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
+                      </Label>
+                      {field.type === "text" && (
+                        <Input placeholder={field.placeholder || field.label} value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                      )}
+                      {field.type === "textarea" && (
+                        <Textarea placeholder={field.placeholder || field.label} className="min-h-[80px]" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                      )}
+                      {field.type === "number" && (
+                        <Input type="number" placeholder={field.placeholder || field.label} value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                      )}
+                      {field.type === "date" && (
+                        <Input type="date" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                      )}
+                      {field.type === "checkbox" && (
+                        <div className="flex gap-3">
+                          {(resolvedField.options.length > 0 ? resolvedField.options : ["Yes", "No"]).map((o) => (
+                            <label key={o} className="flex items-center gap-2 cursor-pointer">
+                              <Checkbox checked={previewData[field.label] === o} onCheckedChange={() => setPreviewData((p) => ({ ...p, [field.label]: o }))} />
+                              <span className="text-sm text-foreground">{o}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      {field.type === "checkbox_group" && (
+                        <div className="flex flex-col gap-2">
+                          {resolvedField.options.map((o) => {
+                            const sel = Array.isArray(previewData[field.label]) ? (previewData[field.label] as string[]) : []
+                            return (
+                              <label key={o} className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox
+                                  checked={sel.includes(o)}
+                                  onCheckedChange={(c) => setPreviewData((p) => ({ ...p, [field.label]: c ? [...sel, o] : sel.filter((s) => s !== o) }))}
+                                />
+                                <span className="text-sm text-foreground">{o}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {field.type === "select" && (
+                        <Select value={(previewData[field.label] as string) || ""} onValueChange={(v) => setPreviewData((p) => ({ ...p, [field.label]: v }))}>
+                          <SelectTrigger><SelectValue placeholder={`Select ${field.label.toLowerCase()}`} /></SelectTrigger>
+                          <SelectContent>
+                            {resolvedField.options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {field.type === "scale" && (() => {
+                        const mn = field.min ?? 0
+                        const mx = field.max ?? 3
+                        const cur = typeof previewData[field.label] === "number" ? (previewData[field.label] as number) : -1
+                        return (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {Array.from({ length: mx - mn + 1 }, (_, i) => i + mn).map((n) => (
+                                <button
+                                  key={n} type="button"
+                                  className={`size-10 rounded-lg border text-sm font-medium transition-colors ${cur === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-foreground border-border hover:bg-muted"}`}
+                                  onClick={() => setPreviewData((p) => ({ ...p, [field.label]: n }))}
+                                >{n}</button>
+                              ))}
+                            </div>
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>{mn} = Not at all</span><span>{mx} = Nearly every day</span>
+                            </div>
+                          </div>
+                        )
+                      })()}
+                      {field.type === "signature" && (
+                        <Input placeholder="Type full name as signature" className="italic" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} />
+                      )}
+                    </div>
+                  )
+                })}
+                {editFields.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No fields to preview.</p>}
+              </div>
+            </div>
+          ) : canManage ? (
+            /* ── Field Editor ── */
+            <div className="flex flex-col gap-2">
+              {editFields.map((field, idx) => (
+                <div key={idx} className={`flex flex-col gap-2 p-3 border rounded-lg ${field.type === "section" ? "border-dashed border-muted-foreground/40 bg-muted/20" : "border-border"}`}>
+                  <div className="flex items-center gap-2">
+                    {field.type === "section" ? (
+                      <p className="flex-1 text-xs text-muted-foreground italic">— Section Break —</p>
+                    ) : (
+                      <Input
+                        placeholder={field.type === "title" ? "Title text" : "Field label"}
+                        value={field.label}
+                        onChange={(e) => updateEditField(idx, "label", e.target.value)}
+                        className="flex-1"
+                      />
+                    )}
+                    <Select
+                      value={field.type}
+                      onValueChange={(val) => updateEditField(idx, "type", val)}
+                    >
+                      <SelectTrigger className="w-44">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FIELD_TYPES.map((ft) => (
+                          <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {editFields.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive shrink-0"
+                        onClick={() => removeEditField(idx)}
+                      >
+                        ×
+                      </Button>
+                    )}
+                  </div>
+                  {/* Placeholder text for text-like fields */}
+                  {(field.type === "text" || field.type === "textarea" || field.type === "number") && (
+                    <div className="flex flex-col gap-1 ml-1">
+                      <Label className="text-xs text-muted-foreground">Placeholder text</Label>
+                      <Input
+                        placeholder="Greyed out hint text when empty..."
+                        value={field.placeholder || ""}
+                        onChange={(e) => updateEditField(idx, "placeholder", e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                  )}
+                  {/* Options for checkbox_group, select, checkbox */}
+                  {(field.type === "checkbox_group" || field.type === "select" || field.type === "checkbox") && (
+                    <div className="flex flex-col gap-1 ml-1">
+                      <Label className="text-xs text-muted-foreground">Options (comma-separated)</Label>
+                      <Input
+                        placeholder={field.type === "checkbox" ? "Yes, No" : "Option 1, Option 2, Option 3"}
+                        value={Array.isArray(field.options) ? field.options.join(", ") : (field.options || "")}
+                        onChange={(e) => updateEditField(idx, "options", e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                  )}
+                  {/* Scale min/max */}
+                  {field.type === "scale" && (
+                    <div className="flex gap-2 ml-1">
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs text-muted-foreground">Min</Label>
+                        <Input
+                          type="number"
+                          value={field.min ?? 0}
+                          onChange={(e) => updateEditField(idx, "min", parseInt(e.target.value) || 0)}
+                          className="w-20 text-sm"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-xs text-muted-foreground">Max</Label>
+                        <Input
+                          type="number"
+                          value={field.max ?? 3}
+                          onChange={(e) => updateEditField(idx, "max", parseInt(e.target.value) || 3)}
+                          className="w-20 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {/* Optional toggle */}
+                  {field.type !== "section" && field.type !== "title" && (
+                    <label className="flex items-center gap-2 ml-1 cursor-pointer">
+                      <Checkbox checked={!!field.optional} onCheckedChange={(v) => updateEditField(idx, "optional", !!v)} />
+                      <span className="text-xs text-muted-foreground">Optional field</span>
+                    </label>
+                  )}
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-transparent text-foreground self-start"
+                onClick={addEditField}
+              >
+                <Plus className="mr-1 size-3" />
+                Add Field
+              </Button>
+            </div>
+          ) : (
+            /* ── Read-only view for non-managers ── */
+            <div className="flex flex-col gap-2">
+              {template.fields.map((field, idx) => (
+                field.type === "section" ? (
+                  <Separator key={idx} className="my-1" />
+                ) : field.type === "title" ? (
+                  <h2 key={idx} className="text-xl font-bold text-foreground pt-1">{field.label}</h2>
+                ) : (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
                       <span className="text-sm font-medium text-foreground">
                         {field.label}
                         {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
                       </span>
-                      {field.placeholder && (
-                        <p className="text-xs text-muted-foreground mt-0.5 italic">
-                          Placeholder: {field.placeholder}
-                        </p>
-                      )}
-                      {field.options && field.options.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Options: {field.options.join(", ")}
-                        </p>
-                      )}
-                      {field.type === "scale" && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Range: {field.min ?? 0} – {field.max ?? 3}
-                        </p>
-                      )}
                     </div>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground border-border capitalize">
+                      {FIELD_TYPES.find((ft) => ft.value === field.type)?.label || field.type}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="text-[10px] text-muted-foreground border-border capitalize">
-                    {FIELD_TYPES.find((ft) => ft.value === field.type)?.label || field.type}
-                  </Badge>
-                </div>
-              )
-            ))}
-          </div>
+                )
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
