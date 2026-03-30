@@ -186,6 +186,7 @@ function TemplateEditorDialog({
       }
       if (f.type === "scale") { field.min = f.min ?? 0; field.max = f.max ?? 3 }
       if (f.placeholder?.trim()) { field.placeholder = f.placeholder.trim() }
+      if (f.optional) { field.optional = true }
       return field
     })
 
@@ -226,7 +227,7 @@ function TemplateEditorDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading text-foreground">
             {existing ? "Edit Template" : "Create New Template"}
@@ -545,6 +546,13 @@ function TemplateEditorDialog({
                         </div>
                       </div>
                     )}
+                    {/* Optional toggle */}
+                    {field.type !== "section" && field.type !== "title" && (
+                      <label className="flex items-center gap-2 ml-1 cursor-pointer">
+                        <Checkbox checked={!!field.optional} onCheckedChange={(v) => updateField(idx, "optional", !!v)} />
+                        <span className="text-xs text-muted-foreground">Optional field</span>
+                      </label>
+                    )}
                   </div>
                 ))}
                 <Button
@@ -739,28 +747,6 @@ function TemplateDetailPage({
         </CardContent>
       </Card>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card className="border-border/60">
-          <CardContent className="p-4 text-center">
-            <p className="text-lg font-bold font-heading text-foreground">{template.fields.length}</p>
-            <p className="text-xs text-muted-foreground">Fields</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4 text-center">
-            <p className="text-lg font-bold font-heading text-primary">{template.instanceCount ?? 0}</p>
-            <p className="text-xs text-muted-foreground">Instances</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4 text-center">
-            <p className="text-lg font-bold font-heading text-accent">{template.allowedRoles.length}</p>
-            <p className="text-xs text-muted-foreground">Roles</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Completion Gates */}
       {(template.requiredForAdmission || template.requiredForDischarge) && (
         <Card className="border-border/60">
@@ -828,7 +814,10 @@ function TemplateDetailPage({
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
                     <div>
-                      <span className="text-sm font-medium text-foreground">{field.label}</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {field.label}
+                        {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
+                      </span>
                       {field.placeholder && (
                         <p className="text-xs text-muted-foreground mt-0.5 italic">
                           Placeholder: {field.placeholder}

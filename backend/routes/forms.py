@@ -623,6 +623,23 @@ def update_patient_form(patient_id, form_id):
         if status == "completed" and access_level != "sign":
             log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Sign denied — role '{g.user.role_name}' lacks sign access for form #{form_id}")
             return {"error": "forbidden — sign access required to complete this form"}, 403
+
+        # Validate required fields before completing
+        if status == "completed" and template and template.fields:
+            form_data = data.get("formData", f.form_data) or {}
+            missing = []
+            for field in template.fields:
+                if field.get("type") in ("section", "title"):
+                    continue
+                if field.get("optional"):
+                    continue
+                val = form_data.get(field.get("label", ""))
+                if val is None or val == "" or (isinstance(val, list) and len(val) == 0):
+                    missing.append(field.get("label", "Unnamed"))
+            if missing:
+                log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Sign failed — missing required fields: {', '.join(missing)}")
+                return {"error": f"Required fields are missing: {', '.join(missing)}"}, 400
+
         f.status = status
         if status == "completed" and not f.signed_at:
             f.signed_by_name = g.user.full_name or g.user.username
