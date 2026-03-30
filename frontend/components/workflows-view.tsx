@@ -76,6 +76,8 @@ const FIELD_TYPES = [
   { value: "select", label: "Dropdown" },
   { value: "scale", label: "Scale" },
   { value: "signature", label: "Signature" },
+  { value: "section", label: "Section Break" },
+  { value: "title", label: "Title" },
 ]
 
 const DEFAULT_CATEGORIES = ["intake", "assessment", "flowsheet", "consent", "insurance", "clinical", "discharge"]
@@ -166,19 +168,20 @@ function TemplateEditorDialog({
   const handleSave = () => {
     if (!name.trim()) { setError("Name is required"); return }
     if (!category) { setError("Category is required"); return }
-    if (fields.some((f) => !f.label.trim())) { setError("All fields need a label"); return }
+    if (fields.some((f) => f.type !== "section" && !f.label.trim())) { setError("All fields need a label"); return }
     if (isRecurring && (!recurrenceValue || parseInt(recurrenceValue) < 1)) { setError("Recurring interval must be at least 1"); return }
 
     setLoading(true)
     setError("")
 
     const cleanFields = fields.map((f) => {
-      const field: TemplateField = { label: f.label.trim(), type: f.type }
+      const field: TemplateField = { label: f.type === "section" ? "---" : f.label.trim(), type: f.type }
       if (f.options) {
         const raw = Array.isArray(f.options) ? f.options.join(", ") : String(f.options)
         field.options = raw.split(",").map((s: string) => s.trim()).filter(Boolean)
       }
       if (f.type === "scale") { field.min = f.min ?? 0; field.max = f.max ?? 3 }
+      if (f.placeholder?.trim()) { field.placeholder = f.placeholder.trim() }
       return field
     })
 
@@ -235,24 +238,18 @@ function TemplateEditorDialog({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium text-foreground">Category</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {[...new Set([...DEFAULT_CATEGORIES, ...existingCategories])].map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategory(cat)}
-                  className={`px-2 py-0.5 rounded-md text-xs border transition-colors ${
-                    category === cat
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category..." />
+              </SelectTrigger>
+              <SelectContent>
+                {[...new Set([...DEFAULT_CATEGORIES, ...existingCategories])].map((cat) => (
+                  <SelectItem key={cat} value={cat} className="capitalize">{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
-              Select a category. To add custom categories use <span className="font-medium text-foreground">Manage Categories</span> on the Workflows page.
+              To add custom categories use <span className="font-medium text-foreground">Manage Categories</span> on the Workflows page.
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -349,14 +346,18 @@ function TemplateEditorDialog({
           <div className="flex flex-col gap-2">
             <Label className="text-sm font-medium text-foreground">Fields</Label>
             {fields.map((field, idx) => (
-              <div key={idx} className="flex flex-col gap-2 p-3 border border-border rounded-lg">
+              <div key={idx} className={`flex flex-col gap-2 p-3 border rounded-lg ${field.type === "section" ? "border-dashed border-muted-foreground/40 bg-muted/20" : "border-border"}`}>
                 <div className="flex items-center gap-2">
-                  <Input
-                    placeholder="Field label"
-                    value={field.label}
-                    onChange={(e) => updateField(idx, "label", e.target.value)}
-                    className="flex-1"
-                  />
+                  {field.type === "section" ? (
+                    <p className="flex-1 text-xs text-muted-foreground italic">— Section Break —</p>
+                  ) : (
+                    <Input
+                      placeholder={field.type === "title" ? "Title text" : "Field label"}
+                      value={field.label}
+                      onChange={(e) => updateField(idx, "label", e.target.value)}
+                      className="flex-1"
+                    />
+                  )}
                   <Select
                     value={field.type}
                     onValueChange={(val) => updateField(idx, "type", val)}
@@ -381,6 +382,18 @@ function TemplateEditorDialog({
                     </Button>
                   )}
                 </div>
+                {/* Placeholder text for text-like fields */}
+                {(field.type === "text" || field.type === "textarea" || field.type === "number") && (
+                  <div className="flex flex-col gap-1 ml-1">
+                    <Label className="text-xs text-muted-foreground">Placeholder text</Label>
+                    <Input
+                      placeholder="Greyed out hint text when empty..."
+                      value={field.placeholder || ""}
+                      onChange={(e) => updateField(idx, "placeholder", e.target.value)}
+                      className="text-sm"
+                    />
+                  </div>
+                )}
                 {/* Options for checkbox_group, select, checkbox */}
                 {(field.type === "checkbox_group" || field.type === "select" || field.type === "checkbox") && (
                   <div className="flex flex-col gap-1 ml-1">
@@ -685,30 +698,41 @@ function TemplateDetailPage({
         <CardContent>
           <div className="flex flex-col gap-2">
             {template.fields.map((field, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
-                  <div>
-                    <span className="text-sm font-medium text-foreground">{field.label}</span>
-                    {field.options && field.options.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Options: {field.options.join(", ")}
-                      </p>
-                    )}
-                    {field.type === "scale" && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Range: {field.min ?? 0} – {field.max ?? 3}
-                      </p>
-                    )}
+              field.type === "section" ? (
+                <Separator key={idx} className="my-1" />
+              ) : field.type === "title" ? (
+                <h2 key={idx} className="text-xl font-bold text-foreground pt-1">{field.label}</h2>
+              ) : (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
+                    <div>
+                      <span className="text-sm font-medium text-foreground">{field.label}</span>
+                      {field.placeholder && (
+                        <p className="text-xs text-muted-foreground mt-0.5 italic">
+                          Placeholder: {field.placeholder}
+                        </p>
+                      )}
+                      {field.options && field.options.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Options: {field.options.join(", ")}
+                        </p>
+                      )}
+                      {field.type === "scale" && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Range: {field.min ?? 0} – {field.max ?? 3}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground border-border capitalize">
+                    {FIELD_TYPES.find((ft) => ft.value === field.type)?.label || field.type}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-muted-foreground border-border capitalize">
-                  {FIELD_TYPES.find((ft) => ft.value === field.type)?.label || field.type}
-                </Badge>
-              </div>
+              )
             ))}
           </div>
         </CardContent>

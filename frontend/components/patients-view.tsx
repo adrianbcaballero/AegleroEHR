@@ -97,12 +97,16 @@ const formStatusConfig: Record<string, FormStatusEntry> = {
 // ─── Field Renderer ───
 function FormFieldRenderer({ field, value, onChange, disabled }: { field: TemplateField; value: unknown; onChange: (v: string | number | string[]) => void; disabled?: boolean }) {
   switch (field.type) {
+    case "section":
+      return <Separator className="my-1" />
+    case "title":
+      return <h2 className="text-xl font-bold text-foreground pt-1">{field.label}</h2>
     case "text":
-      return <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} disabled={disabled} />
+      return <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || field.label} disabled={disabled} />
     case "textarea":
-      return <Textarea value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} className="min-h-[80px]" disabled={disabled} />
+      return <Textarea value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || field.label} className="min-h-[80px]" disabled={disabled} />
     case "number":
-      return <Input type="number" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} disabled={disabled} />
+      return <Input type="number" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || field.label} disabled={disabled} />
     case "date":
       return <Input type="date" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
 
@@ -231,7 +235,7 @@ function FormDetailView({
     const fields = form?.templateFields || []
     const missing: string[] = []
     for (const field of fields) {
-      if (field.optional) continue
+      if (field.optional || field.type === "section" || field.type === "title") continue
       const val = formData[field.label]
       if (val === undefined || val === null || val === "") missing.push(field.label)
       else if (Array.isArray(val) && val.length === 0) missing.push(field.label)
@@ -265,6 +269,8 @@ function FormDetailView({
     const updatedDate = form.updatedAt ? new Date(form.updatedAt).toLocaleString() : "—"
 
     const fieldRows = fields.map((field: TemplateField) => {
+      if (field.type === "section") return `<tr><td colspan="2" style="border-bottom:2px solid #ccc;padding:12px 0 4px;"></td></tr>`
+      if (field.type === "title") return `<tr><td colspan="2" style="padding:12px 0 4px;font-size:14px;font-weight:bold;">${field.label}</td></tr>`
       const raw = formData[field.label]
       let display = "—"
       if (Array.isArray(raw)) display = raw.length > 0 ? raw.join(", ") : "—"
@@ -392,19 +398,23 @@ function FormDetailView({
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           {fields.map((field, idx) => (
-            <div key={idx} className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">
-                {idx + 1}. {field.label}
-                {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
-              </Label>
-              {field.note && <p className="text-xs text-muted-foreground italic">{field.note}</p>}
-              <FormFieldRenderer
-                field={field}
-                value={formData[field.label]}
-                onChange={(val) => { setFormData((p) => ({ ...p, [field.label]: val })); setSaveMsg(""); setValidationErrors([]) }}
-                disabled={form.status === "completed" || !canEdit}
-              />
-            </div>
+            field.type === "section" || field.type === "title" ? (
+              <FormFieldRenderer key={idx} field={field} value={null} onChange={() => {}} />
+            ) : (
+              <div key={idx} className="flex flex-col gap-2">
+                <Label className="text-sm font-medium text-foreground">
+                  {idx + 1}. {field.label}
+                  {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
+                </Label>
+                {field.note && <p className="text-xs text-muted-foreground italic">{field.note}</p>}
+                <FormFieldRenderer
+                  field={field}
+                  value={formData[field.label]}
+                  onChange={(val) => { setFormData((p) => ({ ...p, [field.label]: val })); setSaveMsg(""); setValidationErrors([]) }}
+                  disabled={form.status === "completed" || !canEdit}
+                />
+              </div>
+            )
           ))}
           {fields.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">No fields defined for this template.</p>

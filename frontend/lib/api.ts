@@ -468,6 +468,7 @@ export interface TemplateField {
   max?: number
   optional?: boolean
   note?: string
+  placeholder?: string
 }
 
 export interface RoleAccess {
