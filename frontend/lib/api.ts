@@ -469,6 +469,11 @@ export interface TemplateField {
   optional?: boolean
   note?: string
   placeholder?: string
+  labelWidth?: number          // percentage of card width for the label column (25–75)
+  scaleLabels?: Record<string, string> // e.g. { "0": "Not at all", "10": "Severe" }
+  matrixRows?: string[]        // row labels for matrix field
+  matrixColumns?: string[]     // column labels for matrix field
+  checkboxLayout?: "stacked" | "inline" // checkbox_group layout
 }
 
 export interface RoleAccess {

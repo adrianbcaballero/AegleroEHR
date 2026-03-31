@@ -94,6 +94,72 @@ const formStatusConfig: Record<string, FormStatusEntry> = {
   draft: { icon: Clock, color: "bg-chart-4/10 text-chart-4 border-chart-4/20", label: "Draft" },
 }
 
+// ─── Signature Canvas Field ───
+function SignatureField({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawing = useRef(false)
+
+  // Restore saved signature onto canvas
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !value) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+    const img = new window.Image()
+    img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0) }
+    img.src = value
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || disabled) return
+    const getPos = (t: Touch) => {
+      const r = canvas.getBoundingClientRect()
+      return { x: (t.clientX - r.left) * (canvas.width / r.width), y: (t.clientY - r.top) * (canvas.height / r.height) }
+    }
+    const onStart = (e: TouchEvent) => { e.preventDefault(); drawing.current = true; const ctx = canvas.getContext("2d"); if (!ctx) return; const { x, y } = getPos(e.touches[0]); ctx.beginPath(); ctx.moveTo(x, y) }
+    const onMove = (e: TouchEvent) => { e.preventDefault(); if (!drawing.current) return; const ctx = canvas.getContext("2d"); if (!ctx) return; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.strokeStyle = "#1a1a2e"; const { x, y } = getPos(e.touches[0]); ctx.lineTo(x, y); ctx.stroke() }
+    const onEnd = () => { drawing.current = false; onChange(canvas.toDataURL("image/png")) }
+    canvas.addEventListener("touchstart", onStart, { passive: false })
+    canvas.addEventListener("touchmove", onMove, { passive: false })
+    canvas.addEventListener("touchend", onEnd)
+    return () => { canvas.removeEventListener("touchstart", onStart); canvas.removeEventListener("touchmove", onMove); canvas.removeEventListener("touchend", onEnd) }
+  }, [disabled, onChange])
+
+  const save = () => { if (canvasRef.current) onChange(canvasRef.current.toDataURL("image/png")) }
+  const clear = () => {
+    const ctx = canvasRef.current?.getContext("2d")
+    if (ctx && canvasRef.current) { ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height); onChange("") }
+  }
+
+  if (disabled && value) {
+    return (
+      <div className="rounded-md border border-border bg-muted/30 p-3">
+        <img src={value} alt="Signature" className="h-16 w-auto object-contain object-left" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="relative rounded-md border border-border bg-background">
+        <canvas ref={canvasRef} width={440} height={90} className="w-full cursor-crosshair"
+          onMouseDown={(e) => { if (disabled) return; drawing.current = true; const ctx = canvasRef.current?.getContext("2d"); if (!ctx) return; const r = canvasRef.current!.getBoundingClientRect(); ctx.beginPath(); ctx.moveTo((e.clientX - r.left) * (440 / r.width), (e.clientY - r.top) * (90 / r.height)) }}
+          onMouseMove={(e) => { if (!drawing.current || disabled) return; const ctx = canvasRef.current?.getContext("2d"); if (!ctx) return; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.strokeStyle = "#1a1a2e"; const r = canvasRef.current!.getBoundingClientRect(); ctx.lineTo((e.clientX - r.left) * (440 / r.width), (e.clientY - r.top) * (90 / r.height)); ctx.stroke() }}
+          onMouseUp={() => { drawing.current = false; save() }}
+          onMouseLeave={() => { if (drawing.current) { drawing.current = false; save() } }}
+        />
+        <p className="absolute bottom-1.5 right-3 text-[10px] text-muted-foreground/40 pointer-events-none select-none">sign above</p>
+      </div>
+      {!disabled && (
+        <button type="button" className="self-start text-xs text-muted-foreground hover:text-foreground transition-colors" onClick={clear}>
+          Clear
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Field Renderer ───
 function FormFieldRenderer({ field, value, onChange, disabled }: { field: TemplateField; value: unknown; onChange: (v: string | number | string[]) => void; disabled?: boolean }) {
   switch (field.type) {
@@ -106,7 +172,13 @@ function FormFieldRenderer({ field, value, onChange, disabled }: { field: Templa
     case "textarea":
       return <Textarea value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || field.label} className="min-h-[80px]" disabled={disabled} />
     case "number":
-      return <Input type="number" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || field.label} disabled={disabled} />
+      return (
+        <div className="flex items-center gap-2">
+          <button type="button" className="size-9 rounded-md border border-input bg-background text-foreground text-lg font-medium hover:bg-muted transition-colors disabled:opacity-50 shrink-0" disabled={disabled} onClick={() => { const n = parseFloat(value as string) || 0; onChange(String(n - 1)) }}>−</button>
+          <Input type="number" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || field.label} disabled={disabled} className="w-24 text-center" />
+          <button type="button" className="size-9 rounded-md border border-input bg-background text-foreground text-lg font-medium hover:bg-muted transition-colors disabled:opacity-50 shrink-0" disabled={disabled} onClick={() => { const n = parseFloat(value as string) || 0; onChange(String(n + 1)) }}>+</button>
+        </div>
+      )
     case "date":
       return <Input type="date" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
 
@@ -128,8 +200,9 @@ function FormFieldRenderer({ field, value, onChange, disabled }: { field: Templa
     case "checkbox_group": {
       const opts = field.options || []
       const sel = Array.isArray(value) ? (value as string[]) : []
+      const isInline = field.checkboxLayout === "inline"
       return (
-        <div className="flex flex-col gap-2">
+        <div className={isInline ? "flex flex-wrap gap-x-4 gap-y-2" : "flex flex-col gap-2"}>
           {opts.map((o) => (
             <label key={o} className={`flex items-center gap-2 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
               <Checkbox
@@ -159,33 +232,68 @@ function FormFieldRenderer({ field, value, onChange, disabled }: { field: Templa
     case "scale": {
       const mn = field.min ?? 0
       const mx = field.max ?? 3
+      const labels = field.scaleLabels || {}
       const cur = typeof value === "number" ? value : -1
       return (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 flex-wrap">
             {Array.from({ length: mx - mn + 1 }, (_, i) => i + mn).map((n) => (
-              <button
-                key={n} type="button"
-                className={`size-10 rounded-lg border text-sm font-medium transition-colors ${cur === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-foreground border-border hover:bg-muted"} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
-                onClick={() => !disabled && onChange(n)}
-                disabled={disabled}
-              >{n}</button>
+              <div key={n} className="flex flex-col items-center gap-1">
+                <button
+                  type="button"
+                  className={`size-10 rounded-lg border text-sm font-medium transition-colors ${cur === n ? "bg-primary text-primary-foreground border-primary" : "bg-muted/50 text-foreground border-border hover:bg-muted"} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                  onClick={() => !disabled && onChange(n)}
+                  disabled={disabled}
+                >{n}</button>
+                {labels[String(n)] && <span className="text-[10px] text-muted-foreground max-w-12 text-center leading-tight">{labels[String(n)]}</span>}
+              </div>
             ))}
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{mn} = Not at all</span><span>{mx} = Nearly every day</span>
           </div>
         </div>
       )
     }
 
-    case "signature":
+    case "matrix": {
+      const rows = field.matrixRows || []
+      const cols = field.matrixColumns || []
+      const data = (value as Record<string, Record<string, string>>) || {}
       return (
-        <div className="flex flex-col gap-2">
-          <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder="Type full name as signature" className="italic" disabled={disabled} />
-          {!!value && <p className="text-xs text-muted-foreground">Signed electronically on {new Date().toLocaleDateString()}</p>}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th className="text-left p-2 border border-border bg-muted/30 text-xs font-medium text-muted-foreground" />
+                {cols.map((c) => <th key={c} className="p-2 border border-border bg-muted/30 text-xs font-medium text-center text-foreground">{c}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r}>
+                  <td className="p-2 border border-border text-sm font-medium text-foreground bg-muted/10">{r}</td>
+                  {cols.map((c) => (
+                    <td key={c} className="p-1 border border-border">
+                      <Input
+                        className="h-8 text-sm text-center border-0 bg-transparent focus-visible:ring-1"
+                        value={data[r]?.[c] || ""}
+                        onChange={(e) => {
+                          if (disabled) return
+                          const updated = { ...data, [r]: { ...(data[r] || {}), [c]: e.target.value } }
+                          onChange(updated as unknown as string)
+                        }}
+                        disabled={disabled}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )
+    }
+
+    case "signature":
+      return <SignatureField value={(value as string) || ""} onChange={onChange as (v: string) => void} disabled={disabled} />
 
     default:
       return <Input value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} placeholder={field.label} disabled={disabled} />
@@ -272,6 +380,16 @@ function FormDetailView({
       if (field.type === "section") return `<tr><td colspan="2" style="border-bottom:2px solid #ccc;padding:12px 0 4px;"></td></tr>`
       if (field.type === "title") return `<tr><td colspan="2" style="padding:12px 0 4px;font-size:14px;font-weight:bold;">${field.label}</td></tr>`
       const raw = formData[field.label]
+      if (field.type === "signature" && typeof raw === "string" && raw.startsWith("data:image")) {
+        return `<tr><td class="label">${field.label}</td><td class="value"><img src="${raw}" alt="Signature" style="height:50px;object-fit:contain;" /></td></tr>`
+      }
+      if (field.type === "matrix" && typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+        const rows = Object.entries(raw as Record<string, Record<string, string>>)
+          .map(([r, cols]) => `${r}: ${Object.entries(cols).filter(([,v]) => v).map(([c, v]) => `${c}=${v}`).join(", ")}`)
+          .filter((s) => !s.endsWith(": "))
+          .join("<br/>")
+        return `<tr><td class="label">${field.label}</td><td class="value">${rows || "—"}</td></tr>`
+      }
       let display = "—"
       if (Array.isArray(raw)) display = raw.length > 0 ? raw.join(", ") : "—"
       else if (raw !== undefined && raw !== null && raw !== "") display = String(raw)
@@ -397,25 +515,29 @@ function FormDetailView({
           <CardTitle className="text-base font-heading font-semibold text-foreground">Form Fields</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
-          {fields.map((field, idx) => (
-            field.type === "section" || field.type === "title" ? (
-              <FormFieldRenderer key={idx} field={field} value={null} onChange={() => {}} />
-            ) : (
+          {fields.map((field, idx) => {
+            if (field.type === "section" || field.type === "title") {
+              return <FormFieldRenderer key={idx} field={field} value={null} onChange={() => {}} />
+            }
+            const lw = field.labelWidth && field.labelWidth < 100 ? field.labelWidth : 0
+            return (
               <div key={idx} className="flex flex-col gap-2">
-                <Label className="text-sm font-medium text-foreground">
+                <div className="text-sm font-medium text-foreground">
                   {idx + 1}. {field.label}
                   {field.optional && <span className="ml-2 text-xs font-normal text-muted-foreground">(optional)</span>}
-                </Label>
-                {field.note && <p className="text-xs text-muted-foreground italic">{field.note}</p>}
-                <FormFieldRenderer
-                  field={field}
-                  value={formData[field.label]}
-                  onChange={(val) => { setFormData((p) => ({ ...p, [field.label]: val })); setSaveMsg(""); setValidationErrors([]) }}
-                  disabled={form.status === "completed" || !canEdit}
-                />
+                </div>
+                <div className={lw ? "flex flex-col gap-1" : "contents"} style={lw ? { width: `${100 - lw}%` } : undefined}>
+                  {field.note && <p className="text-xs text-muted-foreground italic">{field.note}</p>}
+                  <FormFieldRenderer
+                    field={field}
+                    value={formData[field.label]}
+                    onChange={(val) => { setFormData((p) => ({ ...p, [field.label]: val })); setSaveMsg(""); setValidationErrors([]) }}
+                    disabled={form.status === "completed" || !canEdit}
+                  />
+                </div>
               </div>
             )
-          ))}
+          })}
           {fields.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">No fields defined for this template.</p>
           )}

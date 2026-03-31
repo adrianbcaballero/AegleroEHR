@@ -634,7 +634,7 @@ def update_patient_form(patient_id, form_id):
                 if field.get("optional"):
                     continue
                 val = form_data.get(field.get("label", ""))
-                if val is None or val == "" or (isinstance(val, list) and len(val) == 0):
+                if val is None or val == "" or (isinstance(val, list) and len(val) == 0) or (isinstance(val, dict) and len(val) == 0):
                     missing.append(field.get("label", "Unnamed"))
             if missing:
                 log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Sign failed — missing required fields: {', '.join(missing)}")
