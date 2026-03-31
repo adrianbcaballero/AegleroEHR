@@ -1,3 +1,4 @@
+import uuid as _uuid
 from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, g
 from sqlalchemy import func
@@ -11,6 +12,29 @@ from services.asam_scorer import ASAM_TEMPLATE_NAME, DIMENSION_LABELS, LOC_OVERR
 from sqlalchemy.orm.attributes import flag_modified
 
 forms_bp = Blueprint("forms", __name__, url_prefix="/api")
+
+
+def _assign_and_validate_field_ids(fields: list, tenant_id: int, exclude_template_id: int | None = None) -> str | None:
+    """Assign fieldIds where missing, check for duplicates within the tenant.
+    Returns an error string if validation fails, else None."""
+    seen: set[str] = set()
+    for f in fields:
+        if not f.get("fieldId"):
+            f["fieldId"] = _uuid.uuid4().hex[:12]
+        fid = f["fieldId"]
+        if fid in seen:
+            return f"Duplicate fieldId within this template: {fid}"
+        seen.add(fid)
+
+    # Check against other templates in the same tenant
+    other_templates = FormTemplate.query.filter_by(tenant_id=tenant_id).all()
+    for t in other_templates:
+        if exclude_template_id and t.id == exclude_template_id:
+            continue
+        for f in (t.fields or []):
+            if f.get("fieldId") in seen:
+                return f"fieldId '{f['fieldId']}' already exists in template '{t.name}'"
+    return None
 
 
 def _maybe_score_asam(f: PatientForm, p: Patient, template: FormTemplate, ip: str):
@@ -209,6 +233,10 @@ def create_template():
         log_access(g.user.id, "TEMPLATE_CREATE", "templates", "FAILED", ip, description="Template creation failed — fields must be a list")
         return {"error": "fields must be a list"}, 400
 
+    fid_err = _assign_and_validate_field_ids(fields, g.tenant_id)
+    if fid_err:
+        return {"error": fid_err}, 400
+
     allowed_roles = data.get("allowedRoles", [])
     if not isinstance(allowed_roles, list):
         log_access(g.user.id, "TEMPLATE_CREATE", "templates", "FAILED", ip, description="Template creation failed — allowedRoles must be a list")
@@ -286,6 +314,9 @@ def update_template(template_id):
     if "fields" in data:
         if not isinstance(data["fields"], list):
             return {"error": "fields must be a list"}, 400
+        fid_err = _assign_and_validate_field_ids(data["fields"], g.tenant_id, exclude_template_id=t.id)
+        if fid_err:
+            return {"error": fid_err}, 400
         t.fields = data["fields"]
         flag_modified(t, "fields")
 

@@ -102,7 +102,7 @@ function TemplateEditorDialog({
   const [name, setName] = useState("")
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
-  const [fields, setFields] = useState<TemplateField[]>([{ label: "", type: "text" }])
+  const [fields, setFields] = useState<TemplateField[]>([{ label: "", type: "text", fieldId: crypto.randomUUID().replace(/-/g, "").slice(0, 12) }])
   const [roleAccess, setRoleAccess] = useState<Record<number, AccessLevel>>({})
   const [availableRoles, setAvailableRoles] = useState<{ id: number; name: string; displayName: string }[]>([])
   const [isRecurring, setIsRecurring] = useState(false)
@@ -181,7 +181,7 @@ function TemplateEditorDialog({
     setError("")
 
     const cleanFields = fields.map((f) => {
-      const field: TemplateField = { label: f.type === "section" ? "---" : f.label.trim(), type: f.type }
+      const field: TemplateField = { fieldId: f.fieldId || crypto.randomUUID().replace(/-/g, "").slice(0, 12), label: f.type === "section" ? "---" : f.label.trim(), type: f.type }
       if (f.options) {
         const raw = Array.isArray(f.options) ? f.options.join(", ") : String(f.options)
         field.options = raw.split(",").map((s: string) => s.trim()).filter(Boolean)
@@ -438,7 +438,7 @@ function TemplateDetailPage({
     setFieldsDirty(true)
   }
   const addEditField = () => {
-    setEditFields([...editFields, { label: "", type: "text" }])
+    setEditFields([...editFields, { label: "", type: "text", fieldId: crypto.randomUUID().replace(/-/g, "").slice(0, 12) }])
     setFieldsDirty(true)
   }
   const fieldDragItem = useRef<number | null>(null)
@@ -1020,7 +1020,7 @@ function TemplateDetailPage({
                   )}
                   {/* Footer: field ID + delete */}
                   <div className="flex items-center justify-between mt-1 pt-2 border-t border-border/40">
-                    <span className="text-[10px] text-muted-foreground/60">Field {idx + 1}</span>
+                    <span className="text-[10px] text-muted-foreground/60 font-mono">{field.fieldId ? <>ID: <span className="select-all cursor-text">{field.fieldId}</span></> : `#${idx + 1}`}</span>
                     {editFields.length > 1 && (
                       <Button
                         variant="outline"

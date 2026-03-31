@@ -461,6 +461,7 @@ export async function exportAuditLogs(params?: {
 
 // Form Templates
 export interface TemplateField {
+  fieldId?: string
   label: string
   type: string
   options?: string[]
