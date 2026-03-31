@@ -78,10 +78,38 @@ const FIELD_TYPES = [
   { value: "checkbox_group", label: "Check All That Apply" },
   { value: "select", label: "Dropdown" },
   { value: "scale", label: "Scale" },
+  { value: "multi_select", label: "Multi-Select Dropdown" },
+  { value: "time", label: "Time" },
   { value: "matrix", label: "Matrix / Grid" },
   { value: "signature", label: "Signature" },
+  { value: "patient_data", label: "Patient Data" },
   { value: "section", label: "Section Break" },
   { value: "title", label: "Title" },
+]
+
+const PATIENT_PROPERTIES = [
+  { value: "dateOfBirth", label: "Date of Birth" },
+  { value: "age", label: "Age" },
+  { value: "gender", label: "Gender" },
+  { value: "maritalStatus", label: "Marital Status" },
+  { value: "insurance", label: "Insurance" },
+  { value: "currentLoc", label: "Level of Care" },
+  { value: "primaryDiagnosis", label: "Primary Diagnosis" },
+  { value: "careTeamName", label: "Care Team" },
+  { value: "assignedProvider", label: "Assigned Provider" },
+  { value: "admittedAt", label: "Admission Date" },
+  { value: "status", label: "Patient Status" },
+  { value: "currentMedications", label: "Current Medications" },
+  { value: "allergies", label: "Allergies" },
+  { value: "phone", label: "Phone" },
+  { value: "email", label: "Email" },
+  { value: "emergencyContactName", label: "Emergency Contact" },
+  { value: "emergencyContactPhone", label: "Emergency Contact Phone" },
+  { value: "preferredLanguage", label: "Preferred Language" },
+  { value: "ethnicity", label: "Ethnicity" },
+  { value: "referringProvider", label: "Referring Provider" },
+  { value: "primaryCarePhysician", label: "Primary Care Physician" },
+  { value: "pharmacy", label: "Pharmacy" },
 ]
 
 const DEFAULT_CATEGORIES = ["intake", "assessment", "flowsheet", "consent", "insurance", "clinical", "discharge"]
@@ -199,6 +227,7 @@ function TemplateEditorDialog({
       if (f.optional) { field.optional = true }
       if (f.labelWidth && f.labelWidth !== 100) { field.labelWidth = f.labelWidth }
       if (f.type === "checkbox_group" && f.checkboxLayout === "inline") { field.checkboxLayout = "inline" }
+      if (f.type === "patient_data" && f.patientProperty) { field.patientProperty = f.patientProperty }
       return field
     })
 
@@ -480,6 +509,7 @@ function TemplateDetailPage({
       if (f.optional) { field.optional = true }
       if (f.labelWidth && f.labelWidth !== 100) { field.labelWidth = f.labelWidth }
       if (f.type === "checkbox_group" && f.checkboxLayout === "inline") { field.checkboxLayout = "inline" }
+      if (f.type === "patient_data" && f.patientProperty) { field.patientProperty = f.patientProperty }
       return field
     })
     setFieldsSaving(true)
@@ -762,6 +792,30 @@ function TemplateDetailPage({
                           </SelectContent>
                         </Select>
                       )}
+                      {field.type === "multi_select" && (() => {
+                        const sel = Array.isArray(previewData[field.label]) ? (previewData[field.label] as string[]) : []
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex flex-wrap gap-1.5">
+                              {sel.map((s) => (
+                                <span key={s} className="inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
+                                  {s}
+                                  <button type="button" className="hover:text-destructive" onClick={() => setPreviewData((p) => ({ ...p, [field.label]: sel.filter((v) => v !== s) }))}>×</button>
+                                </span>
+                              ))}
+                            </div>
+                            <Select value="" onValueChange={(v) => setPreviewData((p) => ({ ...p, [field.label]: [...sel, v] }))}>
+                              <SelectTrigger><SelectValue placeholder={`Add ${field.label.toLowerCase()}...`} /></SelectTrigger>
+                              <SelectContent>
+                                {resolvedField.options.filter((o) => !sel.includes(o)).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )
+                      })()}
+                      {field.type === "time" && (
+                        <Input type="time" value={(previewData[field.label] as string) || ""} onChange={(e) => setPreviewData((p) => ({ ...p, [field.label]: e.target.value }))} className="w-36" />
+                      )}
                       {field.type === "scale" && (() => {
                         const mn = field.min ?? 0
                         const mx = field.max ?? 3
@@ -826,6 +880,11 @@ function TemplateDetailPage({
                       {field.type === "signature" && (
                         <div className="rounded-md border border-dashed border-border bg-muted/20 h-24 flex items-center justify-center">
                           <span className="text-xs text-muted-foreground">Signature pad — draw to sign</span>
+                        </div>
+                      )}
+                      {field.type === "patient_data" && (
+                        <div className="px-3 py-2 rounded-md bg-muted/40 border border-border/50 text-sm text-muted-foreground italic">
+                          Auto-populated from patient record ({PATIENT_PROPERTIES.find((p) => p.value === field.patientProperty)?.label || field.patientProperty || "not set"})
                         </div>
                       )}
                       </div>
@@ -893,8 +952,34 @@ function TemplateDetailPage({
                       />
                     </div>
                   )}
-                  {/* Options for checkbox_group, select */}
-                  {(field.type === "checkbox_group" || field.type === "select") && (
+                  {/* Patient data property picker */}
+                  {field.type === "patient_data" && (
+                    <div className="flex flex-col gap-1 ml-1">
+                      <Label className="text-xs text-muted-foreground">Patient property</Label>
+                      <Select
+                        value={field.patientProperty || ""}
+                        onValueChange={(v) => {
+                          updateEditField(idx, "patientProperty", v)
+                          // Auto-fill label if empty
+                          if (!field.label) {
+                            const prop = PATIENT_PROPERTIES.find((p) => p.value === v)
+                            if (prop) updateEditField(idx, "label", prop.label)
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="text-sm">
+                          <SelectValue placeholder="Select property..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-48">
+                          {PATIENT_PROPERTIES.map((p) => (
+                            <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {/* Options for checkbox_group, select, multi_select */}
+                  {(field.type === "checkbox_group" || field.type === "select" || field.type === "multi_select") && (
                     <div className="flex flex-col gap-1 ml-1">
                       <Label className="text-xs text-muted-foreground">Options (comma-separated)</Label>
                       <Input

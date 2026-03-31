@@ -475,6 +475,7 @@ export interface TemplateField {
   matrixRows?: string[]        // row labels for matrix field
   matrixColumns?: string[]     // column labels for matrix field
   checkboxLayout?: "stacked" | "inline" // checkbox_group layout
+  patientProperty?: string     // for patient_data fields — which property to pull
 }
 
 export interface RoleAccess {

@@ -160,6 +160,24 @@ function SignatureField({ value, onChange, disabled }: { value: string; onChange
   )
 }
 
+// ─── Patient Data Resolver ───
+function resolvePatientProperty(patient: Patient | undefined, prop: string): string {
+  if (!patient) return "—"
+  if (prop === "age") {
+    if (!patient.dateOfBirth) return "—"
+    const dob = new Date(patient.dateOfBirth)
+    const now = new Date()
+    let age = now.getFullYear() - dob.getFullYear()
+    if (now.getMonth() < dob.getMonth() || (now.getMonth() === dob.getMonth() && now.getDate() < dob.getDate())) age--
+    return String(age)
+  }
+  if (prop === "dateOfBirth" && patient.dateOfBirth) return new Date(patient.dateOfBirth).toLocaleDateString()
+  if (prop === "admittedAt" && patient.admittedAt) return new Date(patient.admittedAt).toLocaleDateString()
+  const val = (patient as unknown as Record<string, unknown>)[prop]
+  if (val === null || val === undefined) return "—"
+  return String(val)
+}
+
 // ─── Field Renderer ───
 function FormFieldRenderer({ field, value, onChange, disabled }: { field: TemplateField; value: unknown; onChange: (v: string | number | string[]) => void; disabled?: boolean }) {
   switch (field.type) {
@@ -228,6 +246,39 @@ function FormFieldRenderer({ field, value, onChange, disabled }: { field: Templa
         </Select>
       )
     }
+
+    case "multi_select": {
+      const opts = field.options || []
+      const sel = Array.isArray(value) ? (value as string[]) : []
+      return (
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap gap-1.5">
+            {sel.map((s) => (
+              <span key={s} className="inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
+                {s}
+                {!disabled && <button type="button" className="hover:text-destructive" onClick={() => onChange(sel.filter((v) => v !== s))}>×</button>}
+              </span>
+            ))}
+          </div>
+          <Select value="" onValueChange={(v) => { if (!sel.includes(v)) onChange([...sel, v]) }} disabled={disabled}>
+            <SelectTrigger><SelectValue placeholder={`Add ${field.label.toLowerCase()}...`} /></SelectTrigger>
+            <SelectContent>
+              {opts.filter((o) => !sel.includes(o)).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )
+    }
+
+    case "time":
+      return <Input type="time" value={(value as string) || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="w-36" />
+
+    case "patient_data":
+      return (
+        <div className="px-3 py-2 rounded-md bg-muted/40 border border-border/50 text-sm text-foreground">
+          {(value as string) || "—"}
+        </div>
+      )
 
     case "scale": {
       const mn = field.min ?? 0
@@ -302,9 +353,9 @@ function FormFieldRenderer({ field, value, onChange, disabled }: { field: Templa
 
 // ─── Form Detail View ───
 function FormDetailView({
-  formId, patientCode, patientName, onBack, onDeleted, readOnly = false,
+  formId, patientCode, patientName, patient, onBack, onDeleted, readOnly = false,
 }: {
-  formId: number; patientCode: string; patientName: string; onBack: () => void; onDeleted: () => void; readOnly?: boolean
+  formId: number; patientCode: string; patientName: string; patient?: Patient; onBack: () => void; onDeleted: () => void; readOnly?: boolean
 }) {
   const [form, setForm] = useState<PatientFormEntry | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -343,7 +394,7 @@ function FormDetailView({
     const fields = form?.templateFields || []
     const missing: string[] = []
     for (const field of fields) {
-      if (field.optional || field.type === "section" || field.type === "title") continue
+      if (field.optional || field.type === "section" || field.type === "title" || field.type === "patient_data") continue
       const val = formData[field.label]
       if (val === undefined || val === null || val === "") missing.push(field.label)
       else if (Array.isArray(val) && val.length === 0) missing.push(field.label)
@@ -519,6 +570,10 @@ function FormDetailView({
             if (field.type === "section" || field.type === "title") {
               return <FormFieldRenderer key={idx} field={field} value={null} onChange={() => {}} />
             }
+            // For patient_data fields: use saved snapshot if completed, live data if draft
+            const fieldValue = field.type === "patient_data"
+              ? (form.status === "completed" ? formData[field.label] : resolvePatientProperty(patient, field.patientProperty || ""))
+              : formData[field.label]
             const lw = field.labelWidth && field.labelWidth < 100 ? field.labelWidth : 0
             return (
               <div key={idx} className="flex flex-col gap-2">
@@ -530,9 +585,9 @@ function FormDetailView({
                   {field.note && <p className="text-xs text-muted-foreground italic">{field.note}</p>}
                   <FormFieldRenderer
                     field={field}
-                    value={formData[field.label]}
+                    value={fieldValue}
                     onChange={(val) => { setFormData((p) => ({ ...p, [field.label]: val })); setSaveMsg(""); setValidationErrors([]) }}
-                    disabled={form.status === "completed" || !canEdit}
+                    disabled={form.status === "completed" || !canEdit || field.type === "patient_data"}
                   />
                 </div>
               </div>
@@ -1534,6 +1589,7 @@ export function PatientProfileView({
         formId={selectedFormId}
         patientCode={patient.id}
         patientName={`${patient.firstName} ${patient.lastName}`}
+        patient={patient}
         onBack={() => { setSelectedFormId(null); fetchForms(); fetchPatient() }}
         onDeleted={() => { setSelectedFormId(null); fetchForms() }}
         readOnly={(patient.status === "archived" || patient.status === "inactive") && !canManageArchiveForms}

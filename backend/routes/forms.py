@@ -660,7 +660,7 @@ def update_patient_form(patient_id, form_id):
             form_data = data.get("formData", f.form_data) or {}
             missing = []
             for field in template.fields:
-                if field.get("type") in ("section", "title"):
+                if field.get("type") in ("section", "title", "patient_data"):
                     continue
                 if field.get("optional"):
                     continue
@@ -670,6 +670,40 @@ def update_patient_form(patient_id, form_id):
             if missing:
                 log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Sign failed — missing required fields: {', '.join(missing)}")
                 return {"error": f"Required fields are missing: {', '.join(missing)}"}, 400
+
+            # Snapshot patient_data fields into formData on completion
+            _PATIENT_PROPERTY_MAP = {
+                "dateOfBirth": lambda pt: pt.date_of_birth.isoformat() if pt.date_of_birth else None,
+                "age": lambda pt: str((datetime.now().year - pt.date_of_birth.year) - (1 if (datetime.now().month, datetime.now().day) < (pt.date_of_birth.month, pt.date_of_birth.day) else 0)) if pt.date_of_birth else None,
+                "gender": lambda pt: pt.gender,
+                "maritalStatus": lambda pt: pt.marital_status,
+                "insurance": lambda pt: pt.insurance,
+                "currentLoc": lambda pt: pt.current_loc,
+                "primaryDiagnosis": lambda pt: pt.primary_diagnosis,
+                "careTeamName": lambda pt: pt.care_team.name if pt.care_team else None,
+                "assignedProvider": lambda pt: None,  # resolved separately
+                "admittedAt": lambda pt: None,  # resolved from episode
+                "status": lambda pt: pt.status,
+                "currentMedications": lambda pt: pt.current_medications,
+                "allergies": lambda pt: pt.allergies,
+                "phone": lambda pt: pt.phone,
+                "email": lambda pt: pt.email,
+                "emergencyContactName": lambda pt: pt.emergency_contact_name,
+                "emergencyContactPhone": lambda pt: pt.emergency_contact_phone,
+                "preferredLanguage": lambda pt: pt.preferred_language,
+                "ethnicity": lambda pt: pt.ethnicity,
+                "referringProvider": lambda pt: pt.referring_provider,
+                "primaryCarePhysician": lambda pt: pt.primary_care_physician,
+                "pharmacy": lambda pt: pt.pharmacy,
+            }
+            for field in template.fields:
+                if field.get("type") == "patient_data" and field.get("patientProperty"):
+                    prop = field["patientProperty"]
+                    resolver = _PATIENT_PROPERTY_MAP.get(prop)
+                    val = resolver(p) if resolver else None
+                    form_data[field.get("label", "")] = val or "—"
+            f.form_data = form_data
+            flag_modified(f, "form_data")
 
         f.status = status
         if status == "completed" and not f.signed_at:
