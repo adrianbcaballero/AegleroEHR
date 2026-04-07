@@ -2,35 +2,21 @@
 
 import { useState, useEffect } from "react"
 import {
-  Shield,
   Plus,
   Pencil,
   Trash2,
   Loader2,
   ShieldCheck,
-  Users,
+  ArrowLeft,
+  X,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
 import {
   getRoles,
   createRole,
@@ -40,8 +26,6 @@ import {
 import type { Role } from "@/lib/api"
 
 // ─── Page bundle definitions ────────────────────────────────────────────────
-// Each bundle maps to the exact permissions a page/feature needs.
-// Granting a bundle grants all its permissions; revoking removes all.
 
 type Bundle = { key: string; label: string; description: string; permissions: string[] }
 type BundleGroup = { label: string; bundles: Bundle[] }
@@ -217,7 +201,8 @@ const BUNDLE_GROUPS: BundleGroup[] = [
   },
 ]
 
-// Flatten all bundles to derive selected/toggle state
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function bundleIsChecked(bundle: Bundle, selected: string[]): boolean {
   return bundle.permissions.every((p) => selected.includes(p))
 }
@@ -227,6 +212,23 @@ function toggleBundle(bundle: Bundle, selected: string[]): string[] {
     return selected.filter((p) => !bundle.permissions.includes(p))
   }
   const merged = new Set([...selected, ...bundle.permissions])
+  return Array.from(merged)
+}
+
+function groupCheckedCount(group: BundleGroup, selected: string[]): number {
+  return group.bundles.filter((b) => bundleIsChecked(b, selected)).length
+}
+
+function groupIsAllChecked(group: BundleGroup, selected: string[]): boolean {
+  return group.bundles.every((b) => bundleIsChecked(b, selected))
+}
+
+function toggleGroup(group: BundleGroup, selected: string[]): string[] {
+  const allPerms = group.bundles.flatMap((b) => b.permissions)
+  if (groupIsAllChecked(group, selected)) {
+    return selected.filter((p) => !allPerms.includes(p))
+  }
+  const merged = new Set([...selected, ...allPerms])
   return Array.from(merged)
 }
 
@@ -242,29 +244,264 @@ function PermissionCheckboxes({
   disabled?: boolean
 }) {
   return (
-    <div className="flex flex-col gap-5">
-      {BUNDLE_GROUPS.map((group) => (
-        <div key={group.label}>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{group.label}</p>
-          <div className="flex flex-col gap-2">
-            {group.bundles.map((bundle) => (
-              <div key={bundle.key} className="flex items-start gap-3">
+    <div className="flex flex-col gap-6">
+      {BUNDLE_GROUPS.map((group) => {
+        const checked = groupCheckedCount(group, selected)
+        const total = group.bundles.length
+        const allChecked = groupIsAllChecked(group, selected)
+        const someChecked = checked > 0 && !allChecked
+
+        return (
+          <div key={group.label}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
                 <Checkbox
-                  id={bundle.key}
-                  checked={bundleIsChecked(bundle, selected)}
-                  onCheckedChange={() => onChange(toggleBundle(bundle, selected))}
+                  checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                  onCheckedChange={() => onChange(toggleGroup(group, selected))}
                   disabled={disabled}
-                  className="mt-0.5"
                 />
-                <label htmlFor={bundle.key} className="flex flex-col gap-0.5 cursor-pointer">
-                  <span className="text-sm font-medium text-foreground leading-none">{bundle.label}</span>
-                  <span className="text-xs text-muted-foreground">{bundle.description}</span>
-                </label>
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group.label}</span>
               </div>
-            ))}
+              <span className="text-[11px] text-muted-foreground tabular-nums">{checked}/{total}</span>
+            </div>
+            <div className="flex flex-col gap-2 pl-7">
+              {group.bundles.map((bundle) => (
+                <div key={bundle.key} className="flex items-start gap-3">
+                  <Checkbox
+                    id={bundle.key}
+                    checked={bundleIsChecked(bundle, selected)}
+                    onCheckedChange={() => onChange(toggleBundle(bundle, selected))}
+                    disabled={disabled}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor={bundle.key} className="flex flex-col gap-0.5 cursor-pointer">
+                    <span className="text-sm font-medium text-foreground leading-none">{bundle.label}</span>
+                    <span className="text-xs text-muted-foreground">{bundle.description}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Role List Item ─────────────────────────────────────────────────────────
+
+function RoleListItem({
+  role,
+  isSelected,
+  onSelect,
+  onDelete,
+  deleteLoading,
+}: {
+  role: Role
+  isSelected: boolean
+  onSelect: () => void
+  onDelete: () => void
+  deleteLoading: boolean
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${
+        isSelected ? "bg-muted/60" : "hover:bg-muted/30"
+      }`}
+      onClick={onSelect}
+    >
+      <div className="flex flex-col gap-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground truncate">{role.displayName}</span>
+          {role.isSystemDefault ? (
+            <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary shrink-0">
+              <ShieldCheck className="mr-1 size-3" />
+              System
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="text-[10px] bg-zinc-200 text-zinc-900 border border-zinc-300 shrink-0">
+              Custom
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="font-mono">{role.name}</span>
+          <span>{role.permissions.length} permissions</span>
+          <span>{role.userCount} {role.userCount === 1 ? "user" : "users"}</span>
+        </div>
+      </div>
+      {!role.isSystemDefault && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0 ml-2"
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          disabled={deleteLoading}
+        >
+          {deleteLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+        </Button>
+      )}
+    </div>
+  )
+}
+
+// ─── Right Panel: Edit / Create ─────────────────────────────────────────────
+
+function RoleEditorPanel({
+  role,
+  isCreate,
+  onClose,
+  onSaved,
+}: {
+  role: Role | null
+  isCreate: boolean
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [displayName, setDisplayName] = useState("")
+  const [name, setName] = useState("")
+  const [permissions, setPermissions] = useState<string[]>([])
+  const [error, setError] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (isCreate) {
+      setName("")
+      setDisplayName("")
+      setPermissions([])
+    } else if (role) {
+      setName(role.name)
+      setDisplayName(role.displayName)
+      setPermissions([...role.permissions])
+    }
+    setError("")
+  }, [role, isCreate])
+
+  const isAdmin = !isCreate && role?.name === "admin"
+
+  const handleSave = async () => {
+    if (isCreate) {
+      if (!name.trim()) { setError("Role name is required"); return }
+      if (!displayName.trim()) { setError("Display name is required"); return }
+    } else {
+      if (!displayName.trim()) { setError("Display name is required"); return }
+    }
+
+    setSaving(true)
+    setError("")
+    try {
+      if (isCreate) {
+        await createRole({
+          name: name.trim(),
+          displayName: displayName.trim(),
+          permissions,
+        })
+      } else if (role) {
+        await updateRole(role.id, {
+          displayName: displayName.trim(),
+          ...(role.name !== "admin" ? { permissions } : {}),
+        })
+      }
+      onSaved()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Panel header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 md:hidden" onClick={onClose}>
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div>
+            <h2 className="text-base font-heading font-semibold text-foreground">
+              {isCreate ? "Create Role" : `Edit — ${role?.displayName}`}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isCreate
+                ? "Choose a name and select permissions for the new role."
+                : isAdmin
+                  ? "Admin always has full access. You can update the display name."
+                  : "Update display name and permissions."}
+            </p>
           </div>
         </div>
-      ))}
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hidden md:flex" onClick={onClose}>
+          <X className="size-4" />
+        </Button>
+      </div>
+
+      {/* Panel body */}
+      <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5">
+        {/* Name fields */}
+        {isCreate && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium text-foreground">Role Name (slug)</Label>
+            <Input
+              placeholder="e.g. counselor or case_manager"
+              value={name}
+              onChange={(e) => { setName(e.target.value.toLowerCase().replace(/\s+/g, "_")); setError("") }}
+              disabled={saving}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">Lowercase, underscores only. Used internally.</p>
+          </div>
+        )}
+
+        {!isCreate && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm font-medium text-foreground">Role Name (slug)</Label>
+            <Input value={role?.name || ""} disabled className="disabled:opacity-60 font-mono text-sm bg-muted/40" />
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-sm font-medium text-foreground">Display Name</Label>
+          <Input
+            placeholder="e.g. Licensed Counselor"
+            value={displayName}
+            onChange={(e) => { setDisplayName(e.target.value); setError("") }}
+            disabled={saving}
+          />
+        </div>
+
+        <Separator />
+
+        {/* Permissions */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium text-foreground">Permissions</Label>
+            {isAdmin && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <ShieldCheck className="size-3" /> Locked — full access
+              </span>
+            )}
+          </div>
+          <PermissionCheckboxes
+            selected={permissions}
+            onChange={setPermissions}
+            disabled={saving || isAdmin}
+          />
+        </div>
+      </div>
+
+      {/* Panel footer */}
+      <div className="border-t border-border/60 px-5 py-4 flex items-center justify-between gap-3">
+        {error ? <p className="text-sm text-destructive truncate">{error}</p> : <div />}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" className="bg-transparent text-foreground" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="mr-2 size-4 animate-spin" />{isCreate ? "Creating…" : "Saving…"}</> : isCreate ? "Create Role" : "Save Changes"}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -276,20 +513,10 @@ export function ManageRolesView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  // Edit dialog
-  const [editRole, setEditRole] = useState<Role | null>(null)
-  const [editDisplayName, setEditDisplayName] = useState("")
-  const [editPermissions, setEditPermissions] = useState<string[]>([])
-  const [editError, setEditError] = useState("")
-  const [editLoading, setEditLoading] = useState(false)
-
-  // Create dialog
-  const [showCreate, setShowCreate] = useState(false)
-  const [createName, setCreateName] = useState("")
-  const [createDisplayName, setCreateDisplayName] = useState("")
-  const [createPermissions, setCreatePermissions] = useState<string[]>([])
-  const [createError, setCreateError] = useState("")
-  const [createLoading, setCreateLoading] = useState(false)
+  // Panel state: either editing a role, creating, or closed
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const panelOpen = !!selectedRole || isCreating
 
   // Delete
   const [deleteLoading, setDeleteLoading] = useState<number | null>(null)
@@ -298,84 +525,38 @@ export function ManageRolesView() {
     setLoading(true)
     setError("")
     getRoles()
-      .then((rolesData) => {
-        setRoles(rolesData)
-      })
+      .then(setRoles)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => {
-    fetchAll()
-  }, [])
+  useEffect(() => { fetchAll() }, [])
 
   const openEdit = (role: Role) => {
-    setEditRole(role)
-    setEditDisplayName(role.displayName)
-    setEditPermissions([...role.permissions])
-    setEditError("")
-  }
-
-  const handleSaveEdit = async () => {
-    if (!editRole) return
-    if (!editDisplayName.trim()) {
-      setEditError("Display name is required")
-      return
-    }
-    setEditLoading(true)
-    setEditError("")
-    try {
-      await updateRole(editRole.id, {
-        displayName: editDisplayName.trim(),
-        ...(editRole.name !== "admin" ? { permissions: editPermissions } : {}),
-      })
-      setEditRole(null)
-      fetchAll()
-    } catch (err: unknown) {
-      setEditError(err instanceof Error ? err.message : "Failed to save")
-    } finally {
-      setEditLoading(false)
-    }
+    setIsCreating(false)
+    setSelectedRole(role)
   }
 
   const openCreate = () => {
-    setCreateName("")
-    setCreateDisplayName("")
-    setCreatePermissions([])
-    setCreateError("")
-    setShowCreate(true)
+    setSelectedRole(null)
+    setIsCreating(true)
   }
 
-  const handleCreate = async () => {
-    if (!createName.trim()) {
-      setCreateError("Role name is required")
-      return
-    }
-    if (!createDisplayName.trim()) {
-      setCreateError("Display name is required")
-      return
-    }
-    setCreateLoading(true)
-    setCreateError("")
-    try {
-      await createRole({
-        name: createName.trim(),
-        displayName: createDisplayName.trim(),
-        permissions: createPermissions,
-      })
-      setShowCreate(false)
-      fetchAll()
-    } catch (err: unknown) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create role")
-    } finally {
-      setCreateLoading(false)
-    }
+  const closePanel = () => {
+    setSelectedRole(null)
+    setIsCreating(false)
+  }
+
+  const handleSaved = () => {
+    closePanel()
+    fetchAll()
   }
 
   const handleDelete = async (role: Role) => {
     setDeleteLoading(role.id)
     try {
       await deleteRole(role.id)
+      if (selectedRole?.id === role.id) closePanel()
       fetchAll()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to delete role")
@@ -383,9 +564,6 @@ export function ManageRolesView() {
       setDeleteLoading(null)
     }
   }
-
-  const systemRoles = roles.filter((r) => r.isSystemDefault)
-  const customRoles = roles.filter((r) => !r.isSystemDefault)
 
   return (
     <div className="flex flex-col gap-6">
@@ -403,44 +581,14 @@ export function ManageRolesView() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Shield className="size-3.5 text-foreground" />
-              <p className="text-xs text-muted-foreground font-medium">Total Roles</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-foreground">{roles.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <ShieldCheck className="size-3.5 text-primary" />
-              <p className="text-xs text-muted-foreground font-medium">System Roles</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-primary">{systemRoles.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-border/60">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Users className="size-3.5 text-accent" />
-              <p className="text-xs text-muted-foreground font-medium">Custom Roles</p>
-            </div>
-            <p className="text-xl font-bold font-heading text-accent">{customRoles.length}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Loading / Error */}
+      {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
       )}
 
+      {/* Error */}
       {error && (
         <div className="text-center py-8">
           <p className="text-sm text-destructive">{error}</p>
@@ -450,224 +598,56 @@ export function ManageRolesView() {
         </div>
       )}
 
-      {/* Roles Table */}
+      {/* Two-panel layout */}
       {!loading && !error && (
-        <Card className="border-border/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading font-semibold text-foreground">
-              All Roles ({roles.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Role</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Type</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground hidden sm:table-cell">Permissions</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground hidden md:table-cell">Users</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground w-24" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+        <Card className="border-border/60 overflow-hidden">
+          <div className="flex min-h-[600px]">
+            {/* Left: Role list */}
+            <div className={`${panelOpen ? "hidden md:flex" : "flex"} flex-col w-full md:w-[340px] md:min-w-[340px] border-r border-border/60`}>
+              <div className="px-4 py-3 border-b border-border/40">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">All Roles ({roles.length})</p>
+              </div>
+              <div className="flex-1 overflow-y-auto divide-y divide-border/40">
                 {roles.map((role) => (
-                  <TableRow key={role.id}>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{role.displayName}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{role.name}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {role.isSystemDefault ? (
-                        <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary">
-                          <ShieldCheck className="mr-1 size-3" />
-                          System
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent">
-                          Custom
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <span className="text-sm text-muted-foreground">{role.permissions.length} permissions</span>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <span className="text-sm text-muted-foreground">{role.userCount}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                          onClick={() => openEdit(role)}
-                        >
-                          <Pencil className="size-3.5" />
-                          <span className="sr-only">Edit</span>
-                        </Button>
-                        {!role.isSystemDefault && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDelete(role)}
-                            disabled={deleteLoading === role.id}
-                          >
-                            {deleteLoading === role.id ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="size-3.5" />
-                            )}
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <RoleListItem
+                    key={role.id}
+                    role={role}
+                    isSelected={selectedRole?.id === role.id}
+                    onSelect={() => openEdit(role)}
+                    onDelete={() => handleDelete(role)}
+                    deleteLoading={deleteLoading === role.id}
+                  />
                 ))}
                 {roles.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-sm text-muted-foreground">
-                      No roles found.
-                    </TableCell>
-                  </TableRow>
+                  <div className="text-center py-12 text-sm text-muted-foreground">
+                    No roles found.
+                  </div>
                 )}
-              </TableBody>
-            </Table>
-          </CardContent>
+              </div>
+            </div>
+
+            {/* Right: Editor panel */}
+            {panelOpen ? (
+              <div className="flex-1 flex flex-col min-w-0">
+                <RoleEditorPanel
+                  role={selectedRole}
+                  isCreate={isCreating}
+                  onClose={closePanel}
+                  onSaved={handleSaved}
+                />
+              </div>
+            ) : (
+              <div className="hidden md:flex flex-1 items-center justify-center">
+                <div className="text-center">
+                  <Pencil className="size-8 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Select a role to edit its permissions</p>
+                  <p className="text-xs text-muted-foreground mt-1">or create a new one</p>
+                </div>
+              </div>
+            )}
+          </div>
         </Card>
       )}
-
-      {/* Edit Role Dialog */}
-      <Dialog open={!!editRole} onOpenChange={(open) => { if (!open) setEditRole(null) }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-foreground">
-              Edit Role — {editRole?.displayName}
-            </DialogTitle>
-            <DialogDescription>
-              {editRole?.isSystemDefault
-                ? "System roles can have their display name and permissions updated, but the role name slug is locked."
-                : "Update this custom role's display name and permissions."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-5 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Role Name (slug)</Label>
-              <Input value={editRole?.name || ""} disabled className="disabled:opacity-60 font-mono text-sm bg-muted/40" />
-              <p className="text-xs text-muted-foreground">The internal identifier — cannot be changed.</p>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Display Name</Label>
-              <Input
-                placeholder="e.g. Licensed Counselor"
-                value={editDisplayName}
-                onChange={(e) => { setEditDisplayName(e.target.value); setEditError("") }}
-                disabled={editLoading}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-foreground">Permissions</Label>
-                {editRole?.name === "admin" && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <ShieldCheck className="size-3" /> Locked — admin always has full access
-                  </span>
-                )}
-              </div>
-              <div className="rounded-lg border border-border p-4 bg-muted/20">
-                <PermissionCheckboxes
-                  selected={editPermissions}
-                  onChange={setEditPermissions}
-                  disabled={editLoading || editRole?.name === "admin"}
-                />
-              </div>
-            </div>
-            {editError && <p className="text-sm text-destructive">{editError}</p>}
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                className="bg-transparent text-foreground"
-                onClick={() => setEditRole(null)}
-                disabled={editLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={handleSaveEdit}
-                disabled={editLoading}
-              >
-                {editLoading ? <><Loader2 className="mr-2 size-4 animate-spin" />Saving…</> : "Save Changes"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Role Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-foreground">Create Role</DialogTitle>
-            <DialogDescription>
-              Create a custom role for this clinic. Choose a unique name slug and select the permissions to grant.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-5 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Role Name (slug)</Label>
-              <Input
-                placeholder="e.g. counselor or case_manager"
-                value={createName}
-                onChange={(e) => { setCreateName(e.target.value.toLowerCase().replace(/\s+/g, "_")); setCreateError("") }}
-                disabled={createLoading}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">Lowercase, underscores only. Used internally.</p>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-sm font-medium text-foreground">Display Name</Label>
-              <Input
-                placeholder="e.g. Licensed Counselor"
-                value={createDisplayName}
-                onChange={(e) => { setCreateDisplayName(e.target.value); setCreateError("") }}
-                disabled={createLoading}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium text-foreground">Permissions</Label>
-              <div className="rounded-lg border border-border p-4 bg-muted/20">
-                <PermissionCheckboxes
-                  selected={createPermissions}
-                  onChange={setCreatePermissions}
-                  disabled={createLoading}
-                />
-              </div>
-            </div>
-            {createError && <p className="text-sm text-destructive">{createError}</p>}
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                className="bg-transparent text-foreground"
-                onClick={() => setShowCreate(false)}
-                disabled={createLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={handleCreate}
-                disabled={createLoading}
-              >
-                {createLoading ? <><Loader2 className="mr-2 size-4 animate-spin" />Creating…</> : "Create Role"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
