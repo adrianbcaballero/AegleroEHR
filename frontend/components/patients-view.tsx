@@ -353,9 +353,9 @@ function FormFieldRenderer({ field, value, onChange, disabled }: { field: Templa
 
 // ─── Form Detail View ───
 function FormDetailView({
-  formId, patientCode, patientName, patient, onBack, onDeleted, readOnly = false,
+  formId, patientCode, patientName, patient, onBack, onDeleted, readOnly = false, userPermissions = [],
 }: {
-  formId: number; patientCode: string; patientName: string; patient?: Patient; onBack: () => void; onDeleted: () => void; readOnly?: boolean
+  formId: number; patientCode: string; patientName: string; patient?: Patient; onBack: () => void; onDeleted: () => void; readOnly?: boolean; userPermissions?: string[]
 }) {
   const [form, setForm] = useState<PatientFormEntry | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
@@ -544,6 +544,7 @@ function FormDetailView({
   const StatusIcon = cfg.icon
   const canEdit = !readOnly && (form.accessLevel === "edit" || form.accessLevel === "sign")
   const canSign = !readOnly && form.accessLevel === "sign"
+  const canDeleteCompleted = userPermissions.includes("forms.delete_completed")
 
   return (
     <div className="flex flex-col gap-6">
@@ -624,7 +625,7 @@ function FormDetailView({
             </Button>
             {saveMsg && <span className="text-sm text-accent">{saveMsg}</span>}
             <div className="ml-auto">
-              {canEdit && (
+              {((form.status !== "completed" && canEdit) || (form.status === "completed" && canDeleteCompleted)) && (
                 <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)} disabled={saving || deleting}>
                   <Trash2 className="mr-1.5 size-3.5" /> Delete
                 </Button>
@@ -660,7 +661,7 @@ function FormDetailView({
               <DialogHeader>
                 <DialogTitle className="font-heading text-foreground">Delete Form</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to delete <span className="font-semibold text-foreground">{form.templateName}</span>? This action cannot be undone.
+                  Are you sure you want to delete <span className="font-semibold text-foreground">{form.templateName}</span>?{form.status === "completed" && " This is a signed, completed form."} This action cannot be undone.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex justify-end gap-2 pt-2">
@@ -1593,6 +1594,7 @@ export function PatientProfileView({
         onBack={() => { setSelectedFormId(null); fetchForms(); fetchPatient() }}
         onDeleted={() => { setSelectedFormId(null); fetchForms() }}
         readOnly={(patient.status === "archived" || patient.status === "inactive") && !canManageArchiveForms}
+        userPermissions={userPermissions}
       />
     )
   }

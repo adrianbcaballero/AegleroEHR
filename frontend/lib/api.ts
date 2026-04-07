@@ -550,6 +550,7 @@ export function createTemplate(data: {
   recurrenceUnit?: string | null
   requiredForAdmission?: boolean
   requiredForDischarge?: boolean
+
 }) {
   return apiPost<FormTemplate>("/api/templates", data)
 }
@@ -566,6 +567,7 @@ export function updateTemplate(templateId: number, data: {
   recurrenceUnit?: string | null
   requiredForAdmission?: boolean
   requiredForDischarge?: boolean
+
 }) {
   return apiPut<FormTemplate>(`/api/templates/${templateId}`, data)
 }

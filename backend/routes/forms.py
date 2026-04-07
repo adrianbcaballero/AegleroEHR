@@ -251,7 +251,6 @@ def create_template():
     recurrence_unit = (data.get("recurrenceUnit") or "").strip() or None
     required_for_admission = bool(data.get("requiredForAdmission", False))
     required_for_discharge = bool(data.get("requiredForDischarge", False))
-
     t = FormTemplate(
         tenant_id=g.tenant_id,
         name=name,
@@ -358,7 +357,6 @@ def update_template(template_id):
         t.required_for_admission = bool(data["requiredForAdmission"])
     if "requiredForDischarge" in data:
         t.required_for_discharge = bool(data["requiredForDischarge"])
-
     db.session.commit()
 
     updated_fields = [k for k in data.keys()]
@@ -747,12 +745,14 @@ def delete_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip)
         return {"error": "form not found"}, 404
 
-    # Completed forms are signed legal medical records — immutable per
+    # Completed forms are signed legal medical records — immutable by default per
     # ONC §170.315(d)(2) and HIPAA record-retention requirements.
+    # Deletion requires the forms.delete_completed permission.
     if f.status == "completed":
-        log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip,
-                   description=f"Attempted to delete completed form #{form_id} for patient {p.patient_code}")
-        return {"error": "completed forms are legal records and cannot be deleted"}, 409
+        if not g.user.has_permission("forms.delete_completed"):
+            log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip,
+                       description=f"Attempted to delete completed form #{form_id} — user lacks forms.delete_completed permission")
+            return {"error": "you do not have permission to delete completed forms"}, 403
 
     template = tenant_query(FormTemplate).filter_by(id=f.template_id).first()
     access_level = _get_access_level(template, g.user) if template else None
@@ -764,6 +764,7 @@ def delete_patient_form(patient_id, form_id):
 
     db.session.delete(f)
     db.session.commit()
-    log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "SUCCESS", ip, description=f"Deleted draft '{tpl_name}' from {p.first_name} {p.last_name} ({p.patient_code})")
+    status_label = "completed form" if f.status == "completed" else "draft"
+    log_access(g.user.id, "FORM_DELETE", f"patient/{p.patient_code}/forms/{form_id}", "SUCCESS", ip, description=f"Deleted {status_label} '{tpl_name}' from {p.first_name} {p.last_name} ({p.patient_code})")
     
     return {"ok": True}, 200

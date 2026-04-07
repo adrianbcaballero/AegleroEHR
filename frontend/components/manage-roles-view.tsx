@@ -158,6 +158,17 @@ const BUNDLE_GROUPS: BundleGroup[] = [
     ],
   },
   {
+    label: "Forms",
+    bundles: [
+      {
+        key: "forms.delete_completed",
+        label: "Delete Completed Forms",
+        description: "Allow deletion of signed, completed forms (legal medical records)",
+        permissions: ["forms.delete_completed"],
+      },
+    ],
+  },
+  {
     label: "Administration",
     bundles: [
       {
@@ -195,6 +206,12 @@ const BUNDLE_GROUPS: BundleGroup[] = [
         label: "Consent Management",
         description: "Create and revoke 42 CFR Part 2 patient consent records",
         permissions: ["consent.manage"],
+      },
+      {
+        key: "admin.settings",
+        label: "Manage Settings",
+        description: "Manage tenant settings such as MFA requirements and security policies",
+        permissions: ["settings.manage"],
       },
     ],
   },

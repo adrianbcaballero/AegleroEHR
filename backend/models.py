@@ -44,6 +44,9 @@ ALL_PERMISSIONS = [
 
     # Consent (42 CFR Part 2)
     "consent.manage",                # create / revoke patient consent records
+
+    # Forms
+    "forms.delete_completed",        # delete completed (signed) forms
 ]
 
 # Default permissions granted to each system role on creation
