@@ -11,9 +11,6 @@ ALL_PERMISSIONS = [
     "patients.view",                 # access the patients page
     "patients.view.all",             # see all patients regardless of care team
     "patients.edit",                 # edit patient record
-    "patients.create",               # register new patient
-    "patients.delete",               # delete / merge patients
-
     # Front Desk
     "frontdesk.view",                # see the front desk page (includes admissions + bed board)
     "frontdesk.beds.manage",         # manage beds (create / edit / delete)
@@ -27,16 +24,14 @@ ALL_PERMISSIONS = [
     "archive.forms.manage",          # add / edit / delete forms on archived or discharged patients
 
     # Workflows
-    "workflows.view",                # access workflows page
-    "workflows.manage",              # create / edit / delete templates and categories
+    "workflows.manage",              # access workflows page; create / edit / delete templates and categories
 
     # Care Teams
     "careteam.manage",               # create and assign care teams
 
     # System
     "audit.view",                    # access audit logs
-    "users.view",                    # view user list
-    "users.manage",                  # create / edit / lock / unlock users
+    "users.manage",                  # view user list; create / edit / lock / unlock users
     "roles.manage",                  # manage roles and permissions
 
     # Settings
@@ -54,13 +49,12 @@ SYSTEM_ROLE_PERMISSIONS = {
     "admin": ALL_PERMISSIONS,
     "psychiatrist": [
         "patients.view", "patients.view.all",
-        "patients.create", "patients.edit",
-        "frontdesk.view", "frontdesk.patients.pending",
+        "patients.edit",
+        "frontdesk.view", "frontdesk.patients.create", "frontdesk.patients.pending",
         "archive.view", "archive.manage",
-        "workflows.view", "workflows.manage",
+        "workflows.manage",
         "consent.manage",
         "audit.view",
-        "users.view",
     ],
     "technician": [
         "patients.view",
@@ -71,7 +65,7 @@ SYSTEM_ROLE_PERMISSIONS = {
     "auditor": [
         "patients.view", "patients.view.all",
         "archive.view",
-        "workflows.view",
+        "workflows.manage",
         "audit.view",
     ],
 }

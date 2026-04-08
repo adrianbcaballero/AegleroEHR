@@ -204,7 +204,7 @@ def test_list_templates():
 # ── RBAC Enforcement ──────────────────────────────────
 
 def test_frontdesk_cannot_list_users():
-    """frontdesk role should not have users.view permission."""
+    """frontdesk role should not have users.manage permission."""
     r = frontdesk_session.get(f"{BASE}/api/users")
     assert r.status_code == 403, f"expected 403, got {r.status_code}"
 

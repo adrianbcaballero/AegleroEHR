@@ -50,7 +50,7 @@ def list_users_picker():
 
 
 @users_bp.get("")
-@require_auth(permission="users.view")
+@require_auth(permission="users.manage")
 def list_users():
     """GET /api/users"""
     users = tenant_query(User).order_by(User.id.asc()).all()

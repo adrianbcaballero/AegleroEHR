@@ -47,22 +47,16 @@ const BUNDLE_GROUPS: BundleGroup[] = [
         permissions: ["patients.view.all"],
       },
       {
-        key: "patients.create",
-        label: "Register Patients",
-        description: "Create new patient intake records",
-        permissions: ["patients.create"],
-      },
-      {
         key: "patients.edit",
         label: "Edit Patient Records",
         description: "Update patient demographics, notes, and assignments",
         permissions: ["patients.edit"],
       },
       {
-        key: "patients.delete",
-        label: "Delete / Merge Patients",
-        description: "Permanently delete or merge patient records",
-        permissions: ["patients.delete"],
+        key: "patients.consent",
+        label: "Consent Management",
+        description: "Create and revoke 42 CFR Part 2 patient consent records",
+        permissions: ["consent.manage"],
       },
     ],
   },
@@ -128,15 +122,9 @@ const BUNDLE_GROUPS: BundleGroup[] = [
     label: "Workflows",
     bundles: [
       {
-        key: "workflows.view",
-        label: "View Workflows",
-        description: "Access the workflows page and view form templates",
-        permissions: ["workflows.view"],
-      },
-      {
         key: "workflows.manage",
         label: "Manage Workflows",
-        description: "Create, edit, archive templates and manage categories",
+        description: "Access the workflows page; create, edit, and archive templates and categories",
         permissions: ["workflows.manage"],
       },
     ],
@@ -156,21 +144,15 @@ const BUNDLE_GROUPS: BundleGroup[] = [
     label: "Administration",
     bundles: [
       {
-        key: "admin.users.view",
-        label: "View Users",
-        description: "View the user list (Manage Users page)",
-        permissions: ["users.view"],
-      },
-      {
         key: "admin.users.manage",
         label: "Manage Users",
-        description: "Create, edit, lock, and unlock user accounts",
+        description: "View user list; create, edit, lock, and unlock user accounts",
         permissions: ["users.manage"],
       },
       {
         key: "admin.roles",
-        label: "Manage Roles & Settings",
-        description: "Create and edit custom roles; access Settings page",
+        label: "Manage Roles & Permissions",
+        description: "Create and edit custom roles and their permissions",
         permissions: ["roles.manage"],
       },
       {
@@ -184,12 +166,6 @@ const BUNDLE_GROUPS: BundleGroup[] = [
         label: "Care Teams",
         description: "Create and assign care teams to patients",
         permissions: ["careteam.manage"],
-      },
-      {
-        key: "admin.consent",
-        label: "Consent Management",
-        description: "Create and revoke 42 CFR Part 2 patient consent records",
-        permissions: ["consent.manage"],
       },
       {
         key: "admin.settings",

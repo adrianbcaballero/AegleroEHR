@@ -148,7 +148,7 @@ def _get_access_level(template: FormTemplate, user) -> str | None:
 # ─── TEMPLATE ENDPOINTS (admin + psychiatrist) ───
 
 @forms_bp.get("/templates")
-@require_auth(permission="workflows.view")
+@require_auth(permission="workflows.manage")
 def list_templates():
     ip = client_ip()
     status_filter = (request.args.get("status") or "active").strip()
@@ -182,7 +182,7 @@ def list_templates():
 @require_auth(permission="patients.view")
 def list_available_templates():
     """Return active templates the current user has edit or sign access to.
-    Used by the patient forms UI so roles without workflows.view can still add forms."""
+    Used by the patient forms UI so roles without workflows.manage can still add forms."""
     templates = tenant_query(FormTemplate).filter(FormTemplate.status == "active").order_by(FormTemplate.name.asc()).all()
 
     result = []
@@ -197,7 +197,7 @@ def list_available_templates():
 
 
 @forms_bp.get("/templates/<int:template_id>")
-@require_auth(permission="workflows.view")
+@require_auth(permission="workflows.manage")
 def get_template(template_id):
     ip = client_ip()
     t = tenant_query(FormTemplate).filter_by(id=template_id).first()

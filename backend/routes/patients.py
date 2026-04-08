@@ -194,7 +194,7 @@ def get_patient(patient_id):
 
 
 @patients_bp.post("/check-duplicate")
-@require_auth(permission="patients.create")
+@require_auth(permission="frontdesk.patients.create")
 def check_duplicate():
     """
     POST /api/patients/check-duplicate
@@ -258,7 +258,7 @@ def check_duplicate():
 
 
 @patients_bp.post("")
-@require_auth(permission="patients.create")
+@require_auth(permission="frontdesk.patients.create")
 def create_patient():
     """
     POST /api/patients

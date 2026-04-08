@@ -1,4 +1,4 @@
-"""add forms.delete_completed permission to admin role
+"""add forms.delete_completed, consolidate patient permissions
 
 Revision ID: m3n4o5p6q7r8
 Revises: c3a7e1f04821
@@ -43,6 +43,52 @@ def upgrade():
         ).scalar()
         if not existing:
             bind.execute(perm_t.insert().values(role_id=role_id, permission=PERMISSION))
+
+    # Remove retired permissions from all roles
+    bind.execute(perm_t.delete().where(perm_t.c.permission == "patients.delete"))
+
+    # Consolidate patients.create → frontdesk.patients.create
+    # For each role that has patients.create, grant frontdesk.patients.create if missing
+    rows_with_old = bind.execute(
+        select(perm_t.c.role_id).where(perm_t.c.permission == "patients.create")
+    ).fetchall()
+    for (role_id,) in rows_with_old:
+        already = bind.execute(
+            select(perm_t.c.id).where(
+                (perm_t.c.role_id == role_id) & (perm_t.c.permission == "frontdesk.patients.create")
+            )
+        ).scalar()
+        if not already:
+            bind.execute(perm_t.insert().values(role_id=role_id, permission="frontdesk.patients.create"))
+    bind.execute(perm_t.delete().where(perm_t.c.permission == "patients.create"))
+
+    # Consolidate workflows.view → workflows.manage
+    rows_with_wv = bind.execute(
+        select(perm_t.c.role_id).where(perm_t.c.permission == "workflows.view")
+    ).fetchall()
+    for (role_id,) in rows_with_wv:
+        already = bind.execute(
+            select(perm_t.c.id).where(
+                (perm_t.c.role_id == role_id) & (perm_t.c.permission == "workflows.manage")
+            )
+        ).scalar()
+        if not already:
+            bind.execute(perm_t.insert().values(role_id=role_id, permission="workflows.manage"))
+    bind.execute(perm_t.delete().where(perm_t.c.permission == "workflows.view"))
+
+    # Consolidate users.view → users.manage
+    rows_with_uv = bind.execute(
+        select(perm_t.c.role_id).where(perm_t.c.permission == "users.view")
+    ).fetchall()
+    for (role_id,) in rows_with_uv:
+        already = bind.execute(
+            select(perm_t.c.id).where(
+                (perm_t.c.role_id == role_id) & (perm_t.c.permission == "users.manage")
+            )
+        ).scalar()
+        if not already:
+            bind.execute(perm_t.insert().values(role_id=role_id, permission="users.manage"))
+    bind.execute(perm_t.delete().where(perm_t.c.permission == "users.view"))
 
 
 def downgrade():
