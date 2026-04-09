@@ -280,7 +280,7 @@ function SignatureDialog({ open, onClose, displayName }: { open: boolean; onClos
 
 const allMainNavItems = [
   { title: "Dashboard", icon: LayoutDashboard, permission: "patients.view" },
-  { title: "Front Desk", icon: ClipboardList, permission: "patients.view" },
+  { title: "Front Desk", icon: ClipboardList, permission: "frontdesk.view" },
   { title: "Patients", icon: Users, permission: "patients.view" },
   { title: "Archive", icon: Archive, permission: "archive.view" },
 ]
