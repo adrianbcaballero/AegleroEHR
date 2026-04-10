@@ -38,7 +38,7 @@ def _serialize_team(team: CareTeam):
 
 
 @careteams_bp.get("")
-@require_auth(any_of=["patients.edit", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.edit", "frontdesk.patients.pending", "users.manage"])
 def list_careteams():
     teams = tenant_query(CareTeam).all()
     return [_serialize_team(t) for t in teams], 200
