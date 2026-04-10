@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getPatients, createPatient, checkDuplicatePatient, getBeds, assignBed, updateBed, listCareTeams } from "@/lib/api"
+import { getPatients, getPendingPatients, createPatient, checkDuplicatePatient, getBeds, assignBed, updateBed, listCareTeams } from "@/lib/api"
 import type { Patient, Bed, CareTeam, DuplicateMatch } from "@/lib/api"
 import { PatientProfileView } from "@/components/patients-view"
 import { ManageBedsView } from "@/components/manage-beds-view"
@@ -133,8 +133,8 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
 
   const fetchPending = useCallback(() => {
     setLoading(true)
-    getPatients()
-      .then((all) => setPatients(all.filter((p) => p.status === "pending")))
+    getPendingPatients()
+      .then(setPatients)
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -314,10 +314,12 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
           ) : (
             <div className="flex flex-col gap-2">
               {patients.map((p: Patient) => (
-                <button
+                <div
                   key={p.id}
-                  onClick={() => setSelectedPatientId(p.id)}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/60 hover:bg-muted/40 transition-colors text-left w-full"
+                  onClick={() => { if (userPermissions.includes("frontdesk.patients.pending")) setSelectedPatientId(p.id) }}
+                  className={`flex items-center gap-3 p-3 rounded-lg border border-border/60 transition-colors text-left w-full ${
+                    userPermissions.includes("frontdesk.patients.pending") ? "cursor-pointer hover:bg-muted/40" : ""
+                  }`}
                 >
                   <Avatar className="size-12 shrink-0">
                     {p.photo && <AvatarImage src={p.photo} alt={`${p.firstName} ${p.lastName}`} />}
@@ -337,7 +339,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                       })()}
                     </span>
                   )}
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -389,18 +391,19 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                         <div
                           key={bed.id}
                           className={`relative rounded-lg border ${cfg.border} ${cfg.bg} p-3 flex flex-col gap-2 transition-colors ${
-                            bed.status === "available" || bed.status === "cleaning" || bed.status === "occupied"
+                            userPermissions.includes("frontdesk.beds.manage") && (bed.status === "available" || bed.status === "cleaning" || bed.status === "occupied")
                               ? "cursor-pointer hover:bg-muted/40"
                               : ""
                           }`}
                           onClick={() => {
+                            if (!userPermissions.includes("frontdesk.beds.manage")) return
                             if (bed.status === "available") {
                               setAssignPatientCode("")
                               setAssignError("")
                               setAssignDialog({ bed })
                             } else if (bed.status === "cleaning") {
                               setStatusDialog({ bed, action: "available" })
-                            } else if (bed.status === "occupied" && userPermissions.includes("frontdesk.beds.manage")) {
+                            } else if (bed.status === "occupied") {
                               setTransferTarget(null)
                               setTransferError("")
                               setOccupiedDialog({ bed })

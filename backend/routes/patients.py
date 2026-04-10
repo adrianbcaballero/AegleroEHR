@@ -167,6 +167,15 @@ def list_patients():
     return [_serialize_patient(p) for p in patients], 200
 
 
+@patients_bp.get("/pending")
+@require_auth(permission="frontdesk.view")
+def list_pending_patients():
+    """GET /api/patients/pending — only pending patients, for front desk view."""
+    q = tenant_query(Patient).filter(Patient.status == "pending")
+    q = q.order_by(Patient.last_name.asc(), Patient.first_name.asc())
+    return [_serialize_patient(p) for p in q.all()], 200
+
+
 @patients_bp.get("/<patient_id>")
 @require_auth(permission="patients.view")
 def get_patient(patient_id):

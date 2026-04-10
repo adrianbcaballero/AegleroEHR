@@ -40,7 +40,7 @@ def _serialize_bed(bed: Bed):
 
 
 @beds_bp.get("")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.view"])
 def list_beds():
     """GET /api/beds — active beds with current occupant. Used by bed board."""
     beds = (

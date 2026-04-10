@@ -161,6 +161,10 @@ export function getPatients() {
   return apiGet<Patient[]>("/api/patients")
 }
 
+export function getPendingPatients() {
+  return apiGet<Patient[]>("/api/patients/pending")
+}
+
 export function getPatient(patientId: string) {
   return apiGet<PatientDetail>(`/api/patients/${patientId}`)
 }
