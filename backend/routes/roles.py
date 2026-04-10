@@ -9,6 +9,32 @@ from services.helpers import client_ip, tenant_query
 
 roles_bp = Blueprint("roles", __name__, url_prefix="/api/roles")
 
+PERMISSION_LABELS = {
+    "patients.view": "View Patients",
+    "patients.view.all": "View All Patients",
+    "patients.edit": "Edit Patient Records",
+    "consent.manage": "Consent Management",
+    "frontdesk.view": "View Front Desk",
+    "frontdesk.beds.manage": "Manage Beds",
+    "frontdesk.patients.create": "Add Patients via Front Desk",
+    "frontdesk.patients.pending": "Work Pending Patients",
+    "archive.view": "View Archive",
+    "archive.manage": "Manage Archive",
+    "archive.export": "Export Records",
+    "archive.forms.manage": "Manage Archived Forms",
+    "workflows.manage": "Manage Workflows",
+    "forms.delete_completed": "Delete Completed Forms",
+    "users.manage": "Manage Users",
+    "roles.manage": "Manage Roles & Permissions",
+    "audit.view": "System Logs",
+    "careteam.manage": "Care Teams",
+    "settings.manage": "Manage Settings",
+}
+
+
+def _perm_label(p: str) -> str:
+    return PERMISSION_LABELS.get(p, p)
+
 
 def _serialize_role(r: Role, user_count: int = 0):
     return {
@@ -98,7 +124,7 @@ def create_role():
 
     db.session.commit()
     log_access(g.user.id, "ROLE_CREATE", f"role/{role.id}", "SUCCESS", ip,
-               description=f"Created role '{role.display_name}' ({role.name}) with {len(permissions)} permissions")
+               description=f"Created role '{role.display_name}' ({role.name}) with {len(permissions)} permissions: {', '.join(_perm_label(p) for p in sorted(permissions))}" if permissions else f"Created role '{role.display_name}' ({role.name}) with no permissions")
     return _serialize_role(role), 201
 
 
@@ -136,11 +162,25 @@ def update_role(role_id):
         if invalid:
             return {"error": f"invalid permissions: {invalid}"}, 400
 
+        old_perms = set(rp.permission for rp in RolePermission.query.filter_by(role_id=role.id).all())
+        new_perms = set(permissions)
+        added = sorted(new_perms - old_perms)
+        removed = sorted(old_perms - new_perms)
+
         # Replace all permissions
         RolePermission.query.filter_by(role_id=role.id).delete()
         for p in permissions:
             db.session.add(RolePermission(role_id=role.id, permission=p))
-        changes.append(f"permissions updated ({len(permissions)} total)")
+
+        perm_parts = []
+        if added:
+            perm_parts.append(f"added: {', '.join(_perm_label(p) for p in added)}")
+        if removed:
+            perm_parts.append(f"removed: {', '.join(_perm_label(p) for p in removed)}")
+        if perm_parts:
+            changes.append(f"permissions updated ({len(permissions)} total) — {'; '.join(perm_parts)}")
+        else:
+            changes.append(f"permissions unchanged ({len(permissions)} total)")
 
     if not changes:
         return {"error": "no fields to update"}, 400

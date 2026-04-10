@@ -291,7 +291,7 @@ const adminNavItems = [
   { title: "Manage Roles", icon: Shield, permission: "roles.manage" },
   { title: "Manage Care Teams", icon: UsersRound, permission: "careteam.manage" },
   { title: "System Logs", icon: ScrollText, permission: "audit.view" },
-  { title: "Settings", icon: Settings, permission: "roles.manage" },
+  { title: "Settings", icon: Settings, permission: "settings.manage" },
 ]
 
 const supportNavItems = [
