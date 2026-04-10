@@ -72,7 +72,7 @@ const BUNDLE_GROUPS: BundleGroup[] = [
       {
         key: "frontdesk.beds.manage",
         label: "Manage Beds",
-        description: "Create, edit, and delete bed inventory",
+        description: "Access the Manage Beds page to create, edit, and delete bed inventory",
         permissions: ["frontdesk.beds.manage"],
       },
       {
@@ -84,7 +84,7 @@ const BUNDLE_GROUPS: BundleGroup[] = [
       {
         key: "frontdesk.patients.pending",
         label: "Work Pending Patients",
-        description: "Admit or reject pending patients and assign beds",
+        description: "Admit, readmit, and reject pending patients; assign, transfer, and manage beds on the bed board",
         permissions: ["frontdesk.patients.pending"],
       },
     ],

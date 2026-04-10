@@ -391,12 +391,12 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
                         <div
                           key={bed.id}
                           className={`relative rounded-lg border ${cfg.border} ${cfg.bg} p-3 flex flex-col gap-2 transition-colors ${
-                            userPermissions.includes("frontdesk.beds.manage") && (bed.status === "available" || bed.status === "cleaning" || bed.status === "occupied")
+                            userPermissions.includes("frontdesk.patients.pending") && (bed.status === "available" || bed.status === "cleaning" || bed.status === "occupied")
                               ? "cursor-pointer hover:bg-muted/40"
                               : ""
                           }`}
                           onClick={() => {
-                            if (!userPermissions.includes("frontdesk.beds.manage")) return
+                            if (!userPermissions.includes("frontdesk.patients.pending")) return
                             if (bed.status === "available") {
                               setAssignPatientCode("")
                               setAssignError("")
