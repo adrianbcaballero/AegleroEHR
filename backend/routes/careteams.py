@@ -38,7 +38,7 @@ def _serialize_team(team: CareTeam):
 
 
 @careteams_bp.get("")
-@require_auth(any_of=["patients.edit", "frontdesk.patients.pending", "users.manage"])
+@require_auth(any_of=["patients.edit", "frontdesk.patients.pending", "users.manage", "careteam.manage"])
 def list_careteams():
     teams = tenant_query(CareTeam).all()
     return [_serialize_team(t) for t in teams], 200
@@ -67,14 +67,22 @@ def create_careteam():
         log_access(g.user.id, "CARETEAM_CREATE", "careteams", "FAILED", ip, description=f"Care team creation failed — name '{name}' already exists")
         return {"error": "a care team with that name already exists"}, 409
 
-    member_count = 0
+    member_names = []
     for uid in (data.get("memberIds") or []):
-        if User.query.filter_by(id=uid, tenant_id=g.tenant_id).first():
+        u = User.query.filter_by(id=uid, tenant_id=g.tenant_id).first()
+        if u:
             db.session.add(CareTeamMember(care_team_id=team.id, user_id=uid))
-            member_count += 1
+            member_names.append(u.full_name or u.username)
 
     db.session.commit()
-    log_access(g.user.id, "CARETEAM_CREATE", f"careteam/{team.id}", "SUCCESS", ip, description=f"Created care team '{name}' with {member_count} member(s)")
+    parts = []
+    if lead_user_id:
+        lead = User.query.filter_by(id=lead_user_id, tenant_id=g.tenant_id).first()
+        if lead:
+            parts.append(f"team lead: {lead.full_name or lead.username}")
+    members_desc = f": {', '.join(member_names)}" if member_names else ""
+    parts.append(f"{len(member_names)} member(s){members_desc}")
+    log_access(g.user.id, "CARETEAM_CREATE", f"careteam/{team.id}", "SUCCESS", ip, description=f"Created care team '{name}' — {', '.join(parts)}")
     return _serialize_team(team), 201
 
 
@@ -109,15 +117,44 @@ def update_careteam(team_id):
     if "leadUserId" in data:
         new_lead = data["leadUserId"] or None
         if new_lead != team.lead_user_id:
-            changes.append("team lead updated")
+            if new_lead:
+                lead_user = User.query.filter_by(id=new_lead, tenant_id=g.tenant_id).first()
+                changes.append(f"team lead → {lead_user.full_name or lead_user.username}" if lead_user else "team lead updated")
+            else:
+                changes.append("team lead removed")
         team.lead_user_id = new_lead
 
     if "memberIds" in data:
-        CareTeamMember.query.filter_by(care_team_id=team.id).delete()
+        old_member_ids = set(m.user_id for m in CareTeamMember.query.filter_by(care_team_id=team.id).all())
+        new_member_ids = set()
+        user_names = {}
         for uid in (data["memberIds"] or []):
-            if User.query.filter_by(id=uid, tenant_id=g.tenant_id).first():
-                db.session.add(CareTeamMember(care_team_id=team.id, user_id=uid))
-        changes.append("members updated")
+            u = User.query.filter_by(id=uid, tenant_id=g.tenant_id).first()
+            if u:
+                new_member_ids.add(u.id)
+                user_names[u.id] = u.full_name or u.username
+        # Also resolve names for removed members
+        for uid in (old_member_ids - new_member_ids):
+            u = User.query.filter_by(id=uid, tenant_id=g.tenant_id).first()
+            if u:
+                user_names[u.id] = u.full_name or u.username
+
+        added_ids = sorted(new_member_ids - old_member_ids)
+        removed_ids = sorted(old_member_ids - new_member_ids)
+
+        CareTeamMember.query.filter_by(care_team_id=team.id).delete()
+        for uid in new_member_ids:
+            db.session.add(CareTeamMember(care_team_id=team.id, user_id=uid))
+
+        member_parts = []
+        if added_ids:
+            member_parts.append(f"added: {', '.join(user_names.get(uid, str(uid)) for uid in added_ids)}")
+        if removed_ids:
+            member_parts.append(f"removed: {', '.join(user_names.get(uid, str(uid)) for uid in removed_ids)}")
+        if member_parts:
+            changes.append(f"members updated — {'; '.join(member_parts)}")
+        elif old_member_ids != new_member_ids:
+            changes.append("members updated")
 
     try:
         db.session.commit()
