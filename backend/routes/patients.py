@@ -137,7 +137,7 @@ def _apply_rbac(query):
 
 
 @patients_bp.get("")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def list_patients():
     """
     GET /api/patients?search=name&status=active&risk_level=high
@@ -177,12 +177,15 @@ def list_pending_patients():
 
 
 @patients_bp.get("/<patient_id>")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def get_patient(patient_id):
     """
     Supports:
     - /api/patients/PT-001
     - /api/patients/1 (numeric db id)
+
+    Users with only frontdesk.patients.pending (no patients.view) can only
+    access patients with pending status.
     """
     ip = client_ip()
 
@@ -191,6 +194,12 @@ def get_patient(patient_id):
     if not p:
         log_access(g.user.id, "PATIENT_GET", f"patient/{patient_id}", "FAILED", ip, description=f"Patient '{patient_id}' not found")
         return {"error": "patient not found"}, 404
+
+    # Users without patients.view can only see pending patients
+    if not g.user.has_permission("patients.view") and p.status != "pending":
+        log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip,
+                   description=f"Access denied — frontdesk user cannot view {p.status} patient {p.patient_code}")
+        return {"error": "forbidden"}, 403
 
     if not check_patient_access(p):
         log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not in care team")
@@ -424,7 +433,7 @@ def create_patient():
 
 
 @patients_bp.put("/<patient_id>")
-@require_auth(permission="patients.edit")
+@require_auth(any_of=["patients.edit", "frontdesk.patients.pending"])
 def update_patient(patient_id):
     """
     PUT /api/patients/<PT-001 or db id>
@@ -437,6 +446,11 @@ def update_patient(patient_id):
     if not p:
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{patient_id}", "FAILED", ip, description=f"Patient update failed — '{patient_id}' not found")
         return {"error": "patient not found"}, 404
+
+    # Front desk users without patients.edit can only edit pending patients
+    if not g.user.has_permission("patients.edit") and p.status != "pending":
+        log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not pending")
+        return {"error": "forbidden"}, 403
 
     if not check_patient_access(p):
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not in care team")
@@ -656,6 +670,17 @@ def admit_patient(patient_id):
     ep.status = "active"
     p.status = "active"
 
+    # Optional care team assignment on admit
+    care_team_id = data.get("careTeamId")
+    if care_team_id is not None:
+        if care_team_id:
+            ct = CareTeam.query.filter_by(id=care_team_id, tenant_id=g.tenant_id).first()
+            if not ct:
+                return {"error": "care team not found"}, 404
+            p.care_team_id = care_team_id
+        else:
+            p.care_team_id = None
+
     # Optional bed assignment on admit
     bed_id = data.get("bedId")
     if bed_id:
@@ -671,6 +696,10 @@ def admit_patient(patient_id):
     db.session.commit()
 
     desc = f"Admitted {p.first_name} {p.last_name} ({p.patient_code}) — Episode #{ep.episode_number}"
+    if care_team_id and p.care_team_id:
+        ct_obj = CareTeam.query.get(care_team_id)
+        if ct_obj:
+            desc += f", care team '{ct_obj.name}'"
     if bed_id and ep.assigned_bed_id:
         bed_obj = Bed.query.get(bed_id)
         if bed_obj:
@@ -828,7 +857,7 @@ def _serialize_episode(ep: Episode):
 
 
 @patients_bp.get("/<patient_id>/episodes")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def list_episodes(patient_id):
     """GET /api/patients/<id>/episodes — all episodes for a patient, newest first."""
     ip = client_ip()

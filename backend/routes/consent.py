@@ -33,7 +33,7 @@ def _serialize(c: Part2Consent):
 
 
 @consent_bp.get("/<patient_id>/part2-consents")
-@require_auth(permission="consent.manage")
+@require_auth(any_of=["consent.manage", "frontdesk.patients.pending"])
 def list_consents(patient_id):
     p = get_patient_by_id_or_code(patient_id)
     if not p:
@@ -51,7 +51,7 @@ def list_consents(patient_id):
 
 
 @consent_bp.post("/<patient_id>/part2-consents")
-@require_auth(permission="consent.manage")
+@require_auth(any_of=["consent.manage", "frontdesk.patients.pending"])
 def create_consent(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -113,7 +113,7 @@ def create_consent(patient_id):
 
 
 @consent_bp.post("/<patient_id>/part2-consents/<int:consent_id>/revoke")
-@require_auth(permission="consent.manage")
+@require_auth(any_of=["consent.manage", "frontdesk.patients.pending"])
 def revoke_consent(patient_id, consent_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}

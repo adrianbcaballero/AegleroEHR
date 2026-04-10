@@ -268,6 +268,7 @@ export function FrontDeskView({ userPermissions = [] }: { userPermissions?: stri
       <PatientProfileView
         patientId={selectedPatientId}
         onBack={() => { setSelectedPatientId(null); fetchPending(); fetchBeds() }}
+        onAdmitted={() => { setSelectedPatientId(null); fetchPending(); fetchBeds() }}
         userPermissions={userPermissions}
       />
     )

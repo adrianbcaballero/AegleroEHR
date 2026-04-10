@@ -178,8 +178,22 @@ def list_templates():
     return result, 200
 
 
+@forms_bp.get("/templates/admission-checklist")
+@require_auth(permission="frontdesk.patients.pending")
+def list_admission_checklist_templates():
+    """Return all active templates marked required for admission (no access filtering).
+    Used by the admission checklist so front desk users can see completion status."""
+    templates = (
+        tenant_query(FormTemplate)
+        .filter(FormTemplate.status == "active", FormTemplate.required_for_admission == True)
+        .order_by(FormTemplate.name.asc())
+        .all()
+    )
+    return [{"id": t.id, "name": t.name, "category": t.category, "requiredForAdmission": True} for t in templates], 200
+
+
 @forms_bp.get("/templates/available")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def list_available_templates():
     """Return active templates the current user has edit or sign access to.
     Used by the patient forms UI so roles without workflows.manage can still add forms."""
@@ -453,7 +467,7 @@ def _maybe_generate_recurring_forms(p: Patient, user, tenant_id: int):
 # ─── PATIENT FORM ENDPOINTS ───
 
 @forms_bp.get("/patients/<patient_id>/forms")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def list_patient_forms(patient_id):
     ip = client_ip()
 
@@ -501,7 +515,7 @@ def list_patient_forms(patient_id):
 
 
 @forms_bp.get("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def get_patient_form(patient_id, form_id):
     ip = client_ip()
 
@@ -533,7 +547,7 @@ def get_patient_form(patient_id, form_id):
 
 
 @forms_bp.post("/patients/<patient_id>/forms")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def create_patient_form(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -603,7 +617,7 @@ def create_patient_form(patient_id):
 
 
 @forms_bp.put("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def update_patient_form(patient_id, form_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -722,7 +736,7 @@ def update_patient_form(patient_id, form_id):
     return _serialize_form(f, template=template, filler=filler, access_level=level), 200
 
 @forms_bp.delete("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def delete_patient_form(patient_id, form_id):
     ip = client_ip()
 

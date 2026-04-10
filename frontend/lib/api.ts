@@ -193,8 +193,11 @@ export function updatePatient(patientCode: string, data: Record<string, unknown>
   return apiPut<Patient>(`/api/patients/${patientCode}`, data)
 }
 
-export function admitPatient(patientCode: string, bedId?: number) {
-  return apiPost<Patient>(`/api/patients/${patientCode}/admit`, bedId ? { bedId } : {})
+export function admitPatient(patientCode: string, bedId?: number, careTeamId?: number) {
+  const body: Record<string, number> = {}
+  if (bedId) body.bedId = bedId
+  if (careTeamId) body.careTeamId = careTeamId
+  return apiPost<Patient>(`/api/patients/${patientCode}/admit`, body)
 }
 
 export function readmitPatient(patientCode: string) {
@@ -537,6 +540,10 @@ export function getTemplates(status?: "active" | "all") {
 
 export function getAvailableTemplates() {
   return apiGet<FormTemplate[]>("/api/templates/available")
+}
+
+export function getAdmissionChecklistTemplates() {
+  return apiGet<FormTemplate[]>("/api/templates/admission-checklist")
 }
 
 export function getTemplate(templateId: number) {
