@@ -179,16 +179,44 @@ const BUNDLE_GROUPS: BundleGroup[] = [
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+// When checking a permission, also auto-check its required base permission.
+// When unchecking a base, also remove all permissions that depend on it.
+const PERMISSION_REQUIRES: Record<string, string> = {
+  "patients.view.all": "patients.view",
+  "patients.edit": "patients.view",
+  "consent.manage": "patients.view",
+  "frontdesk.beds.manage": "frontdesk.view",
+  "frontdesk.patients.create": "frontdesk.view",
+  "frontdesk.patients.pending": "frontdesk.view",
+  "archive.manage": "archive.view",
+  "archive.export": "archive.view",
+  "archive.forms.manage": "archive.view",
+}
+
+function applyDependencies(perms: string[]): string[] {
+  const result = new Set(perms)
+  // Auto-add required bases
+  for (const p of perms) {
+    const base = PERMISSION_REQUIRES[p]
+    if (base) result.add(base)
+  }
+  // Auto-remove dependents whose base is missing
+  for (const [dep, base] of Object.entries(PERMISSION_REQUIRES)) {
+    if (!result.has(base)) result.delete(dep)
+  }
+  return Array.from(result)
+}
+
 function bundleIsChecked(bundle: Bundle, selected: string[]): boolean {
   return bundle.permissions.every((p) => selected.includes(p))
 }
 
 function toggleBundle(bundle: Bundle, selected: string[]): string[] {
   if (bundleIsChecked(bundle, selected)) {
-    return selected.filter((p) => !bundle.permissions.includes(p))
+    return applyDependencies(selected.filter((p) => !bundle.permissions.includes(p)))
   }
   const merged = new Set([...selected, ...bundle.permissions])
-  return Array.from(merged)
+  return applyDependencies(Array.from(merged))
 }
 
 function groupCheckedCount(group: BundleGroup, selected: string[]): number {
@@ -202,10 +230,10 @@ function groupIsAllChecked(group: BundleGroup, selected: string[]): boolean {
 function toggleGroup(group: BundleGroup, selected: string[]): string[] {
   const allPerms = group.bundles.flatMap((b) => b.permissions)
   if (groupIsAllChecked(group, selected)) {
-    return selected.filter((p) => !allPerms.includes(p))
+    return applyDependencies(selected.filter((p) => !allPerms.includes(p)))
   }
   const merged = new Set([...selected, ...allPerms])
-  return Array.from(merged)
+  return applyDependencies(Array.from(merged))
 }
 
 // ─── Permission Checkboxes ──────────────────────────────────────────────────
