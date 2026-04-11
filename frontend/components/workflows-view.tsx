@@ -202,7 +202,7 @@ function TemplateEditorDialog({
   const handleSave = () => {
     if (!name.trim()) { setError("Name is required"); return }
     if (!category) { setError("Category is required"); return }
-    if (fields.some((f) => f.type !== "section" && !f.label.trim())) { setError("All fields need a label"); return }
+    if (existing && fields.some((f) => f.type !== "section" && !f.label.trim())) { setError("All fields need a label"); return }
     if (isRecurring && (!recurrenceValue || parseInt(recurrenceValue) < 1)) { setError("Recurring interval must be at least 1"); return }
 
     setLoading(true)
@@ -243,7 +243,7 @@ function TemplateEditorDialog({
       name: name.trim(),
       category,
       description: description.trim() || undefined,
-      fields: cleanFields,
+      fields: existing ? cleanFields : [],
       roleAccess: roleAccessPayload,
       isRecurring,
       recurrenceValue: totalHours,
@@ -407,12 +407,12 @@ function TemplateDetailPage({
   templateId,
   onBack,
   onRefresh,
-  userRole,
+  userPermissions = [],
 }: {
   templateId: number
   onBack: () => void
   onRefresh: () => void
-  userRole?: string
+  userPermissions?: string[]
 }) {
   const [template, setTemplate] = useState<FormTemplate | null>(null)
   const [allCategories, setAllCategories] = useState<string[]>([])
@@ -446,7 +446,7 @@ function TemplateDetailPage({
     Promise.resolve().then(() => fetchTemplate())
   }, [templateId, fetchTemplate])
 
-  const canManage = userRole === "admin" || userRole === "psychiatrist"
+  const canManage = userPermissions.includes("workflows.manage")
 
   const updateEditField = (index: number, key: string, value: unknown) => {
     const updated = [...editFields]
@@ -1443,7 +1443,7 @@ function TemplateGrid({ templates, onSelect }: { templates: FormTemplate[]; onSe
 }
 
 // ------- Main Workflows View -------
-export function WorkflowsView({ userRole }: { userRole?: string }) {
+export function WorkflowsView({ userPermissions = [] }: { userPermissions?: string[] }) {
   const [templates, setTemplates] = useState<FormTemplate[]>([])
   const [allCategories, setAllCategories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -1478,7 +1478,7 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
         templateId={selectedTemplateId}
         onBack={() => setSelectedTemplateId(null)}
         onRefresh={fetchTemplates}
-        userRole={userRole}
+        userPermissions={userPermissions}
       />
     )
   }
@@ -1507,7 +1507,7 @@ export function WorkflowsView({ userRole }: { userRole?: string }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {(userRole === "admin" || userRole === "psychiatrist") && (
+          {userPermissions.includes("workflows.manage") && (
             <>
               <CategoryManager onChanged={() => { fetchTemplates(); fetchCategories() }} />
               <TemplateEditorDialog

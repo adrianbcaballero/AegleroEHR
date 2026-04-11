@@ -312,17 +312,38 @@ def update_template(template_id):
         log_access(g.user.id, "TEMPLATE_UPDATE", f"template/{template_id}", "FAILED", ip, description=f"Template update failed — template #{template_id} not found")
         return {"error": "template not found"}, 404
 
+    changes = []
+
+    # Snapshot old values for diffing
+    old_name = t.name
+    old_category = t.category
+    old_description = t.description
+    old_field_labels = [f.get("label", "") for f in (t.fields or []) if f.get("type") != "section"]
+    old_role_access = {ra.role_id: ra.access_level for ra in FormTemplateAccess.query.filter_by(template_id=t.id).all()}
+    old_status = t.status
+    old_recurring = t.is_recurring
+    old_req_admission = t.required_for_admission
+    old_req_discharge = t.required_for_discharge
+
     if "name" in data:
         val = (data["name"] or "").strip()
         if not val:
             return {"error": "name cannot be empty"}, 400
+        if val != old_name:
+            changes.append(f"name → '{val}'")
         t.name = val
 
     if "category" in data:
-        t.category = (data["category"] or "").strip()
+        val = (data["category"] or "").strip()
+        if val != old_category:
+            changes.append(f"category → '{val}'")
+        t.category = val
 
     if "description" in data:
-        t.description = (data["description"] or "").strip() or None
+        val = (data["description"] or "").strip() or None
+        if val != old_description:
+            changes.append("description updated")
+        t.description = val
 
     if "fields" in data:
         if not isinstance(data["fields"], list):
@@ -330,6 +351,18 @@ def update_template(template_id):
         fid_err = _assign_and_validate_field_ids(data["fields"], g.tenant_id, exclude_template_id=t.id)
         if fid_err:
             return {"error": fid_err}, 400
+        new_field_labels = [f.get("label", "") for f in data["fields"] if f.get("type") != "section"]
+        added_fields = [l for l in new_field_labels if l and l not in old_field_labels]
+        removed_fields = [l for l in old_field_labels if l and l not in new_field_labels]
+        field_parts = []
+        if added_fields:
+            field_parts.append(f"added: {', '.join(added_fields)}")
+        if removed_fields:
+            field_parts.append(f"removed: {', '.join(removed_fields)}")
+        if field_parts:
+            changes.append(f"fields — {'; '.join(field_parts)}")
+        elif new_field_labels != old_field_labels:
+            changes.append("fields reordered")
         t.fields = data["fields"]
         flag_modified(t, "fields")
 
@@ -342,39 +375,81 @@ def update_template(template_id):
     if "roleAccess" in data:
         if not isinstance(data["roleAccess"], list):
             return {"error": "roleAccess must be a list"}, 400
-        # Replace all access entries for this template
-        FormTemplateAccess.query.filter_by(template_id=t.id).delete()
+        new_role_access = {}
         valid_levels = {"view", "edit", "sign"}
         for ra in data["roleAccess"]:
             role_id = ra.get("roleId")
             level = ra.get("accessLevel", "sign")
             if role_id and level in valid_levels:
-                db.session.add(FormTemplateAccess(
-                    template_id=t.id,
-                    role_id=role_id,
-                    access_level=level,
-                ))
+                new_role_access[role_id] = level
+
+        # Diff role access changes
+        all_role_ids = set(old_role_access.keys()) | set(new_role_access.keys())
+        role_name_cache = {}
+        def _role_name(rid):
+            if rid not in role_name_cache:
+                r = Role.query.get(rid)
+                role_name_cache[rid] = r.display_name if r else str(rid)
+            return role_name_cache[rid]
+
+        access_changes = []
+        for rid in sorted(all_role_ids):
+            old_level = old_role_access.get(rid)
+            new_level = new_role_access.get(rid)
+            if old_level != new_level:
+                rname = _role_name(rid)
+                if old_level and not new_level:
+                    access_changes.append(f"{rname}: {old_level} → removed")
+                elif not old_level and new_level:
+                    access_changes.append(f"{rname}: → {new_level}")
+                else:
+                    access_changes.append(f"{rname}: {old_level} → {new_level}")
+        if access_changes:
+            changes.append(f"role access — {', '.join(access_changes)}")
+
+        FormTemplateAccess.query.filter_by(template_id=t.id).delete()
+        for rid, level in new_role_access.items():
+            db.session.add(FormTemplateAccess(
+                template_id=t.id,
+                role_id=rid,
+                access_level=level,
+            ))
 
     if "status" in data:
         status = (data["status"] or "").strip()
         if status not in {"active", "archived"}:
             return {"error": "status must be active or archived"}, 400
+        if status != old_status:
+            changes.append(f"status → {status}")
         t.status = status
 
     if "isRecurring" in data:
-        t.is_recurring = bool(data["isRecurring"])
+        val = bool(data["isRecurring"])
+        if val != old_recurring:
+            changes.append(f"recurring → {'yes' if val else 'no'}")
+        t.is_recurring = val
     if "recurrenceValue" in data:
         t.recurrence_value = int(data["recurrenceValue"]) if data["recurrenceValue"] else None
     if "recurrenceUnit" in data:
         t.recurrence_unit = (data["recurrenceUnit"] or "").strip() or None
     if "requiredForAdmission" in data:
-        t.required_for_admission = bool(data["requiredForAdmission"])
+        val = bool(data["requiredForAdmission"])
+        if val != old_req_admission:
+            changes.append(f"required for admission → {'yes' if val else 'no'}")
+        t.required_for_admission = val
     if "requiredForDischarge" in data:
-        t.required_for_discharge = bool(data["requiredForDischarge"])
+        val = bool(data["requiredForDischarge"])
+        if val != old_req_discharge:
+            changes.append(f"required for discharge → {'yes' if val else 'no'}")
+        t.required_for_discharge = val
     db.session.commit()
 
-    updated_fields = [k for k in data.keys()]
-    log_access(g.user.id, "TEMPLATE_UPDATE", f"template/{t.id}", "SUCCESS", ip, description=f"Updated template '{t.name}' — fields: {', '.join(updated_fields)}")
+    desc = f"Updated template '{t.name}'"
+    if changes:
+        desc += f" — {'; '.join(changes)}"
+    else:
+        desc += " — no changes"
+    log_access(g.user.id, "TEMPLATE_UPDATE", f"template/{t.id}", "SUCCESS", ip, description=desc)
     return _serialize_template(t), 200
 
 

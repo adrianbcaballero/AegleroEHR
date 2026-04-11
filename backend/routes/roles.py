@@ -65,7 +65,7 @@ def list_roles():
 
 
 @roles_bp.get("/picker")
-@require_auth(permission="users.manage")
+@require_auth(any_of=["users.manage", "workflows.manage"])
 def list_roles_picker():
     """GET /api/roles/picker — minimal role list for user create/edit forms."""
     roles = tenant_query(Role).order_by(Role.is_system_default.desc(), Role.name.asc()).all()
