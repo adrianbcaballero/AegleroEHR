@@ -546,6 +546,10 @@ export function getAdmissionChecklistTemplates() {
   return apiGet<FormTemplate[]>("/api/templates/admission-checklist")
 }
 
+export function getDischargeChecklistTemplates() {
+  return apiGet<FormTemplate[]>("/api/templates/discharge-checklist")
+}
+
 export function getTemplate(templateId: number) {
   return apiGet<FormTemplate>(`/api/templates/${templateId}`)
 }

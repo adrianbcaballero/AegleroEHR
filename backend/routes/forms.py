@@ -192,6 +192,20 @@ def list_admission_checklist_templates():
     return [{"id": t.id, "name": t.name, "category": t.category, "requiredForAdmission": True} for t in templates], 200
 
 
+@forms_bp.get("/templates/discharge-checklist")
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+def list_discharge_checklist_templates():
+    """Return all active templates marked required for discharge (no access filtering).
+    Used by the discharge checklist so all users can see completion status."""
+    templates = (
+        tenant_query(FormTemplate)
+        .filter(FormTemplate.status == "active", FormTemplate.required_for_discharge == True)
+        .order_by(FormTemplate.name.asc())
+        .all()
+    )
+    return [{"id": t.id, "name": t.name, "category": t.category, "requiredForDischarge": True} for t in templates], 200
+
+
 @forms_bp.get("/templates/available")
 @require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
 def list_available_templates():

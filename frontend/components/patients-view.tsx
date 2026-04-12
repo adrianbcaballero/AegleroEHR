@@ -34,7 +34,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getAvailableTemplates, getAdmissionChecklistTemplates, getMe, admitPatient, dischargePatient, readmitPatient, getPatientEpisodes, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams, getBeds } from "@/lib/api"
+import { getPatients, getPatient, updatePatient, getPatientForms, getPatientForm, createPatientForm, updatePatientForm, deletePatientForm, getAvailableTemplates, getAdmissionChecklistTemplates, getDischargeChecklistTemplates, getMe, admitPatient, dischargePatient, readmitPatient, getPatientEpisodes, getPart2Consents, createPart2Consent, revokePart2Consent, getCategories, listCareTeams, getBeds } from "@/lib/api"
 import type { Patient, PatientDetail, PatientFormEntry, FormTemplate, TemplateField, Part2Consent, EpisodeDetail, CareTeam, Bed } from "@/lib/api"
 
 import {
@@ -902,7 +902,7 @@ function Part2StatusBanner({ patientCode, refreshKey }: { patientCode: string; r
   )
 }
 
-function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; onChanged?: () => void }) {
+function Part2ConsentSection({ patientCode, onChanged, canManage = false }: { patientCode: string; onChanged?: () => void; canManage?: boolean }) {
   const [consents, setConsents] = useState<Part2Consent[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -1048,9 +1048,11 @@ function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; 
             42 CFR Part 2 Consents
             <span className="ml-2 text-sm font-normal text-muted-foreground">({consents.length})</span>
           </CardTitle>
-          <Button size="sm" variant="outline" className="h-7 text-xs bg-transparent text-foreground" onClick={() => { resetNewForm(); setShowNew(true) }}>
-            <Plus className="mr-1 size-3" /> New Consent
-          </Button>
+          {canManage && (
+            <Button size="sm" variant="outline" className="h-7 text-xs bg-transparent text-foreground" onClick={() => { resetNewForm(); setShowNew(true) }}>
+              <Plus className="mr-1 size-3" /> New Consent
+            </Button>
+          )}
         </div>
       </CardHeader>
 
@@ -1361,7 +1363,7 @@ function Part2ConsentSection({ patientCode, onChanged }: { patientCode: string; 
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                {viewConsent.status === "active" && (
+                {viewConsent.status === "active" && canManage && (
                   <Button variant="destructive" size="sm" onClick={() => { setShowRevoke(viewConsent.id); setViewConsent(null); setError("") }}>
                     <XCircle className="size-3 mr-1" />Revoke Consent
                   </Button>
@@ -1413,6 +1415,7 @@ export function PatientProfileView({
   const [openDischargeCategories, setOpenDischargeCategories] = useState<Set<string>>(new Set())
   const [hasActiveConsent, setHasActiveConsent] = useState(false)
   const [admissionChecklistTemplates, setAdmissionChecklistTemplates] = useState<FormTemplate[]>([])
+  const [dischargeChecklistTemplates, setDischargeChecklistTemplates] = useState<FormTemplate[]>([])
 
   // Episode state
   const [episodes, setEpisodes] = useState<EpisodeDetail[]>([])
@@ -1541,7 +1544,9 @@ export function PatientProfileView({
     getCategories()
       .then((r) => setCategories(r.categories))
       .catch(() => {})
-    listCareTeams().then(setCareTeams).catch(() => {})
+    if (userPermissions.includes("patients.edit") || userPermissions.includes("frontdesk.patients.pending") || userPermissions.includes("users.manage") || userPermissions.includes("careteam.manage")) {
+      listCareTeams().then(setCareTeams).catch(() => {})
+    }
     getPatientEpisodes(patientId).then(setEpisodes).catch(() => {})
   }, [patientId])
 
@@ -1556,6 +1561,12 @@ export function PatientProfileView({
     if (!patient || patient.status !== "pending") return
     if (!userPermissions.includes("frontdesk.patients.pending")) return
     getAdmissionChecklistTemplates().then(setAdmissionChecklistTemplates).catch(() => {})
+  }, [patientId, patient?.status])
+
+  // Fetch all discharge-required templates for the checklist (all users)
+  useEffect(() => {
+    if (!patient || patient.status !== "active") return
+    getDischargeChecklistTemplates().then(setDischargeChecklistTemplates).catch(() => {})
   }, [patientId, patient?.status])
 
   const viewingEpisode = viewingEpisodeId ? episodes.find((e) => e.id === viewingEpisodeId) : null
@@ -1577,7 +1588,6 @@ export function PatientProfileView({
   // Check for active 42 CFR consent (for admission checklist)
   useEffect(() => {
     if (!patient || patient.status !== "pending") return
-    if (!userPermissions.includes("consent.manage") && !userPermissions.includes("frontdesk.patients.pending")) return
     getPart2Consents(patientId).then((c) => setHasActiveConsent(c.some((x) => x.status === "active"))).catch(() => {})
   }, [patientId, patient?.status, consentRefreshKey])
 
@@ -2007,7 +2017,9 @@ export function PatientProfileView({
 
       {/* Discharge checklist */}
       {patient.status === "active" && (() => {
-        const dischargeTemplates = templates.filter((t) => t.requiredForDischarge)
+        const dischargeTemplates = dischargeChecklistTemplates.length > 0
+          ? dischargeChecklistTemplates
+          : templates.filter((t) => t.requiredForDischarge)
         if (dischargeTemplates.length === 0) return null
 
         // Group by category
@@ -2098,9 +2110,7 @@ export function PatientProfileView({
       })()}
 
       {/* 42 CFR Part 2 status banner */}
-      {canManageConsent && (
-        <Part2StatusBanner patientCode={patient.id} refreshKey={consentRefreshKey} />
-      )}
+      <Part2StatusBanner patientCode={patient.id} refreshKey={consentRefreshKey} />
 
       {/* Medical Acuity Flags banner */}
       {(() => {
@@ -2498,18 +2508,14 @@ export function PatientProfileView({
                   </TabsTrigger>
                 )
               })}
-              {canManageConsent && (
-                <TabsTrigger value="42-cfr-part-2" className="text-xs">
-                  42 CFR Part 2
-                </TabsTrigger>
-              )}
+              <TabsTrigger value="42-cfr-part-2" className="text-xs">
+                42 CFR Part 2
+              </TabsTrigger>
             </TabsList>
 
-            {canManageConsent && (
-              <TabsContent value="42-cfr-part-2" className="mt-3">
-                <Part2ConsentSection patientCode={patient.id} onChanged={() => setConsentRefreshKey((k) => k + 1)} />
-              </TabsContent>
-            )}
+            <TabsContent value="42-cfr-part-2" className="mt-3">
+              <Part2ConsentSection patientCode={patient.id} onChanged={() => setConsentRefreshKey((k) => k + 1)} canManage={canManageConsent} />
+            </TabsContent>
 
             {visibleCategories.map((cat: string) => {
               const catForms = forms.filter((f) => f.templateCategory === cat)
