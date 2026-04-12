@@ -1426,6 +1426,7 @@ export function PatientProfileView({
   const canEdit = userPermissions.includes("patients.edit") || (userPermissions.includes("frontdesk.patients.pending") && patient?.status === "pending")
   const canManageArchiveForms = userPermissions.includes("archive.forms.manage")
   const canManageConsent = userPermissions.includes("consent.manage") || (userPermissions.includes("frontdesk.patients.pending") && patient?.status === "pending")
+  const canManageAcuity = userPermissions.includes("patients.acuity") || (userPermissions.includes("frontdesk.patients.pending") && patient?.status === "pending")
 
   const [careTeams, setCareTeams] = useState<CareTeam[]>([])
   const [editCareTeamId, setEditCareTeamId] = useState("")
@@ -2165,7 +2166,7 @@ export function PatientProfileView({
                   ? "bg-orange-500/10 border border-orange-500/20"
                   : "bg-muted/50 border border-border/60"
               }`}
-              onClick={() => { if (canEdit) setAcuityOpen(!acuityOpen) }}
+              onClick={() => { if (canManageAcuity) setAcuityOpen(!acuityOpen) }}
             >
               <Flag className={`size-4 shrink-0 ${activeFlags.length > 0 ? "text-orange-500" : "text-muted-foreground"}`} />
               {activeFlags.length > 0 ? (
@@ -2179,9 +2180,9 @@ export function PatientProfileView({
               ) : (
                 <span className="text-xs text-muted-foreground font-medium">None</span>
               )}
-              {canEdit && <ChevronDown className={`size-3.5 ml-auto text-muted-foreground transition-transform ${acuityOpen ? "rotate-180" : ""}`} />}
+              {canManageAcuity && <ChevronDown className={`size-3.5 ml-auto text-muted-foreground transition-transform ${acuityOpen ? "rotate-180" : ""}`} />}
             </div>
-            {acuityOpen && canEdit && (
+            {acuityOpen && canManageAcuity && (
               <div className="border border-border/60 rounded-md mt-1 p-3 space-y-2 bg-background">
                 {/* Active flags with remove */}
                 {ACUITY_FLAGS.filter((f) => localFlags[f.key]?.active).map((f) => (

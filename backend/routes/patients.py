@@ -433,7 +433,7 @@ def create_patient():
 
 
 @patients_bp.put("/<patient_id>")
-@require_auth(any_of=["patients.edit", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.edit", "frontdesk.patients.pending", "patients.acuity"])
 def update_patient(patient_id):
     """
     PUT /api/patients/<PT-001 or db id>
@@ -447,14 +447,46 @@ def update_patient(patient_id):
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{patient_id}", "FAILED", ip, description=f"Patient update failed — '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
+    # Users with only patients.acuity can only update acuityFlags
+    has_edit = g.user.has_permission("patients.edit")
+    has_acuity_only = not has_edit and g.user.has_permission("patients.acuity")
+    has_frontdesk = g.user.has_permission("frontdesk.patients.pending")
+
+    if has_acuity_only and not has_frontdesk:
+        non_acuity_fields = [k for k in data.keys() if k != "acuityFlags"]
+        if non_acuity_fields:
+            return {"error": "you can only update acuity flags"}, 403
+
     # Front desk users without patients.edit can only edit pending patients
-    if not g.user.has_permission("patients.edit") and p.status != "pending":
+    if not has_edit and not has_acuity_only and p.status != "pending":
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not pending")
         return {"error": "forbidden"}, 403
 
     if not check_patient_access(p):
         log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to update patient {p.patient_code} — not in care team")
         return {"error": "forbidden"}, 403
+
+    # Snapshot current values for change detection
+    FIELD_MAP = {
+        "firstName": "first_name", "lastName": "last_name", "dateOfBirth": "date_of_birth",
+        "phone": "phone", "email": "email", "primaryDiagnosis": "primary_diagnosis",
+        "insurance": "insurance", "status": "status", "assignedProviderId": "assigned_provider_id",
+        "careTeamId": "care_team_id", "ssnLast4": "ssn_last4", "gender": "gender",
+        "pronouns": "pronouns", "maritalStatus": "marital_status",
+        "preferredLanguage": "preferred_language", "ethnicity": "ethnicity",
+        "employmentStatus": "employment_status", "addressStreet": "address_street",
+        "addressCity": "address_city", "addressState": "address_state", "addressZip": "address_zip",
+        "emergencyContactName": "emergency_contact_name",
+        "emergencyContactPhone": "emergency_contact_phone",
+        "emergencyContactRelationship": "emergency_contact_relationship",
+        "currentMedications": "current_medications", "allergies": "allergies",
+        "referringProvider": "referring_provider", "primaryCarePhysician": "primary_care_physician",
+        "pharmacy": "pharmacy", "acuityFlags": "acuity_flags", "photo": "photo",
+    }
+    old_vals = {}
+    for camel, attr in FIELD_MAP.items():
+        if camel in data:
+            old_vals[camel] = getattr(p, attr)
 
     #Update allowed fields
     if "firstName" in data:
@@ -589,6 +621,8 @@ def update_patient(patient_id):
         "withdrawal_severe", "pregnancy", "infectious", "elopement_risk",
     }
     if "acuityFlags" in data:
+        if not g.user.has_permission("patients.acuity") and not (g.user.has_permission("frontdesk.patients.pending") and p.status == "pending"):
+            return {"error": "missing permission to manage acuity flags"}, 403
         flags = data["acuityFlags"]
         if flags is not None:
             if not isinstance(flags, dict):
@@ -614,8 +648,45 @@ def update_patient(patient_id):
 
     db.session.commit()
 
-    updated_fields = [k for k in data.keys() if k != "patientCode"]
-    log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "SUCCESS", ip, description=f"Updated patient {p.first_name} {p.last_name} ({p.patient_code}) — fields: {', '.join(updated_fields)}")
+    # Build list of actually-changed fields
+    FIELD_LABELS = {
+        "firstName": "First Name", "lastName": "Last Name", "dateOfBirth": "Date of Birth",
+        "phone": "Phone", "email": "Email", "primaryDiagnosis": "Primary Diagnosis",
+        "insurance": "Insurance", "status": "Status", "assignedProviderId": "Assigned Provider",
+        "careTeamId": "Care Team", "ssnLast4": "SSN Last 4", "gender": "Gender",
+        "pronouns": "Pronouns", "maritalStatus": "Marital Status",
+        "preferredLanguage": "Preferred Language", "ethnicity": "Ethnicity",
+        "employmentStatus": "Employment Status", "addressStreet": "Street",
+        "addressCity": "City", "addressState": "State", "addressZip": "ZIP",
+        "emergencyContactName": "Emergency Contact Name",
+        "emergencyContactPhone": "Emergency Contact Phone",
+        "emergencyContactRelationship": "Emergency Contact Relationship",
+        "currentMedications": "Current Medications", "allergies": "Allergies",
+        "referringProvider": "Referring Provider", "primaryCarePhysician": "Primary Care Physician",
+        "pharmacy": "Pharmacy", "acuityFlags": "Acuity Flags", "photo": "Photo",
+    }
+    changes = []
+    for camel, attr in FIELD_MAP.items():
+        if camel in old_vals:
+            new_val = getattr(p, attr)
+            if old_vals[camel] != new_val:
+                label = FIELD_LABELS.get(camel, camel)
+                # Don't log actual values for sensitive fields
+                if camel in ("ssnLast4", "photo"):
+                    changes.append(label)
+                elif camel == "acuityFlags":
+                    changes.append(label)
+                else:
+                    old_display = old_vals[camel] if old_vals[camel] is not None else "—"
+                    new_display = new_val if new_val is not None else "—"
+                    changes.append(f"{label}: '{old_display}' → '{new_display}'")
+
+    if changes:
+        log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "SUCCESS", ip,
+                   description=f"Updated patient {p.first_name} {p.last_name} ({p.patient_code}) — {', '.join(changes)}")
+    else:
+        log_access(g.user.id, "PATIENT_UPDATE", f"patient/{p.patient_code}", "SUCCESS", ip,
+                   description=f"Updated patient {p.first_name} {p.last_name} ({p.patient_code}) — no fields changed")
     return _serialize_patient(p), 200
 
 
@@ -874,8 +945,6 @@ def list_episodes(patient_id):
         .all()
     )
 
-    log_access(g.user.id, "EPISODE_LIST", f"patient/{p.patient_code}/episodes", "SUCCESS", ip,
-               description=f"Viewed episode history for {p.first_name} {p.last_name} ({p.patient_code}) — {len(episodes)} episode(s)")
     return [_serialize_episode(ep) for ep in episodes], 200
 
 

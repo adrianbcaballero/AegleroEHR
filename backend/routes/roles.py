@@ -13,6 +13,7 @@ PERMISSION_LABELS = {
     "patients.view": "View Patients",
     "patients.view.all": "View All Patients",
     "patients.edit": "Edit Patient Records",
+    "patients.acuity": "Manage Medical Acuity",
     "consent.manage": "Consent Management",
     "frontdesk.view": "View Front Desk",
     "frontdesk.beds.manage": "Manage Beds",

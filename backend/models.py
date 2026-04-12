@@ -11,6 +11,7 @@ ALL_PERMISSIONS = [
     "patients.view",                 # access the patients page
     "patients.view.all",             # see all patients regardless of care team
     "patients.edit",                 # edit patient record
+    "patients.acuity",               # manage medical acuity flags
     # Front Desk
     "frontdesk.view",                # see the front desk page (includes admissions + bed board)
     "frontdesk.beds.manage",         # manage beds (create / edit / delete)

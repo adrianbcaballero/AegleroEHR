@@ -53,6 +53,12 @@ const BUNDLE_GROUPS: BundleGroup[] = [
         permissions: ["patients.edit"],
       },
       {
+        key: "patients.acuity",
+        label: "Manage Medical Acuity",
+        description: "Add and remove medical acuity flags on patient records",
+        permissions: ["patients.acuity"],
+      },
+      {
         key: "patients.consent",
         label: "Consent Management",
         description: "Create and revoke 42 CFR Part 2 patient consent records",
@@ -184,6 +190,7 @@ const BUNDLE_GROUPS: BundleGroup[] = [
 const PERMISSION_REQUIRES: Record<string, string> = {
   "patients.view.all": "patients.view",
   "patients.edit": "patients.view",
+  "patients.acuity": "patients.view",
   "consent.manage": "patients.view",
   "frontdesk.beds.manage": "frontdesk.view",
   "frontdesk.patients.create": "frontdesk.view",
