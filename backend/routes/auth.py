@@ -227,7 +227,7 @@ def me():
     db.session.commit()
 
     tenant = Tenant.query.get(user.tenant_id)
-    return {
+    resp = make_response({
         "user_id": user.id,
         "username": user.username,
         "full_name": user.full_name,
@@ -242,7 +242,19 @@ def me():
         "avatar": user.avatar,
         "requires_terms_agreement": user.agreed_to_terms_at is None,
         "needsMfaSetup": bool(tenant and tenant.mfa_required and not user.mfa_enabled),
-    }, 200
+    }, 200)
+    # Refresh the cookie max_age so the browser doesn't drop it before the
+    # sliding DB session expires. Without this, the cookie expires 15 min
+    # after login regardless of activity, logging the user out mid-session.
+    resp.set_cookie(
+        "session",
+        session_id,
+        httponly=True,
+        secure=config.COOKIE_SECURE,
+        samesite="Lax",
+        max_age=config.SESSION_TIMEOUT_MINUTES * 60,
+    )
+    return resp
 
 
 @auth_bp.put("/me/signature")
