@@ -27,7 +27,7 @@ import type { Role } from "@/lib/api"
 
 // ─── Page bundle definitions ────────────────────────────────────────────────
 
-type Bundle = { key: string; label: string; description: string; permissions: string[] }
+type Bundle = { key: string; label: string; description: string; permissions: string[]; placeholder?: boolean }
 type BundleGroup = { label: string; bundles: Bundle[] }
 
 const BUNDLE_GROUPS: BundleGroup[] = [
@@ -113,8 +113,9 @@ const BUNDLE_GROUPS: BundleGroup[] = [
       {
         key: "archive.export",
         label: "Export Records",
-        description: "Export patient records from the archive",
+        description: "Export patient records from the archive — feature not yet implemented",
         permissions: ["archive.export"],
+        placeholder: true,
       },
       {
         key: "archive.forms.manage",
@@ -277,16 +278,23 @@ function PermissionCheckboxes({
             </div>
             <div className="flex flex-col gap-2 pl-7">
               {group.bundles.map((bundle) => (
-                <div key={bundle.key} className="flex items-start gap-3">
+                <div key={bundle.key} className={`flex items-start gap-3 ${bundle.placeholder ? "opacity-60" : ""}`}>
                   <Checkbox
                     id={bundle.key}
                     checked={bundleIsChecked(bundle, selected)}
                     onCheckedChange={() => onChange(toggleBundle(bundle, selected))}
-                    disabled={disabled}
+                    disabled={disabled || bundle.placeholder}
                     className="mt-0.5"
                   />
-                  <label htmlFor={bundle.key} className="flex flex-col gap-0.5 cursor-pointer">
-                    <span className="text-sm font-medium text-foreground leading-none">{bundle.label}</span>
+                  <label htmlFor={bundle.key} className={`flex flex-col gap-0.5 ${bundle.placeholder ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                    <span className="text-sm font-medium text-foreground leading-none flex items-center gap-2">
+                      {bundle.label}
+                      {bundle.placeholder && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal text-muted-foreground border-muted-foreground/30">
+                          Coming Soon
+                        </Badge>
+                      )}
+                    </span>
                     <span className="text-xs text-muted-foreground">{bundle.description}</span>
                   </label>
                 </div>
