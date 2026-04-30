@@ -983,11 +983,9 @@ def search_archive():
     """
     q_str = (request.args.get("q") or "").strip()
     ssn = (request.args.get("ssn") or "").strip()
-    discharged_from = (request.args.get("discharged_from") or "").strip()
-    discharged_to = (request.args.get("discharged_to") or "").strip()
 
-    if not q_str and not ssn and not discharged_from and not discharged_to:
-        return {"error": "provide at least one search term (q, ssn, or date range)"}, 400
+    if not q_str and not ssn:
+        return {"error": "provide at least one search term (q or ssn)"}, 400
 
     query = tenant_query(Patient).filter(
         Patient.status.in_(["inactive", "archived"])
@@ -1005,13 +1003,6 @@ def search_archive():
 
     if ssn:
         query = query.filter(Patient.ssn_last4 == ssn)
-
-    if discharged_from or discharged_to:
-        query = query.join(Episode, Patient.current_episode_id == Episode.id)
-        if discharged_from:
-            query = query.filter(Episode.discharged_at >= discharged_from)
-        if discharged_to:
-            query = query.filter(Episode.discharged_at <= discharged_to + " 23:59:59")
 
     results = query.order_by(Patient.last_name.asc(), Patient.first_name.asc()).all()
     return [_serialize_patient(p) for p in results], 200

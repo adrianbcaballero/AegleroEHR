@@ -20,8 +20,6 @@ const statusColors: Record<string, string> = {
 export function ArchiveView({ userPermissions = [] }: { userPermissions?: string[] }) {
   const [query, setQuery] = useState("")
   const [ssn, setSsn] = useState("")
-  const [dischargedFrom, setDischargedFrom] = useState("")
-  const [dischargedTo, setDischargedTo] = useState("")
   const [results, setResults] = useState<Patient[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -29,8 +27,8 @@ export function ArchiveView({ userPermissions = [] }: { userPermissions?: string
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
 
   const handleSearch = async () => {
-    if (!query.trim() && !ssn.trim() && !dischargedFrom && !dischargedTo) {
-      setError("Enter a name, patient code, SSN last 4, or date range to search")
+    if (!query.trim() && !ssn.trim()) {
+      setError("Enter a name, patient code, or SSN last 4 to search")
       return
     }
     setLoading(true)
@@ -40,8 +38,6 @@ export function ArchiveView({ userPermissions = [] }: { userPermissions?: string
       const data = await searchArchive({
         q: query.trim() || undefined,
         ssn: ssn.trim() || undefined,
-        dischargedFrom: dischargedFrom || undefined,
-        dischargedTo: dischargedTo || undefined,
       })
       setResults(data)
     } catch (e: unknown) {
@@ -104,24 +100,6 @@ export function ArchiveView({ userPermissions = [] }: { userPermissions?: string
                 onKeyDown={handleKeyDown}
                 placeholder="1234"
                 maxLength={4}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Discharged From</Label>
-              <Input
-                type="date"
-                value={dischargedFrom}
-                onChange={(e) => setDischargedFrom(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Discharged To</Label>
-              <Input
-                type="date"
-                value={dischargedTo}
-                onChange={(e) => setDischargedTo(e.target.value)}
-                onKeyDown={handleKeyDown}
               />
             </div>
           </div>
