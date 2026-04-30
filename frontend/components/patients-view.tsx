@@ -1635,7 +1635,7 @@ export function PatientProfileView({
         <Popover>
           <PopoverTrigger asChild>
             <button className="relative group rounded-full focus:outline-none focus:ring-2 focus:ring-primary/50">
-              <Avatar className="size-16">
+              <Avatar key={patient.photo ? "has-photo" : "no-photo"} className="size-16">
                 {patient.photo && <AvatarImage src={patient.photo} alt={`${patient.firstName} ${patient.lastName}`} />}
                 <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
                   {patient.firstName[0]}{patient.lastName[0]}
