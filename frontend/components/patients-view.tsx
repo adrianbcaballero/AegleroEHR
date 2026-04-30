@@ -90,7 +90,7 @@ interface FormStatusEntry {
 }
 
 const formStatusConfig: Record<string, FormStatusEntry> = {
-  completed: { icon: CheckCircle2, color: "bg-accent/10 text-accent border-accent/20", label: "Completed" },
+  completed: { icon: CheckCircle2, color: "bg-chart-5/10 text-chart-5 border-chart-5/20", label: "Completed" },
   draft: { icon: Clock, color: "bg-chart-4/10 text-chart-4 border-chart-4/20", label: "Draft" },
 }
 
