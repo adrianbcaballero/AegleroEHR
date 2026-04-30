@@ -1,4 +1,4 @@
-// Mock data for the Aeglero Mental Health EMR
+// Mock data for the Aeglero Behavioral Health EMR
 
 export interface Patient {
   id: string
