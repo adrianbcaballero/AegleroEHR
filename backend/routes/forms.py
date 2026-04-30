@@ -636,7 +636,7 @@ def get_patient_form(patient_id, form_id):
 
 
 @forms_bp.post("/patients/<patient_id>/forms")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.forms.manage"])
 def create_patient_form(patient_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -706,7 +706,7 @@ def create_patient_form(patient_id):
 
 
 @forms_bp.put("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.forms.manage"])
 def update_patient_form(patient_id, form_id):
     ip = client_ip()
     data = request.get_json(silent=True) or {}
@@ -825,7 +825,7 @@ def update_patient_form(patient_id, form_id):
     return _serialize_form(f, template=template, filler=filler, access_level=level), 200
 
 @forms_bp.delete("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.forms.manage"])
 def delete_patient_form(patient_id, form_id):
     ip = client_ip()
 
