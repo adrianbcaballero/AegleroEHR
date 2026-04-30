@@ -1402,13 +1402,13 @@ function TemplateCard({ template, onClick }: { template: FormTemplate; onClick: 
             </Badge>
           )}
           {template.requiredForAdmission && (
-            <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Admission Required</Badge>
+            <Badge variant="secondary" className="text-[10px] bg-chart-4/15 text-chart-4 border-0">Admission Required</Badge>
           )}
           {template.requiredForDischarge && (
-            <Badge variant="secondary" className="text-[10px] bg-chart-4/10 text-chart-4 border-0">Discharge Required</Badge>
+            <Badge variant="secondary" className="text-[10px] bg-blue-500/15 text-blue-600 border-0">Discharge Required</Badge>
           )}
           {signers.length > 0 && (
-            <Badge variant="secondary" className="text-[10px] bg-accent/10 text-accent border-0">
+            <Badge variant="secondary" className="text-[10px] bg-accent/10 text-foreground border-0">
               <Shield className="size-2.5 mr-1" />
               {signers.map((s: RoleAccess) => s.roleDisplayName).join(", ")}
             </Badge>
