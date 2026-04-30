@@ -33,7 +33,7 @@ def _serialize(c: Part2Consent):
 
 
 @consent_bp.get("/<patient_id>/part2-consents")
-@require_auth(any_of=["consent.manage", "frontdesk.patients.pending", "patients.view"])
+@require_auth(any_of=["consent.manage", "frontdesk.patients.pending", "patients.view", "archive.view"])
 def list_consents(patient_id):
     p = get_patient_by_id_or_code(patient_id)
     if not p:

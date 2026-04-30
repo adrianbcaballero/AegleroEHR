@@ -93,12 +93,15 @@ def check_patient_access(patient: Patient) -> bool:
     Allow if:
     - user has patients.view.all
     - patient is pending and user has frontdesk.patients.pending
+    - patient is archived/inactive and user has archive.view
     - patient has no care team (care_team_id is NULL — visible to everyone)
     - user is a member of the patient's care team
     """
     if g.user.has_permission("patients.view.all"):
         return True
     if patient.status == "pending" and g.user.has_permission("frontdesk.patients.pending"):
+        return True
+    if patient.status in ("archived", "inactive") and g.user.has_permission("archive.view"):
         return True
     if patient.care_team_id is None:
         return True

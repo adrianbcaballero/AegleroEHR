@@ -1738,7 +1738,7 @@ export function PatientProfileView({
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {!isViewingPast && canAdmit && patient.status === "inactive" && (
+          {!isViewingPast && canAdmit && (patient.status === "inactive" || patient.status === "archived") && (
             <Button size="sm" onClick={async () => {
               setActionLoading(true)
               setActionError("")

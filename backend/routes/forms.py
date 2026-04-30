@@ -193,7 +193,7 @@ def list_admission_checklist_templates():
 
 
 @forms_bp.get("/templates/discharge-checklist")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.view"])
 def list_discharge_checklist_templates():
     """Return all active templates marked required for discharge (no access filtering).
     Used by the discharge checklist so all users can see completion status."""
@@ -207,7 +207,7 @@ def list_discharge_checklist_templates():
 
 
 @forms_bp.get("/templates/available")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.view"])
 def list_available_templates():
     """Return active templates the current user has edit or sign access to.
     Used by the patient forms UI so roles without workflows.manage can still add forms."""
@@ -556,7 +556,7 @@ def _maybe_generate_recurring_forms(p: Patient, user, tenant_id: int):
 # ─── PATIENT FORM ENDPOINTS ───
 
 @forms_bp.get("/patients/<patient_id>/forms")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.view"])
 def list_patient_forms(patient_id):
     ip = client_ip()
 
@@ -604,7 +604,7 @@ def list_patient_forms(patient_id):
 
 
 @forms_bp.get("/patients/<patient_id>/forms/<int:form_id>")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.view"])
 def get_patient_form(patient_id, form_id):
     ip = client_ip()
 

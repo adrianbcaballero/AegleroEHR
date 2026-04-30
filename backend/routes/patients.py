@@ -177,7 +177,7 @@ def list_pending_patients():
 
 
 @patients_bp.get("/<patient_id>")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.view"])
 def get_patient(patient_id):
     """
     Supports:
@@ -185,7 +185,8 @@ def get_patient(patient_id):
     - /api/patients/1 (numeric db id)
 
     Users with only frontdesk.patients.pending (no patients.view) can only
-    access patients with pending status.
+    access patients with pending status. Users with only archive.view can
+    only access archived/inactive patients.
     """
     ip = client_ip()
 
@@ -195,11 +196,14 @@ def get_patient(patient_id):
         log_access(g.user.id, "PATIENT_GET", f"patient/{patient_id}", "FAILED", ip, description=f"Patient '{patient_id}' not found")
         return {"error": "patient not found"}, 404
 
-    # Users without patients.view can only see pending patients
-    if not g.user.has_permission("patients.view") and p.status != "pending":
-        log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip,
-                   description=f"Access denied — frontdesk user cannot view {p.status} patient {p.patient_code}")
-        return {"error": "forbidden"}, 403
+    # Users without patients.view can only see pending (frontdesk) or archived/inactive (archive)
+    if not g.user.has_permission("patients.view"):
+        is_pending_ok = p.status == "pending" and g.user.has_permission("frontdesk.patients.pending")
+        is_archive_ok = p.status in ("archived", "inactive") and g.user.has_permission("archive.view")
+        if not is_pending_ok and not is_archive_ok:
+            log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip,
+                       description=f"Access denied — limited-scope user cannot view {p.status} patient {p.patient_code}")
+            return {"error": "forbidden"}, 403
 
     if not check_patient_access(p):
         log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not in care team")
@@ -928,7 +932,7 @@ def _serialize_episode(ep: Episode):
 
 
 @patients_bp.get("/<patient_id>/episodes")
-@require_auth(any_of=["patients.view", "frontdesk.patients.pending"])
+@require_auth(any_of=["patients.view", "frontdesk.patients.pending", "archive.view"])
 def list_episodes(patient_id):
     """GET /api/patients/<id>/episodes — all episodes for a patient, newest first."""
     ip = client_ip()
@@ -949,7 +953,7 @@ def list_episodes(patient_id):
 
 
 @patients_bp.get("/<patient_id>/episodes/<int:episode_id>")
-@require_auth(permission="patients.view")
+@require_auth(any_of=["patients.view", "archive.view"])
 def get_episode(patient_id, episode_id):
     """GET /api/patients/<id>/episodes/<episode_id> — single episode detail."""
     ip = client_ip()
