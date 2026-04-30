@@ -21,7 +21,7 @@ ALL_PERMISSIONS = [
     # Archive
     "archive.view",                  # access archive page
     "archive.export",                # export records from archive
-    "archive.manage",                # discharge, reactivate patients
+    "archive.manage",                # discharge active patients and readmit (return to pending) discharged/archived patients
     "archive.forms.manage",          # add / edit / delete forms on archived or discharged patients
 
     # Workflows

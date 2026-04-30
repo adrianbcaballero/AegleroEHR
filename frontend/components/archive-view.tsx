@@ -60,7 +60,10 @@ export function ArchiveView({ userPermissions = [] }: { userPermissions?: string
     return (
       <PatientProfileView
         patientId={selectedPatientId}
-        onBack={() => setSelectedPatientId(null)}
+        onBack={() => {
+          setSelectedPatientId(null)
+          if (searched) handleSearch()
+        }}
         userPermissions={userPermissions}
       />
     )

@@ -871,7 +871,7 @@ def discharge_patient(patient_id):
 
 
 @patients_bp.post("/<patient_id>/readmit")
-@require_auth(permission="frontdesk.patients.pending")
+@require_auth(any_of=["frontdesk.patients.pending", "archive.manage"])
 def readmit_patient(patient_id):
     """
     POST /api/patients/<id>/readmit
