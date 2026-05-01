@@ -1,4 +1,6 @@
 import uuid as _uuid
+import hashlib
+import json
 from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, g
 from sqlalchemy import func
@@ -12,6 +14,72 @@ from services.asam_scorer import ASAM_TEMPLATE_NAME, DIMENSION_LABELS, LOC_OVERR
 from sqlalchemy.orm.attributes import flag_modified
 
 forms_bp = Blueprint("forms", __name__, url_prefix="/api")
+
+# Field types whose values are sensitive free-form text or images. Their changes
+# are logged as "changed" rather than with old/new values, so the audit log
+# doesn't end up holding a second copy of clinical narrative or signatures.
+_SENSITIVE_FIELD_TYPES = {"text", "textarea", "signature"}
+
+# Per-worker dedupe for draft FORM_UPDATE logs. Suppresses repeated saves of the
+# same form by the same user within a 10-minute window — important because
+# autosave can fire many times per session and would otherwise flood the log.
+# Sign and delete events are NEVER deduped (high-signal compliance events).
+_FORM_UPDATE_DEDUPE_TTL = timedelta(minutes=10)
+_form_update_log_cache: dict[tuple[int, int], datetime] = {}
+
+
+def _should_log_form_update(user_id: int, form_id: int) -> bool:
+    """Return True for the first draft save in a 10-min window per (user, form)."""
+    key = (user_id, form_id)
+    now = datetime.now(timezone.utc)
+    last = _form_update_log_cache.get(key)
+    if last is not None and (now - last) < _FORM_UPDATE_DEDUPE_TTL:
+        return False
+    _form_update_log_cache[key] = now
+    if len(_form_update_log_cache) > 2000:
+        cutoff = now - _FORM_UPDATE_DEDUPE_TTL
+        for k, v in list(_form_update_log_cache.items()):
+            if v < cutoff:
+                del _form_update_log_cache[k]
+    return True
+
+
+def _form_data_hash(form_data: dict) -> str:
+    """SHA-256 of canonically-serialized form data — for sign-time tamper-evidence."""
+    canonical = json.dumps(form_data or {}, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _build_form_diff(old: dict, new: dict, template_fields: list) -> list[str]:
+    """
+    Return a human-readable list of field changes for audit log descriptions.
+    Sensitive types (free text, signatures) log only the field label + 'changed'.
+    """
+    if not isinstance(old, dict): old = {}
+    if not isinstance(new, dict): new = {}
+
+    type_by_label = {f.get("label", ""): f.get("type", "") for f in (template_fields or [])}
+
+    changes: list[str] = []
+    all_labels = set(old.keys()) | set(new.keys())
+    for label in sorted(all_labels):
+        if not label:
+            continue
+        old_val = old.get(label)
+        new_val = new.get(label)
+        if old_val == new_val:
+            continue
+        ftype = type_by_label.get(label, "")
+        if ftype in _SENSITIVE_FIELD_TYPES:
+            changes.append(f"{label}: changed")
+        else:
+            old_disp = "—" if old_val in (None, "", [], {}) else str(old_val)
+            new_disp = "—" if new_val in (None, "", [], {}) else str(new_val)
+            # Truncate very long values defensively (e.g. multi-select with many items)
+            if len(old_disp) > 60: old_disp = old_disp[:57] + "..."
+            if len(new_disp) > 60: new_disp = new_disp[:57] + "..."
+            changes.append(f"{label}: '{old_disp}' → '{new_disp}'")
+    return changes
 
 
 def _assign_and_validate_field_ids(fields: list, tenant_id: int, exclude_template_id: int | None = None) -> str | None:
@@ -632,6 +700,9 @@ def get_patient_form(patient_id, form_id):
     data = _serialize_form(f, template=template, filler=filler, access_level=level)
     data["templateFields"] = template.fields if template else []
 
+    tpl_name = template.name if template else f"form #{f.id}"
+    log_access(g.user.id, "FORM_VIEW", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip,
+               description=f"Viewed '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
     return data, 200
 
 
@@ -742,6 +813,9 @@ def update_patient_form(patient_id, form_id):
         log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{form_id}", "FAILED", ip, description=f"Attempted to modify completed form #{form_id} for patient {p.patient_code}")
         return {"error": "completed forms cannot be modified"}, 409
 
+    # Snapshot existing form data for change diffing
+    old_form_data = dict(f.form_data) if isinstance(f.form_data, dict) else {}
+
     if "formData" in data:
         if not isinstance(data["formData"], dict):
             return {"error": "formData must be an object"}, 400
@@ -815,11 +889,28 @@ def update_patient_form(patient_id, form_id):
     db.session.commit()
 
     tpl_name = template.name if template else f"form #{f.id}"
+    new_form_data = f.form_data if isinstance(f.form_data, dict) else {}
+    template_fields = template.fields if template else []
+    changes = _build_form_diff(old_form_data, new_form_data, template_fields)
+
     if "status" in data and data["status"] == "completed":
-        log_access(g.user.id, "FORM_SIGN", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Signed and completed '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
+        # Hash the signed form contents so the snapshot is verifiable later —
+        # combined with the hash-chained audit log, this gives strong tamper-evidence.
+        data_hash = _form_data_hash(new_form_data)
+        change_summary = f" — fields: {', '.join(changes)}" if changes else ""
+        log_access(g.user.id, "FORM_SIGN", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip,
+                   description=f"Signed and completed '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code}) — sha256={data_hash[:16]}…{change_summary}")
         _maybe_score_asam(f, p, template, ip)
     else:
-        log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip, description=f"Saved draft of '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code})")
+        # Dedupe draft saves within a 10-min window — autosave noise reduction.
+        # Sign and delete are never deduped (high-signal events).
+        if _should_log_form_update(g.user.id, f.id):
+            if changes:
+                description = f"Saved draft of '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code}) — {', '.join(changes)}"
+            else:
+                description = f"Saved draft of '{tpl_name}' for {p.first_name} {p.last_name} ({p.patient_code}) — no field changes"
+            log_access(g.user.id, "FORM_UPDATE", f"patient/{p.patient_code}/forms/{f.id}", "SUCCESS", ip,
+                       description=description)
     filler = User.query.filter_by(id=f.filled_by, tenant_id=g.tenant_id).first() if f.filled_by else None
     level = _get_access_level(template, g.user) if template else None
     return _serialize_form(f, template=template, filler=filler, access_level=level), 200
