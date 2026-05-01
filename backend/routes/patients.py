@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, g
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +13,33 @@ from services.audit_logger import log_access
 
 ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_PHOTO_BYTES = 2 * 1024 * 1024  # 2 MB decoded
+
+# Per-worker dedupe cache for PATIENT_GET success logs.
+# Suppresses repeat "viewed chart" entries within a 10-minute window so that
+# tabbing between tabs / re-fetches don't create dozens of redundant audit rows.
+# HIPAA requires logging chart access, but real EHRs dedupe within a session —
+# the first view in the window gets logged, subsequent views inherit it.
+# Per-worker (not shared across gunicorn workers) — worst case logs 1× per worker
+# instead of once globally, still a major reduction over per-request logging.
+_PATIENT_VIEW_DEDUPE_TTL = timedelta(minutes=10)
+_patient_view_log_cache: dict[tuple[int, int], datetime] = {}
+
+
+def _should_log_patient_view(user_id: int, patient_id: int) -> bool:
+    """Return True if we should write a PATIENT_GET success log, False if duplicate within TTL."""
+    key = (user_id, patient_id)
+    now = datetime.now(timezone.utc)
+    last = _patient_view_log_cache.get(key)
+    if last is not None and (now - last) < _PATIENT_VIEW_DEDUPE_TTL:
+        return False
+    _patient_view_log_cache[key] = now
+    # Opportunistic cleanup so the cache doesn't grow unbounded
+    if len(_patient_view_log_cache) > 2000:
+        cutoff = now - _PATIENT_VIEW_DEDUPE_TTL
+        for k, v in list(_patient_view_log_cache.items()):
+            if v < cutoff:
+                del _patient_view_log_cache[k]
+    return True
 
 
 def _validate_photo(data_url: str) -> str | None:
@@ -209,7 +236,9 @@ def get_patient(patient_id):
         log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "FAILED", ip, description=f"Access denied to patient {p.patient_code} — not in care team")
         return {"error": "forbidden"}, 403
 
-    log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "SUCCESS", ip, description=f"Viewed patient record for {p.first_name} {p.last_name} ({p.patient_code})")
+    if _should_log_patient_view(g.user.id, p.id):
+        log_access(g.user.id, "PATIENT_GET", f"patient/{p.patient_code}", "SUCCESS", ip,
+                   description=f"Viewed patient record for {p.first_name} {p.last_name} ({p.patient_code})")
 
     return _serialize_patient(p), 200
 
