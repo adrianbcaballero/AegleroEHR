@@ -193,9 +193,16 @@ def _get_access_level(template: FormTemplate, user) -> str | None:
     Returns the effective access level string ("view", "edit", "sign") for a user
     on a given template, or None if the user has no access.
 
+    Administrators always have full ("sign") access regardless of per-template
+    role configuration — they need to be able to view, edit, and sign every
+    form for support, audit, and compliance purposes.
+
     Uses FormTemplateAccess rows exclusively when the template has any configured.
     Falls back to legacy allowed_roles only for templates with no access rows at all.
     """
+    if user.role_name == "admin":
+        return "sign"
+
     has_access_rows = FormTemplateAccess.query.filter_by(template_id=template.id).first() is not None
 
     if has_access_rows:

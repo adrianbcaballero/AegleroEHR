@@ -362,26 +362,35 @@ function TemplateEditorDialog({
               {availableRoles.length === 0 && (
                 <p className="text-xs text-muted-foreground">Loading roles...</p>
               )}
-              {availableRoles.map((role: { id: number; name: string; displayName: string }) => (
-                <div key={role.id} className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border bg-muted/30">
-                  <span className="text-sm text-foreground">{role.displayName}</span>
-                  <Select
-                    value={roleAccess[role.id] ?? "none"}
-                    onValueChange={(val: string) => setRoleAccess((prev: Record<number, AccessLevel>) => ({ ...prev, [role.id]: val as AccessLevel }))}
-                  >
-                    <SelectTrigger className="w-56 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ACCESS_LEVEL_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+              {availableRoles.map((role: { id: number; name: string; displayName: string }) => {
+                const isAdmin = role.name === "admin"
+                return (
+                  <div key={role.id} className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border bg-muted/30">
+                    <span className="text-sm text-foreground flex items-center gap-2">
+                      {role.displayName}
+                      {isAdmin && (
+                        <span className="text-[10px] text-muted-foreground italic">always full access</span>
+                      )}
+                    </span>
+                    <Select
+                      value={isAdmin ? "sign" : (roleAccess[role.id] ?? "none")}
+                      onValueChange={(val: string) => setRoleAccess((prev: Record<number, AccessLevel>) => ({ ...prev, [role.id]: val as AccessLevel }))}
+                      disabled={isAdmin}
+                    >
+                      <SelectTrigger className="w-56 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACCESS_LEVEL_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )
+              })}
             </div>
             <p className="text-xs text-muted-foreground">Set what each role can do with forms created from this template.</p>
           </div>
