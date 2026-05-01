@@ -450,7 +450,7 @@ class AuditLog(db.Model):
     action = db.Column(db.String(80), nullable=False)
     resource = db.Column(db.String(120), nullable=False)
     ip_address = db.Column(db.String(45), nullable=True)
-    description = db.Column(db.String(255), nullable=True)
+    description = db.Column(db.Text, nullable=True)
 
     status = db.Column(db.String(20), nullable=False)  # SUCCESS / FAILED
 
