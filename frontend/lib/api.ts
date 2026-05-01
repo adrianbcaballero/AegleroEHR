@@ -789,6 +789,10 @@ export function deleteBed(bedId: number) {
   return apiDelete<{ ok: boolean }>(`/api/beds/${bedId}`)
 }
 
+export function reorderBedUnits(units: string[]) {
+  return apiPost<{ units: string[] }>(`/api/beds/units/reorder`, { units })
+}
+
 
 // Category management
 export interface CategoriesResponse {

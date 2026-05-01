@@ -46,7 +46,7 @@ def list_beds():
     beds = (
         tenant_query(Bed)
         .filter_by(is_active=True)
-        .order_by(Bed.unit.asc().nullslast(), Bed.sort_order.asc(), Bed.display_name.asc())
+        .order_by(Bed.sort_order.asc(), Bed.unit.asc().nullslast(), Bed.display_name.asc())
         .all()
     )
     return [_serialize_bed(b) for b in beds], 200
@@ -58,10 +58,53 @@ def list_all_beds():
     """GET /api/beds/all — all beds including decommissioned. Admin/settings use."""
     beds = (
         tenant_query(Bed)
-        .order_by(Bed.unit.asc().nullslast(), Bed.sort_order.asc(), Bed.display_name.asc())
+        .order_by(Bed.sort_order.asc(), Bed.unit.asc().nullslast(), Bed.display_name.asc())
         .all()
     )
     return [_serialize_bed(b) for b in beds], 200
+
+
+@beds_bp.post("/units/reorder")
+@require_auth(permission="frontdesk.beds.manage")
+def reorder_units():
+    """
+    POST /api/beds/units/reorder
+    Body: { "units": ["Men's Detox", "Women's Detox", "Stabilization"] }
+
+    Re-numbers sort_order across all beds so the listed unit groups appear in
+    the given order. Within each unit, the existing relative order of beds is
+    preserved.
+    """
+    ip = client_ip()
+    data = request.get_json(silent=True) or {}
+    requested = data.get("units")
+    if not isinstance(requested, list) or not all(isinstance(u, str) for u in requested):
+        return {"error": "units must be a list of strings"}, 400
+
+    # Validate all listed units actually exist in this tenant's beds
+    beds = tenant_query(Bed).all()
+    existing_units = {b.unit for b in beds if b.unit}
+    missing = [u for u in requested if u not in existing_units]
+    if missing:
+        return {"error": f"unknown units: {missing}"}, 400
+
+    # Determine final unit order: requested first, then any remaining (alphabetical)
+    final_order = list(requested) + sorted(u for u in existing_units if u not in requested)
+
+    # Re-assign sort_order so each unit gets a 100-wide range based on its rank.
+    # Within a unit, preserve existing relative order.
+    UNIT_STRIDE = 100
+    for unit_idx, unit_name in enumerate(final_order):
+        unit_beds = [b for b in beds if b.unit == unit_name]
+        unit_beds.sort(key=lambda b: (b.sort_order, b.display_name))
+        for bed_idx, bed in enumerate(unit_beds):
+            bed.sort_order = unit_idx * UNIT_STRIDE + bed_idx + 1
+
+    db.session.commit()
+
+    log_access(g.user.id, "BED_UNITS_REORDER", "bed/units", "SUCCESS", ip,
+               description=f"Reordered bed units: {', '.join(final_order)}")
+    return {"units": final_order}, 200
 
 
 @beds_bp.post("")

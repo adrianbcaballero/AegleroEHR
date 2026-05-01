@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getAllBeds, createBed, updateBed, deleteBed } from "@/lib/api"
+import { getAllBeds, createBed, updateBed, deleteBed, reorderBedUnits } from "@/lib/api"
 import type { Bed } from "@/lib/api"
 
 const STATUS_LABELS: Record<string, string> = {
@@ -139,6 +139,25 @@ export function ManageBedsView() {
       setEditingUnit(null)
     } finally {
       setRenamingUnit(false)
+    }
+  }
+
+  // ── Unit order ───────────────────────────────────────────────────────────────
+  const moveUnit = async (unit: string, direction: "up" | "down") => {
+    const idx = allUnits.indexOf(unit)
+    if (idx === -1) return
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= allUnits.length) return
+    const reordered = [...allUnits]
+    ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
+    // Filter out empty units (no beds yet) — backend only knows about units that have beds
+    const persisted = reordered.filter((u) => !emptyUnits.includes(u))
+    if (persisted.length === 0) return
+    try {
+      await reorderBedUnits(persisted)
+      await load()
+    } catch {
+      // No-op — UI stays as-is on failure
     }
   }
 
@@ -274,7 +293,7 @@ export function ManageBedsView() {
       )}
 
       {/* Unit cards */}
-      {allUnits.map((unit) => {
+      {allUnits.map((unit, unitIdx) => {
         const activeBeds = activeBedsForUnit(unit)
         const decommissioned = decommissionedBedsForUnit(unit)
         const isEmptyUnit = emptyUnits.includes(unit) && activeBeds.length === 0 && decommissioned.length === 0
@@ -284,6 +303,31 @@ export function ManageBedsView() {
           <Card key={unit} className="border-border/60">
             <CardHeader className="pb-3 pt-4 px-5">
               <div className="flex items-center justify-between gap-2">
+                {/* Unit reorder arrows */}
+                {!isEditing && !isEmptyUnit && (
+                  <div className="flex flex-col gap-0 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-5 text-muted-foreground hover:text-foreground"
+                      title="Move unit up"
+                      onClick={() => moveUnit(unit, "up")}
+                      disabled={unitIdx === 0}
+                    >
+                      <ChevronUp className="size-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-5 text-muted-foreground hover:text-foreground"
+                      title="Move unit down"
+                      onClick={() => moveUnit(unit, "down")}
+                      disabled={unitIdx === allUnits.length - 1}
+                    >
+                      <ChevronDown className="size-3" />
+                    </Button>
+                  </div>
+                )}
                 {/* Unit name (inline editable) */}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <BedDouble className="size-4 text-muted-foreground shrink-0" />
