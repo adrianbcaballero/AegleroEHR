@@ -13,10 +13,13 @@ import { Label } from "@/components/ui/label"
 
 export type UserRole = "psychiatrist" | "technician" | "admin"
 
-const demoAccounts: { username: string; password: string; role: UserRole; label: string }[] = [
-  { username: "psychiatrist1", password: "Password123!", role: "psychiatrist", label: "Psychiatrist" },
-  { username: "technician1",   password: "Password123!", role: "technician",   label: "Technician" },
-  { username: "admin1",        password: "Password123!", role: "admin",        label: "Admin" },
+const DEMO_PASSWORD = "DemoPass2026!"
+
+const demoAccounts: { username: string; password: string; label: string }[] = [
+  { username: "acabo",    password: DEMO_PASSWORD, label: "Administrator" },
+  { username: "zkhan",    password: DEMO_PASSWORD, label: "Psychiatrist" },
+  { username: "smorales", password: DEMO_PASSWORD, label: "Technician" },
+  { username: "rpark",    password: DEMO_PASSWORD, label: "Front Desk" },
 ]
 
 interface LoginPageProps {

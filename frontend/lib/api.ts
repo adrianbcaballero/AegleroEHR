@@ -502,6 +502,7 @@ export interface FormTemplate {
   isRecurring: boolean
   recurrenceValue: number | null
   recurrenceUnit: string | null
+  isSystem: boolean
   requiredForAdmission: boolean
   requiredForDischarge: boolean
   createdBy: number | null

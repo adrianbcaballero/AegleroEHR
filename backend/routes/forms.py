@@ -150,6 +150,7 @@ def _serialize_template(t: FormTemplate):
         "isRecurring": t.is_recurring,
         "recurrenceValue": t.recurrence_value,
         "recurrenceUnit": t.recurrence_unit,
+        "isSystem": t.is_system,
         "requiredForAdmission": t.required_for_admission,
         "requiredForDischarge": t.required_for_discharge,
         "createdBy": t.created_by,

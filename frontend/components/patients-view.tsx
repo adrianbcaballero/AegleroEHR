@@ -69,8 +69,18 @@ import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 
 
-// Default categories that always appear as tabs even with 0 forms — cannot be "deleted" by archiving templates
-const DEFAULT_CATEGORIES = ["assessment", "clinical", "consent", "discharge", "flowsheet", "intake", "insurance"]
+// Default categories that always appear as tabs even with 0 forms — cannot be "deleted" by archiving templates.
+// Order is workflow-based: pre-admission → admission → consents → monitoring → assessments → outcomes → sessions → discharge.
+const DEFAULT_CATEGORIES = [
+  "Pre-Admission",
+  "Admission",
+  "Consents",
+  "Withdrawal Monitoring",
+  "Clinical Assessments",
+  "Outcome Measurements",
+  "Sessions",
+  "Discharge",
+]
 
 const ACUITY_FLAGS = [
   { key: "seizure_history", label: "Seizure History" },

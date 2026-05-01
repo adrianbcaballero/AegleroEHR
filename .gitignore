@@ -40,3 +40,8 @@ Thumbs.db
 # ===== Docker / local volumes =====
 dbdata/
 *.pid
+
+# ===== Private internal scripts / demo data =====
+# Never commit demo seed data — it can drift, leak fake-but-realistic info,
+# and crowds the repo. Keep an offline backup of anything in here.
+backend/scripts/_private/

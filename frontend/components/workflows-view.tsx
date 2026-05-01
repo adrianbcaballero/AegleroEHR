@@ -112,7 +112,16 @@ const PATIENT_PROPERTIES = [
   { value: "pharmacy", label: "Pharmacy" },
 ]
 
-const DEFAULT_CATEGORIES = ["intake", "assessment", "flowsheet", "consent", "insurance", "clinical", "discharge"]
+const DEFAULT_CATEGORIES = [
+  "Pre-Admission",
+  "Admission",
+  "Consents",
+  "Withdrawal Monitoring",
+  "Clinical Assessments",
+  "Outcome Measurements",
+  "Sessions",
+  "Discharge",
+]
 
 // ------- Template Editor Dialog (create + edit) -------
 function TemplateEditorDialog({
@@ -1392,7 +1401,12 @@ function TemplateCard({ template, onClick }: { template: FormTemplate; onClick: 
       <CardContent className="p-5">
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-2">
-            <GitBranch className="size-4 text-primary shrink-0" />
+            {template.isSystem ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/logo.png" alt="Aeglero" className="size-8 shrink-0 rounded-md object-contain" title="Aeglero system template" />
+            ) : (
+              <GitBranch className="size-4 text-primary shrink-0" />
+            )}
             <Badge variant="secondary" className="text-[10px] capitalize">{template.category}</Badge>
             {isArchived && (
               <Badge variant="secondary" className="text-[10px] bg-muted text-muted-foreground border-0">

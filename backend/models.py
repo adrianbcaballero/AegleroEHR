@@ -483,6 +483,9 @@ class FormTemplate(db.Model):
 
     status = db.Column(db.String(20), nullable=False, default="active")  # active/archived
 
+    # System / Aeglero-shipped template vs custom (created by tenant staff)
+    is_system = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+
     # Admission / discharge gates
     required_for_admission = db.Column(db.Boolean, nullable=False, default=False)
     required_for_discharge = db.Column(db.Boolean, nullable=False, default=False)
