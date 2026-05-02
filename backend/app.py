@@ -83,6 +83,15 @@ def create_app():
     def protected_ping():
         return {"ok": True, "user": {"id": g.user.id, "username": g.user.username, "role": g.user.role_name}}
 
+    @app.get("/healthz")
+    def healthz():
+        """Liveness + DB readiness check. Used by ALB target group health checks."""
+        try:
+            db.session.execute(db.text("SELECT 1"))
+            return {"status": "ok"}, 200
+        except Exception:
+            return {"status": "db_error"}, 503
+
     return app
 
 app = create_app()
