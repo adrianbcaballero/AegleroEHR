@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { KeyRound, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
@@ -10,7 +10,23 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { validateInvite, acceptInvite } from "@/lib/api"
 
+// Wrap the page export in Suspense so static export can prerender it.
+// useSearchParams() requires this in Next.js 13+ when output: 'export'.
 export default function InvitePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <InviteContent />
+    </Suspense>
+  )
+}
+
+function InviteContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const token = searchParams.get("token") || ""
