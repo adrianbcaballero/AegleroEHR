@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production
 
 # ===== Python =====
 __pycache__/
@@ -42,6 +43,26 @@ dbdata/
 *.pid
 
 # ===== Private internal scripts / demo data =====
-# Never commit demo seed data — it can drift, leak fake-but-realistic info,
-# and crowds the repo. Keep an offline backup of anything in here.
 backend/scripts/_private/
+
+# ===== Terraform =====
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Local working directory and provider plugins.
+.terraform/
+
+# Local override files — used to override variables for local testing only.
+terraform.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files (may contain credentials)
+.terraformrc
+terraform.rc
+
+# DO commit .terraform.lock.hcl — locks provider versions for reproducibility.

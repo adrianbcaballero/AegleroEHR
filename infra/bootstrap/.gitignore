@@ -1,0 +1,20 @@
+# Local Terraform working directory.
+.terraform/
+
+# Local state files. The bootstrap initially writes state locally, but after
+# the apply we migrate to remote backend (the bucket this module just created),
+# at which point these files become empty/historical. Either way, never commit them.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Local override files (used to override variables for local testing only).
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Editor / OS
+.DS_Store
+*.swp
