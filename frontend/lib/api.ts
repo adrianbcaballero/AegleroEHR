@@ -1,5 +1,11 @@
 // frontend/lib/api.ts
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+// In production the frontend and API are served from the same origin via
+// CloudFront (S3 default behavior + ALB for /api/*), so an empty base URL
+// makes fetch calls relative — CloudFront routes /api/* to the backend.
+// Locally we point at the Flask dev server. ?? not || so an explicit empty
+// string from .env.production sticks (|| would treat "" as falsy and fall
+// back to the dev URL).
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000";
 
 // Session is managed via httpOnly cookie — no client-side token storage needed.
 // These are kept as no-ops so call sites don't need to change.

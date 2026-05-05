@@ -73,7 +73,7 @@ export function SettingsView() {
           )}
           <p className="text-xs text-muted-foreground">
             To update practice information, contact{" "}
-            <a href="mailto:ticket@aeglero.com" className="underline hover:text-foreground transition-colors">ticket@aeglero.com</a>.
+            <a href="mailto:contact@aeglero.com" className="underline hover:text-foreground transition-colors">contact@aeglero.com</a>.
           </p>
         </CardContent>
       </Card>
