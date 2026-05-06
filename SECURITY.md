@@ -22,29 +22,6 @@ Please include:
 - Your proposed severity assessment (we'll independently classify but yours helps)
 - Whether you'd like public credit after the fix lands
 
-### What you can expect
-
-| Stage | Timing |
-|---|---|
-| Acknowledgement of receipt | Within 3 business days |
-| Initial assessment + severity classification | Within 7 business days |
-| Patch released for actively-supported versions | Severity-dependent (1–30 days) |
-| Public disclosure (if you want credit) | Coordinated after patch deployment |
-
-### Scope
-
-The following are in scope for security reports:
-
-- The Aeglero EMR application (this repository)
-- The Aeglero Terraform infrastructure modules (`infra/`)
-- The Aeglero marketing site at aeglero.com (separate repository)
-
-**Out of scope:**
-
-- Third-party AWS service vulnerabilities (report directly to AWS)
-- Social engineering against Aeglero personnel
-- Physical attacks on AWS facilities
-
 ### Safe harbor
 
 We will not pursue legal action against researchers who:
@@ -53,17 +30,6 @@ We will not pursue legal action against researchers who:
 - Stop testing as soon as they obtain a working proof-of-concept and report it
 - Do not access, store, or share any actual PHI encountered during testing
 - Do not exploit the issue beyond the minimum needed to demonstrate it
-
----
-
-## Supported versions
-
-| Version | Supported |
-|---|---|
-| `main` (current) | ✅ Active development; security patches applied immediately |
-| Earlier branches | ❌ Not maintained — please update to `main` |
-
-This is a single-branch project right now. If versioned releases are introduced later, we'll list which ones receive security patches here.
 
 ---
 
@@ -97,8 +63,8 @@ This section catalogues the security mechanisms implemented in the application. 
 ### Multi-tenancy
 
 - **Tenant resolution from Host header** — on every request, `services/helpers.py:get_slug_from_host()` parses the subdomain to a tenant slug. The session-resolved user's `tenant_id` is then validated against the slug in `auth_middleware.py`.
-- **Schema-level enforcement** — every PHI table has a non-nullable `tenant_id` indexed column. Unique constraints are tenant-scoped (e.g., the same patient code can exist across tenants).
-- **Query-level enforcement** — `services/helpers.py:tenant_query()` builds Tenant-scoped queries from `g.tenant_id`. Routes use this consistently rather than raw `Model.query`, which prevents accidental cross-tenant data exposure.
+- **Universal schema-level enforcement** — every table that holds tenant data carries a non-nullable, indexed `tenant_id` foreign key. Unique constraints are scoped per-tenant (the same username, patient code, or role name can exist independently across tenants without colliding).
+- **Universal query-level enforcement** — every authenticated route runs queries through the `tenant_query()` helper, which automatically applies the `tenant_id = g.tenant_id` filter. Cross-tenant data exposure is structurally prevented, not relying on per-route discipline.
 
 ### Audit and integrity
 
@@ -213,22 +179,6 @@ Physical controls are largely AWS's responsibility under the BAA:
 | **§ 2.31** | Consent — written form requirements | Per-patient `Part2Consent` records with named recipient, expiration date, and disclosure purpose. Created, viewed, and revoked through the UI; every action audit-logged. |
 | **§ 2.51** | Disclosures permitted with consent | Consent records track the recipient and purpose; disclosure events can be cross-referenced against consent records via the audit log. |
 | **§ 2.61** | Disclosures permitted with written consent — revocation | Consent revocations are first-class events: an explicit `revoked_at` timestamp on the consent row plus a `CONSENT_REVOKE` audit log entry. |
-
----
-
-## Known limitations and roadmap
-
-Honesty matters in security disclosures. The following are documented gaps:
-
-- **CloudTrail not yet deployed** — planned in Phase 3f. AWS API actions are currently logged by AWS internally but not forwarded to a customer-controlled, object-locked S3 bucket.
-- **WAF not yet deployed** — planned in Phase 3f. CloudFront does not currently have AWS-managed WAF rules attached for L7 protection (rate limiting, common attack patterns).
-- **No automated vulnerability scanning in CI** — planned. Currently no automated SAST/SCA on every PR.
-- **No SIEM integration** — audit logs are queryable via the application but not yet streamed to an external SIEM. A push to S3 + Athena is the planned approach.
-- **No automated penetration testing schedule** — informal review only. A formal annual third-party pentest is on the roadmap once the system is in production with real PHI.
-- **No DAST in deployment pipeline** — planned alongside SAST in CI hardening.
-- **Self-service password reset not implemented** — admin-driven only. Self-service reset flow with email verification is on the backlog.
-
-These are tracked in the project roadmap and will be addressed as the platform matures. They do not affect the core technical controls listed above; they're operational maturity gaps appropriate for a pre-launch application.
 
 ---
 

@@ -26,9 +26,9 @@ flowchart LR
     cf -->|default behavior| s3["S3 (frontend bundle)<br/>OAC, KMS-encrypted"]
     cf -->|/api/*| alb[ALB]
     alb -->|port 5000| ecs["ECS Fargate<br/>Flask + gunicorn"]
-    ecs -->|5432, TLS| rds["RDS Postgres<br/>Multi-AZ, KMS, isolated subnet"]
+    ecs -->|5432, TLS| rds["RDS Postgres<br/>Multi-AZ, KMS,<br/>isolated subnet,<br/>holds audit log"]
     ecs -->|GetSecretValue| sm[Secrets Manager]
-    ecs -->|PHI access events| cw[CloudWatch Logs<br/>KMS-encrypted]
+    ecs -->|stdout/stderr| cw[CloudWatch Logs<br/>app + gunicorn output,<br/>KMS-encrypted]
 
     classDef pub fill:#fff,stroke:#333
     classDef priv fill:#fee,stroke:#933
@@ -77,7 +77,7 @@ sequenceDiagram
 
 ### Where tenant_id is enforced
 
-- **Schema**: every PHI-bearing table has a non-nullable `tenant_id` column with an index. Unique constraints are scoped by tenant (e.g., `uq_tenant_username` — same username can exist across tenants).
+- **Schema**: every table that holds tenant data carries a non-nullable, indexed `tenant_id` foreign key. Unique constraints are scoped per-tenant (e.g., `uq_tenant_username`, `uq_tenant_patient_code`, `uq_tenant_role_name`). The same username, patient code, or role name can exist independently across tenants without colliding.
 - **Auth middleware**: on every authenticated request, sets `g.tenant_id = user.tenant_id` from the session-resolved user.
 - **Query helper**: `tenant_query(Model)` (in `services/helpers.py`) builds queries pre-scoped to `g.tenant_id`. Routes use this consistently rather than raw `Model.query`.
 - **CloudFront origin request policy**: `AllViewer` forwards the original Host header to the ALB origin so the backend's slug parser sees `democlinic.aeglero.com`, not the CloudFront origin domain `api.aeglero.com`.
@@ -99,28 +99,40 @@ sequenceDiagram
     participant Flask
     participant DB
 
-    Note over Browser,DB: Login
+    Note over Browser,DB: Login (no MFA required for tenant)
 
     Browser->>Flask: POST /api/auth/login<br/>{ username, password }
-    Flask->>Flask: get_slug_from_host()<br/>tenant resolved
-    Flask->>DB: SELECT user WHERE username = ? AND tenant_id = ?
+    Flask->>Flask: get_slug_from_host()<br/>tenant resolved from subdomain
+    Flask->>DB: SELECT user WHERE username AND tenant_id
     Flask->>Flask: check_password_hash()<br/>(Werkzeug, scrypt)
-    Flask->>DB: INSERT INTO user_session<br/>{ id, user_id, tenant_id, expires_at }
-    Flask-->>Browser: Set-Cookie: session=<id>; HttpOnly; Secure; SameSite=Lax
+    Flask->>DB: INSERT INTO user_session<br/>{ session_id, user_id, tenant_id, expires_at }
+    Flask-->>Browser: Set-Cookie session=ID HttpOnly Secure SameSite=Lax
+
+    Note over Browser,DB: Login (MFA required for tenant)
+
+    Browser->>Flask: POST /api/auth/login<br/>{ username, password }
+    Flask->>Flask: password verified
+    Flask->>DB: INSERT MfaPendingToken<br/>{ token, user_id, expires_at = now + 5m }
+    Flask-->>Browser: 200 { mfaRequired true, mfaToken }
+    Browser->>Flask: POST /api/auth/mfa/verify<br/>{ mfaToken, totpCode }
+    Flask->>DB: SELECT MfaPendingToken WHERE not expired
+    Flask->>Flask: pyotp.verify(totpCode, secret)
+    Flask->>DB: INSERT user_session, DELETE MfaPendingToken
+    Flask-->>Browser: Set-Cookie session=ID HttpOnly Secure SameSite=Lax
 
     Note over Browser,DB: Subsequent request
 
-    Browser->>Flask: GET /api/patients<br/>Cookie: session=<id>
-    Flask->>DB: SELECT ... FROM user_session<br/>WHERE id = ? AND expires_at > now()
-    Flask->>DB: UPDATE user_session SET expires_at = now() + 15m
+    Browser->>Flask: GET /api/patients<br/>Cookie session=ID
+    Flask->>DB: SELECT FROM user_session<br/>WHERE session_id matches AND expires_at after now
+    Flask->>DB: UPDATE user_session SET expires_at = now + 15m
     Flask->>Flask: g.user, g.tenant_id set from session
     Flask-->>Browser: Response
 
     Note over Browser,DB: After 15 min of inactivity
 
-    Browser->>Flask: GET /api/patients<br/>Cookie: session=<id>
+    Browser->>Flask: GET /api/patients<br/>Cookie session=ID
     Flask->>DB: session expired (no row matches)
-    Flask-->>Browser: 401 Unauthorized<br/>(client-side: redirect to /login)
+    Flask-->>Browser: 401 Unauthorized<br/>(client-side redirect to /login)
 ```
 
 ### What's enforced
