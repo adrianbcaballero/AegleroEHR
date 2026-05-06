@@ -2,13 +2,13 @@
 
 This document describes how to report security issues in Aeglero, the technical controls in place to protect protected health information (PHI), and how those controls map to the HIPAA Security Rule and 42 CFR Part 2.
 
-If you're looking for the implementation behind any control, [ARCHITECTURE.md](ARCHITECTURE.md) has the deep-dive on auth, multi-tenancy, and the audit log integrity scheme. [README.md](README.md) covers tech stack and general information.
+If you're looking for the implementation behind any control, [ARCHITECTURE.md](ARCHITECTURE.md) has the deep-dive on auth, multi-tenancy, and the audit log integrity scheme. [README.md](README.md) covers tech stack and general information. The [`docs/`](docs/) folder holds the supporting GRC artifacts: HIPAA Risk Analysis, controls evidence, gap analysis, vendor register, organizational policies, and operational runbooks.
 
 ---
 
 ## Reporting a vulnerability
 
-We take security reports seriously and will respond to legitimate disclosures.
+We take security reports seriously.
 
 ### How to report
 
@@ -18,18 +18,9 @@ Please include:
 
 - A description of the issue
 - Steps to reproduce, including request/response payloads if applicable
-- The version, commit SHA, or environment where you observed it
+- The environment where you observed it
 - Your proposed severity assessment (we'll independently classify but yours helps)
 - Whether you'd like public credit after the fix lands
-
-### Safe harbor
-
-We will not pursue legal action against researchers who:
-
-- Make a good-faith effort to avoid privacy violations, destruction of data, or service degradation
-- Stop testing as soon as they obtain a working proof-of-concept and report it
-- Do not access, store, or share any actual PHI encountered during testing
-- Do not exploit the issue beyond the minimum needed to demonstrate it
 
 ---
 
