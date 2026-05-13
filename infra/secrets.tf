@@ -16,7 +16,7 @@ resource "aws_secretsmanager_secret" "db_master" {
 
   # 7-day recovery window = standard. Lets you undelete within a week if you
   # `terraform destroy` then change your mind.
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "db_master" {
@@ -43,7 +43,7 @@ resource "aws_secretsmanager_secret" "flask_secret_key" {
   description = "Flask SECRET_KEY for session signing"
   kms_key_id  = aws_kms_key.secrets.id
 
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "flask_secret_key" {
@@ -62,7 +62,7 @@ resource "aws_secretsmanager_secret" "database_url" {
   description = "Composed Postgres URL for the app to consume directly"
   kms_key_id  = aws_kms_key.secrets.id
 
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "database_url" {

@@ -52,6 +52,54 @@ variable "rds_skip_final_snapshot" {
   default     = false
 }
 
+# ── Cost-vs-compliance toggles ──
+# Pattern: variable defaults reflect production-tuned values. `terraform.tfvars`
+# overrides each one back to dev mode for daily/testing use. `prod.tfvars` flips
+# them all on for the full HIPAA-aligned deployment. Run dev daily, run prod
+# when you actually need the security posture.
+
+variable "rds_multi_az" {
+  description = "Enable RDS Multi-AZ standby for automatic failover. Adds ~$0.40/day."
+  type        = bool
+  default     = true
+}
+
+variable "enable_cloudtrail" {
+  description = "Account-wide CloudTrail trail with KMS-encrypted, object-locked S3 bucket. HIPAA-aligned admin audit trail. Cost: pennies/day."
+  type        = bool
+  default     = true
+}
+
+variable "enable_waf" {
+  description = "AWS WAF on CloudFront with managed rule groups (common, known-bad inputs, SQLi). Adds ~$0.50/day."
+  type        = bool
+  default     = true
+}
+
+variable "enable_guardduty" {
+  description = "GuardDuty threat detection across CloudTrail, VPC Flow Logs, DNS logs. Free 30-day trial, then ~$1-3/day."
+  type        = bool
+  default     = true
+}
+
+variable "enable_alb_access_logs" {
+  description = "ALB writes access logs to S3 for after-the-fact request analysis. Cost: pennies/day."
+  type        = bool
+  default     = true
+}
+
+variable "enable_cloudfront_access_logs" {
+  description = "CloudFront writes edge access logs to S3. Cost: pennies/day."
+  type        = bool
+  default     = true
+}
+
+variable "cloudtrail_retention_days" {
+  description = "How many days to retain CloudTrail logs under S3 Object Lock governance mode. HIPAA minimum is 6 years (2190 days); 7 years (2555) is conservative default. Set lower in dev if you ever enable CloudTrail there."
+  type        = number
+  default     = 2555
+}
+
 # ── DNS / domain ──
 variable "hosted_zone_id" {
   description = "Route 53 hosted zone ID for the domain."

@@ -56,6 +56,18 @@ resource "aws_lb" "main" {
 
   enable_deletion_protection = false  # keep iteration friendly
   enable_http2               = true
+
+  # Access logs to S3 — only enabled when var.enable_alb_access_logs is true.
+  dynamic "access_logs" {
+    for_each = var.enable_alb_access_logs ? [1] : []
+    content {
+      bucket  = aws_s3_bucket.access_logs[0].bucket
+      prefix  = "alb"
+      enabled = true
+    }
+  }
+
+  depends_on = [aws_s3_bucket_policy.access_logs]
 }
 
 # ── Target group ──

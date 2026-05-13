@@ -64,6 +64,21 @@ resource "aws_cloudfront_distribution" "main" {
 
   aliases = ["*.${var.domain_name}"]
 
+  # Conditional WAF attachment. WAF ACL ARN comes from waf.tf, which itself is
+  # only created when var.enable_waf is true.
+  web_acl_id = var.enable_waf ? aws_wafv2_web_acl.cloudfront[0].arn : null
+
+  # Conditional access logs to S3. CloudFront's logging is non-KMS (AES256
+  # only), so the bucket in access_logs.tf is configured for that.
+  dynamic "logging_config" {
+    for_each = var.enable_cloudfront_access_logs ? [1] : []
+    content {
+      bucket          = aws_s3_bucket.access_logs[0].bucket_domain_name
+      include_cookies = false
+      prefix          = "cloudfront/"
+    }
+  }
+
   # ── Origin 1: S3 frontend bundle ──
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name

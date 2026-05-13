@@ -87,8 +87,9 @@ resource "aws_db_instance" "main" {
   username = var.db_username
   password = jsondecode(aws_secretsmanager_secret_version.db_master.secret_string)["password"]
 
-  # HA — Multi-AZ standby for failover
-  multi_az = true
+  # HA — Multi-AZ standby for failover. Controlled by var.rds_multi_az so dev
+  # mode can save ~$0.40/day by running single-AZ. Prod always Multi-AZ.
+  multi_az = var.rds_multi_az
 
   # Network — isolated subnets, RDS SG, no public access
   db_subnet_group_name   = aws_db_subnet_group.main.name
