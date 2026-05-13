@@ -81,6 +81,20 @@ resource "aws_kms_key" "logs" {
           }
         }
       },
+      {
+        # SNS uses this key to encrypt CloudTrail delivery-notification messages
+        # (see aws_sns_topic.cloudtrail in cloudtrail.tf). Reusing the logs key
+        # keeps audit-pipeline encryption under one CMK instead of provisioning
+        # a separate ~$1/month key just for one topic.
+        Sid       = "AllowSNSForCloudTrailNotifications"
+        Effect    = "Allow"
+        Principal = { Service = "sns.amazonaws.com" }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey*",
+        ]
+        Resource = "*"
+      },
     ]
   })
 }

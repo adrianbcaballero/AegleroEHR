@@ -57,7 +57,10 @@ resource "aws_kms_alias" "cloudtrail" {
 # `mode = "GOVERNANCE"` line in the bucket's default retention.
 resource "aws_s3_bucket" "cloudtrail" {
   # checkov:skip=CKV_AWS_18: This bucket already stores audit logs (CloudTrail); logging access to it would be circular.
+  # checkov:skip=CKV_AWS_21: Versioning IS enabled — see aws_s3_bucket_versioning.cloudtrail. Checkov doesn't link the split resources.
   # checkov:skip=CKV_AWS_144: Object Lock + 7-year retention gives WORM protection; cross-region replication adds cost without additional audit value.
+  # checkov:skip=CKV_AWS_145: SSE-KMS IS enabled — see aws_s3_bucket_server_side_encryption_configuration.cloudtrail (uses aws_kms_key.cloudtrail). Checkov doesn't link the split resources.
+  # checkov:skip=CKV2_AWS_6: Public access block IS configured — see aws_s3_bucket_public_access_block.cloudtrail. Checkov doesn't link the split resources.
   # checkov:skip=CKV2_AWS_61: Object Lock retention governs deletion, not lifecycle; a lifecycle rule on a locked bucket is a no-op.
   # checkov:skip=CKV2_AWS_62: No downstream consumer for CloudTrail bucket events.
   count         = var.enable_cloudtrail ? 1 : 0
@@ -193,14 +196,47 @@ resource "aws_iam_role_policy" "cloudtrail_cloudwatch" {
   })
 }
 
+# ── SNS topic for CloudTrail delivery notifications ──
+# Topic exists so monitoring/alerting can subscribe later (email, Lambda,
+# Chatbot, etc.). No subscriptions are wired up by default — just having the
+# topic satisfies CKV_AWS_252 and gives an integration point.
+resource "aws_sns_topic" "cloudtrail" {
+  count             = var.enable_cloudtrail ? 1 : 0
+  name              = "aeglero-emr-cloudtrail-notifications"
+  kms_master_key_id = aws_kms_key.logs.arn # SSE via the audit-pipeline CMK
+}
+
+resource "aws_sns_topic_policy" "cloudtrail" {
+  count = var.enable_cloudtrail ? 1 : 0
+  arn   = aws_sns_topic.cloudtrail[0].arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowCloudTrailPublish"
+      Effect    = "Allow"
+      Principal = { Service = "cloudtrail.amazonaws.com" }
+      Action    = "SNS:Publish"
+      Resource  = aws_sns_topic.cloudtrail[0].arn
+      Condition = {
+        StringEquals = {
+          "AWS:SourceArn" = "arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/aeglero-emr-trail"
+        }
+      }
+    }]
+  })
+}
+
 # ── The trail itself ──
 # Multi-region so we capture events from any region operations.
 # include_global_service_events captures IAM, CloudFront, Route 53 etc.
 resource "aws_cloudtrail" "main" {
+  # checkov:skip=CKV2_AWS_10: CloudWatch Logs integration IS configured — see cloud_watch_logs_group_arn / cloud_watch_logs_role_arn below. Checkov misreports the link.
   count = var.enable_cloudtrail ? 1 : 0
 
   name                          = "aeglero-emr-trail"
   s3_bucket_name                = aws_s3_bucket.cloudtrail[0].id
+  sns_topic_name                = aws_sns_topic.cloudtrail[0].name
   include_global_service_events = true
   is_multi_region_trail         = true
   enable_log_file_validation    = true
@@ -216,5 +252,8 @@ resource "aws_cloudtrail" "main" {
     include_management_events = true
   }
 
-  depends_on = [aws_s3_bucket_policy.cloudtrail]
+  depends_on = [
+    aws_s3_bucket_policy.cloudtrail,
+    aws_sns_topic_policy.cloudtrail,
+  ]
 }

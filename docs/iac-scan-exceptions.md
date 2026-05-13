@@ -79,6 +79,21 @@ These findings conflict with an AWS service limitation or our design intent.
 
 **Remove these suppressions when:** AWS lifts the underlying service limitation, or the architectural decision changes.
 
+### Checkov split-resource false positives
+
+AWS deprecated inline bucket attributes (`versioning {}`, `server_side_encryption_configuration {}`, etc.) on `aws_s3_bucket` in 2022; the modern Terraform pattern is one resource per concern. Checkov sometimes fails to associate the split resources back to the parent bucket and flags the bucket as missing the feature. Similar issue exists for `aws_cloudtrail` and its CloudWatch Logs wiring.
+
+The features below ARE configured — the skip comments point at the resource that wires them up.
+
+| Check | Resource | Where it's actually configured |
+|---|---|---|
+| CKV_AWS_21 | `aws_s3_bucket.cloudtrail` | `aws_s3_bucket_versioning.cloudtrail` |
+| CKV_AWS_145 | `aws_s3_bucket.cloudtrail` | `aws_s3_bucket_server_side_encryption_configuration.cloudtrail` (SSE-KMS via `aws_kms_key.cloudtrail`) |
+| CKV2_AWS_6 | `aws_s3_bucket.cloudtrail` | `aws_s3_bucket_public_access_block.cloudtrail` |
+| CKV2_AWS_10 | `aws_cloudtrail.main` | `cloud_watch_logs_group_arn` / `cloud_watch_logs_role_arn` attributes on the trail itself |
+
+**Remove these suppressions when:** Checkov ships a fix that walks split S3 / CloudTrail resources and links them back to the parent.
+
 ### Deferred follow-ups
 
 Real improvements that the current posture trades off against cost or app-side complexity. Each one has a clear "what it would take" so the deferral is auditable.
