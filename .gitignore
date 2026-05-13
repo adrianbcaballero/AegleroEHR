@@ -32,6 +32,13 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# TypeScript incremental build cache (not source code)
+*.tsbuildinfo
+
+# npm lockfile — project uses pnpm. Prevents lockfile drift if someone runs
+# `npm install` by accident.
+package-lock.json
+
 # ===== OS / editor =====
 .DS_Store
 Thumbs.db
