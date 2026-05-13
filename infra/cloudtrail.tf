@@ -56,6 +56,10 @@ resource "aws_kms_alias" "cloudtrail" {
 # HIPAA you may prefer Compliance mode; switch by removing the
 # `mode = "GOVERNANCE"` line in the bucket's default retention.
 resource "aws_s3_bucket" "cloudtrail" {
+  # checkov:skip=CKV_AWS_18: This bucket already stores audit logs (CloudTrail); logging access to it would be circular.
+  # checkov:skip=CKV_AWS_144: Object Lock + 7-year retention gives WORM protection; cross-region replication adds cost without additional audit value.
+  # checkov:skip=CKV2_AWS_61: Object Lock retention governs deletion, not lifecycle; a lifecycle rule on a locked bucket is a no-op.
+  # checkov:skip=CKV2_AWS_62: No downstream consumer for CloudTrail bucket events.
   count         = var.enable_cloudtrail ? 1 : 0
   bucket        = "aeglero-emr-cloudtrail-logs"
   force_destroy = true # iteration-friendly; production should set to false

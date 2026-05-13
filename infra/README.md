@@ -79,6 +79,10 @@ terraform destroy
 
 Add `-var-file=prod.tfvars` if you applied prod mode. Cleanup tail: ~$1 over 7 days for KMS keys finishing their pending-deletion windows. The bootstrap module stays running (~$1-2/month) so the next deploy is one `terraform apply` away.
 
+## Scanner suppressions
+
+Every `# checkov:skip=...` or `# trivy:ignore:...` comment in this folder is documented (with removal criteria) in [`../docs/iac-scan-exceptions.md`](../docs/iac-scan-exceptions.md).
+
 ## Caveats
 
 - **Default values in `variables.tf` are production-tuned.** If you delete `terraform.tfvars` and run a bare `terraform apply`, you'll get the production stack. Always make sure that file is in place when you want dev mode.

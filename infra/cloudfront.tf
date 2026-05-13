@@ -2,6 +2,7 @@
 # CloudFront *requires* its cert in us-east-1, regardless of where the rest of
 # the infrastructure lives. Hence the us_east_1 provider alias.
 resource "aws_acm_certificate" "cloudfront" {
+  # checkov:skip=CKV2_AWS_71: Wildcard required for the multi-tenant subdomain model.
   provider = aws.us_east_1
 
   domain_name       = "*.${var.domain_name}"
@@ -45,6 +46,41 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
+# ── Security headers policy ──
+# Browsers honor these on every response CloudFront serves. We don't manage a
+# CSP here because the Next.js app pulls in inline scripts/styles for hydration
+# and adding a CSP without auditing every page risks breaking the UI; revisit
+# once the frontend has a build-time CSP plugin or per-route nonces.
+resource "aws_cloudfront_response_headers_policy" "security" {
+  name    = "aeglero-emr-security-headers"
+  comment = "HSTS, X-Content-Type-Options, frame deny, referrer policy"
+
+  security_headers_config {
+    strict_transport_security {
+      access_control_max_age_sec = 63072000  # 2 years
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+    content_type_options {
+      override = true
+    }
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+    xss_protection {
+      mode_block = true
+      protection = true
+      override   = true
+    }
+  }
+}
+
 # ── CloudFront Function for clean URL resolution ──
 resource "aws_cloudfront_function" "rewrite" {
   name    = "aeglero-emr-rewrite"
@@ -56,6 +92,9 @@ resource "aws_cloudfront_function" "rewrite" {
 
 # ── CloudFront Distribution ──
 resource "aws_cloudfront_distribution" "main" {
+  # checkov:skip=CKV_AWS_310: Single-origin design — failover requires a second regional ALB, deferred until we run active-active.
+  # checkov:skip=CKV_AWS_374: US-only clinic base; geo restriction is a deny-list feature we'd revisit when international tenants arrive.
+  # checkov:skip=CKV2_AWS_47: AWSManagedRulesKnownBadInputsRuleSet (attached in waf.tf) already covers Log4j; CKV2_AWS_47 wants a duplicate rule group.
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "Aeglero EMR — multi-tenant"
@@ -112,7 +151,8 @@ resource "aws_cloudfront_distribution" "main" {
     compress               = true
 
     # AWS managed CachingOptimized — sensible defaults for static sites.
-    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
     function_association {
       event_type   = "viewer-request"
@@ -136,7 +176,8 @@ resource "aws_cloudfront_distribution" "main" {
     cache_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
 
     # AWS managed AllViewer — forward every viewer header (esp. Host) to ALB
-    origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+    origin_request_policy_id   = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
   }
 
   # 403/404 from S3 → Next.js 404 page

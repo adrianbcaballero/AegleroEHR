@@ -1,6 +1,10 @@
 # ── S3 bucket for the Next.js static export ──
 # Private bucket; only the EMR CloudFront distribution can read it via OAC.
 resource "aws_s3_bucket" "frontend" {
+  # checkov:skip=CKV_AWS_18: Frontend bundle is non-sensitive build output (JS/CSS/HTML); CloudFront access logs cover request-level audit.
+  # checkov:skip=CKV_AWS_144: Frontend bundle is regenerable from source (`pnpm build`); CRR adds no value.
+  # checkov:skip=CKV2_AWS_61: Bucket holds the current frontend build only — re-synced on every deploy, no lifecycle needed.
+  # checkov:skip=CKV2_AWS_62: No downstream consumer for frontend-bucket events.
   bucket = "aeglero-emr-frontend"
 
   # force_destroy = true so iteration `terraform destroy` works even with

@@ -1,14 +1,27 @@
 # ── KMS key dedicated to encrypting Terraform state ──
 # Customer-managed (not aws/s3) so we control rotation, key policy, and audit
 # logs separately from any application data keys we'll create later.
+data "aws_caller_identity" "current" {}
+
 resource "aws_kms_key" "tfstate" {
   description             = "Encrypts Terraform state bucket and lock table"
   enable_key_rotation     = true
   deletion_window_in_days = 7
 
-  # Default key policy allows the account root, which is what we want for a
-  # single-account setup. We can tighten this later if multiple IAM users
-  # need to apply terraform with explicit grants.
+  # Explicit root-only policy (functionally identical to AWS's auto-generated
+  # default, but declared in source so Checkov CKV2_AWS_64 and auditors can
+  # see it). Tighten with named principals later if multiple IAM users need
+  # to apply terraform directly.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableRootPermissions"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
 }
 
 resource "aws_kms_alias" "tfstate" {
@@ -18,6 +31,9 @@ resource "aws_kms_alias" "tfstate" {
 
 # ── State bucket ──
 resource "aws_s3_bucket" "tfstate" {
+  # checkov:skip=CKV_AWS_18: Bootstrap-only state bucket; access logging would create a second bucket needing its own bootstrap and adds no audit value over CloudTrail data events (not enabled here for cost).
+  # checkov:skip=CKV_AWS_144: Cross-region replication for Terraform state is overkill — state is regenerable via `terraform plan/import` and the bucket already has versioning + Object Lock.
+  # checkov:skip=CKV2_AWS_62: No downstream consumer for state-bucket events.
   bucket = var.state_bucket_name
 
   # State buckets should never be force-destroyed casually — losing state

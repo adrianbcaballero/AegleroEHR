@@ -70,6 +70,9 @@ resource "aws_cloudwatch_log_group" "rds_postgresql" {
 
 # ── RDS Postgres instance ──
 resource "aws_db_instance" "main" {
+  # checkov:skip=CKV_AWS_157: Multi-AZ toggled via var.rds_multi_az; off in dev (~$0.40/day savings), prod.tfvars flips it on.
+  # checkov:skip=CKV_AWS_293: Deletion protection toggled via var.rds_deletion_protection; off in dev so teardowns aren't blocked.
+  # checkov:skip=CKV_AWS_161: App authenticates via Secrets Manager-managed password; IAM auth requires SDK changes to the Flask app and is deferred.
   identifier     = "aeglero-emr-db"
   engine         = "postgres"
   engine_version = data.aws_rds_engine_version.postgres.version

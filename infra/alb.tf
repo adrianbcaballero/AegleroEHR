@@ -10,6 +10,7 @@ data "aws_route53_zone" "primary" {
 # This cert is the REGIONAL one for the ALB. CloudFront in Phase 3e gets its
 # own cert in us-east-1 (CloudFront's hard requirement).
 resource "aws_acm_certificate" "alb" {
+  # checkov:skip=CKV2_AWS_71: Wildcard is required for the multi-tenant subdomain model (every tenant gets its own *.aeglero.com host).
   domain_name       = "*.${var.domain_name}"
   validation_method = "DNS"
 
@@ -48,6 +49,8 @@ resource "aws_acm_certificate_validation" "alb" {
 # has a public DNS name.
 # trivy:ignore:AVD-AWS-0053 -- ALB sits behind CloudFront; SG restricts ingress to CloudFront prefix list.
 resource "aws_lb" "main" {
+  # checkov:skip=CKV_AWS_150: Deletion protection toggled via var.alb_deletion_protection; off in dev for iteration speed.
+  # checkov:skip=CKV2_AWS_28: WAF runs at the CloudFront edge (waf.tf); attaching a regional WAF to this ALB would duplicate rules and double cost.
   name               = "aeglero-emr-alb"
   internal           = false
   load_balancer_type = "application"

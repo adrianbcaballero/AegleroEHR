@@ -7,6 +7,8 @@
 # of this security pass.
 # trivy:ignore:AVD-AWS-0031 -- Required by current :latest-tag deploy workflow; migrate to SHA tags then remove suppression.
 resource "aws_ecr_repository" "backend" {
+  # checkov:skip=CKV_AWS_51: Mutable tags required by :latest deploy workflow — see comment above.
+  # checkov:skip=CKV_AWS_136: Application container images contain no PHI; AWS-owned encryption is sufficient under the BAA and saves the per-key KMS cost.
   name                 = "aeglero-emr-backend"
   image_tag_mutability = "MUTABLE"
 

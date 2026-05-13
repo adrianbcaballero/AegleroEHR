@@ -9,6 +9,18 @@ resource "aws_vpc" "main" {
   }
 }
 
+# AWS auto-creates a default SG per VPC that allows all intra-SG traffic. We
+# never attach resources to it, but if a future operator forgot to specify a
+# SG on a new ENI it would land here. Replacing the auto-created rules with an
+# explicitly-empty SG closes that footgun (CKV2_AWS_12 / CIS 5.3).
+resource "aws_default_security_group" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "aeglero-emr-default-sg-locked"
+  }
+}
+
 # ── Internet Gateway ──
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id

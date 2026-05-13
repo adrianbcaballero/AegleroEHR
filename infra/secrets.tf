@@ -10,6 +10,7 @@ resource "random_password" "db_master" {
 }
 
 resource "aws_secretsmanager_secret" "db_master" {
+  # checkov:skip=CKV2_AWS_57: Rotation requires a Lambda rotator + RDS sync; planned for a future hardening pass once a rotation runbook is in place.
   name        = "aeglero-emr/db-master-password"
   description = "RDS Postgres master user — created by Terraform, used by ECS at runtime"
   kms_key_id  = aws_kms_key.secrets.id
@@ -39,6 +40,7 @@ resource "random_password" "flask_secret_key" {
 }
 
 resource "aws_secretsmanager_secret" "flask_secret_key" {
+  # checkov:skip=CKV2_AWS_57: Auto-rotating SECRET_KEY would invalidate every active session mid-request; rotation needs to be coordinated with a session-bleed window.
   name        = "aeglero-emr/flask-secret-key"
   description = "Flask SECRET_KEY for session signing"
   kms_key_id  = aws_kms_key.secrets.id
@@ -58,6 +60,7 @@ resource "aws_secretsmanager_secret_version" "flask_secret_key" {
 # rds.force_ssl=1 on the parameter group so connections fail fast if TLS
 # isn't negotiated.
 resource "aws_secretsmanager_secret" "database_url" {
+  # checkov:skip=CKV2_AWS_57: DATABASE_URL is derived from db_master; rotating happens with db_master rotation, see comment there.
   name        = "aeglero-emr/database-url"
   description = "Composed Postgres URL for the app to consume directly"
   kms_key_id  = aws_kms_key.secrets.id

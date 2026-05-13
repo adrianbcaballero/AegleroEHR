@@ -7,6 +7,11 @@ locals {
 }
 
 resource "aws_s3_bucket" "access_logs" {
+  # checkov:skip=CKV_AWS_18: This bucket IS the access-log target; logging it back to itself is circular.
+  # checkov:skip=CKV_AWS_144: Cross-region replication is dev-mode-incompatible cost; access logs are operational, not regulatory.
+  # checkov:skip=CKV_AWS_145: CloudFront standard logging only supports SSE-S3 (AES256), not SSE-KMS — see aws_s3_bucket_server_side_encryption_configuration.access_logs.
+  # checkov:skip=CKV2_AWS_61: Lifecycle is defined in aws_s3_bucket_lifecycle_configuration.access_logs below (90-day expiration).
+  # checkov:skip=CKV2_AWS_62: No downstream consumer for S3 events on this bucket.
   count         = local.any_access_logs_enabled ? 1 : 0
   bucket        = "aeglero-emr-access-logs"
   force_destroy = true # iteration-friendly; flip to false before going to production-on-real-data
@@ -25,6 +30,7 @@ resource "aws_s3_bucket_versioning" "access_logs" {
 # NOT support SSE-KMS for its log destination (a long-standing limitation), so
 # the bucket uses AES256 (SSE-S3) instead. ALB tolerates either.
 resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
+  # checkov:skip=CKV_AWS_145: CloudFront standard logging only supports SSE-S3 (AES256), not SSE-KMS.
   count  = local.any_access_logs_enabled ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
 
@@ -51,6 +57,7 @@ resource "aws_s3_bucket_public_access_block" "access_logs" {
 # is what CloudFront standard logging uses. ALB uses a bucket policy instead,
 # so the two mechanisms coexist without interference.
 resource "aws_s3_bucket_ownership_controls" "access_logs" {
+  # checkov:skip=CKV2_AWS_65: CloudFront standard log delivery requires ACL-enabled ownership (BucketOwnerPreferred); BucketOwnerEnforced breaks delivery.
   count  = local.any_access_logs_enabled ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
 

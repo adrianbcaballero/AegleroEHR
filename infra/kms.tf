@@ -1,11 +1,29 @@
 # Per-concern KMS keys keep IAM scoping clean and rotation independent.
 # Each key is ~$1/month; total ~$4/month for the four below.
 
+# Without an explicit policy, AWS attaches a default policy granting the
+# account root full key use. That's the same thing we set below — but
+# Checkov (CKV2_AWS_64) and several auditors want to see the policy declared
+# explicitly so it's reviewable in source rather than inferred from defaults.
+locals {
+  kms_root_only_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableRootPermissions"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
+}
+
 # ── RDS encryption-at-rest ──
 resource "aws_kms_key" "rds" {
   description             = "Encrypts RDS storage and snapshots"
   enable_key_rotation     = true
   deletion_window_in_days = 7
+  policy                  = local.kms_root_only_policy
 }
 
 resource "aws_kms_alias" "rds" {
@@ -18,6 +36,7 @@ resource "aws_kms_key" "secrets" {
   description             = "Encrypts Secrets Manager entries (DB password, Flask SECRET_KEY)"
   enable_key_rotation     = true
   deletion_window_in_days = 7
+  policy                  = local.kms_root_only_policy
 }
 
 resource "aws_kms_alias" "secrets" {
@@ -76,6 +95,7 @@ resource "aws_kms_key" "s3" {
   description             = "Encrypts S3 buckets (frontend, access logs)"
   enable_key_rotation     = true
   deletion_window_in_days = 7
+  policy                  = local.kms_root_only_policy
 }
 
 resource "aws_kms_alias" "s3" {

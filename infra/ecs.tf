@@ -133,6 +133,12 @@ resource "aws_ecs_task_definition" "backend" {
       image     = "${aws_ecr_repository.backend.repository_url}:${var.ecs_image_tag}"
       essential = true
 
+      # Root filesystem is read-only — an attacker who pops the app can't drop
+      # tools, modify code, or write malware to disk. Gunicorn and Python need
+      # somewhere writable for worker temp files and any runtime tmp use, so
+      # /tmp is mounted as an in-memory tmpfs volume below.
+      readonlyRootFilesystem = true
+
       portMappings = [
         {
           containerPort = 5000
@@ -142,9 +148,20 @@ resource "aws_ecs_task_definition" "backend" {
       ]
 
       environment = [
-        { name = "FLASK_DEBUG",          value = "false" },
-        { name = "TRUSTED_PROXY_COUNT",  value = "1" },           # behind ALB
-        { name = "CORS_ORIGINS",         value = var.cors_origins },
+        { name = "FLASK_DEBUG",            value = "false" },
+        { name = "TRUSTED_PROXY_COUNT",    value = "1" },           # behind ALB
+        { name = "CORS_ORIGINS",           value = var.cors_origins },
+        # Suppress .pyc writes — root FS is read-only, so trying to cache
+        # bytecode at runtime would error rather than just being slow.
+        { name = "PYTHONDONTWRITEBYTECODE", value = "1" },
+      ]
+
+      mountPoints = [
+        {
+          sourceVolume  = "tmp"
+          containerPath = "/tmp"
+          readOnly      = false
+        }
       ]
 
       secrets = [
@@ -167,6 +184,13 @@ resource "aws_ecs_task_definition" "backend" {
       # installed by default.
     }
   ])
+
+  # tmpfs volume backing /tmp inside the container. Fargate supports empty
+  # `host {}` volumes; the runtime gives the task an ephemeral writable area
+  # for it without ever touching the host filesystem.
+  volume {
+    name = "tmp"
+  }
 
   # Note: previously had `ignore_changes = [container_definitions]` here as a
   # guard against image-tag drift breaking plans. Removed for now so we can

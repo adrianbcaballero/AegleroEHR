@@ -8,6 +8,7 @@
 # Lower numbers evaluate first.
 
 resource "aws_wafv2_web_acl" "cloudfront" {
+  # checkov:skip=CKV2_AWS_31: WAF logging requires Kinesis Firehose or an S3 logging destination + parser; deferred until the WAF posture is stable and we want full request-level audit.
   count    = var.enable_waf ? 1 : 0
   provider = aws.us_east_1
 
