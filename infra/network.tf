@@ -173,12 +173,15 @@ resource "aws_security_group" "alb" {
   # ever reaches the ALB. Each prefix-list reference counts as ~55 toward the
   # default SG rule quota of 60, so adding a second rule blew past the limit.
 
+  # ALB only ever talks to ECS tasks living in this VPC. Scoping egress to the
+  # VPC CIDR eliminates the "unrestricted egress" finding without changing
+  # behavior — the ALB has no legitimate need to reach the internet.
   egress {
-    description = "Allow outbound to ECS tasks (anywhere in VPC)"
+    description = "Forward to ECS tasks (VPC only)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   tags = {
@@ -203,13 +206,10 @@ resource "aws_security_group" "ecs" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  egress {
-    description = "Outbound to RDS, Secrets Manager, KMS, ECR, etc."
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # Egress rules are defined as standalone aws_security_group_rule resources
+  # below (HTTPS to AWS endpoints + Postgres to RDS). Inline egress is omitted
+  # to avoid the cycle that would form between ecs and rds SG declarations,
+  # and Terraform doesn't allow mixing inline and standalone rules on one SG.
 
   tags = {
     Name = "aeglero-emr-ecs-sg"
@@ -229,19 +229,40 @@ resource "aws_security_group" "rds" {
     security_groups = [aws_security_group.ecs.id]
   }
 
-  # Egress allow-all is fine here because the isolated route table has no
-  # internet route — RDS literally cannot send packets outside the VPC.
-  egress {
-    description = "Egress (route-isolated, no internet path)"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # No egress rules — RDS is a server, it doesn't initiate connections.
+  # SGs are stateful so query responses still flow back to ECS. The isolated
+  # route table has no internet path either, so this is defense-in-depth.
 
   tags = {
     Name = "aeglero-emr-rds-sg"
   }
+}
+
+# ECS tasks need 443 outbound to reach ECR, Secrets Manager, KMS, CloudWatch
+# Logs, and SSM (for ECS exec). All of these are public AWS endpoints reached
+# via NAT — there's no narrower CIDR short of provisioning VPC endpoints for
+# each service (deferred until cost/scale warrants it).
+# trivy:ignore:AVD-AWS-0104 -- HTTPS-only egress to AWS service endpoints via NAT; tighter scoping requires VPC endpoints.
+resource "aws_security_group_rule" "ecs_https_egress" {
+  type              = "egress"
+  description       = "HTTPS to AWS service endpoints (ECR, Secrets, KMS, Logs, SSM)"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.ecs.id
+}
+
+# ECS → RDS Postgres egress, declared standalone to avoid a cycle between the
+# ECS and RDS SG resource declarations.
+resource "aws_security_group_rule" "ecs_to_rds" {
+  type                     = "egress"
+  description              = "Postgres to RDS"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.ecs.id
+  source_security_group_id = aws_security_group.rds.id
 }
 
 # ── VPC Flow Logs to CloudWatch ──

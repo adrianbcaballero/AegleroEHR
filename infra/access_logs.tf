@@ -97,14 +97,16 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
 # ALB needs an explicit ACL grant on the bucket to write its access logs.
 # The "logdelivery" canonical user is the legacy way; the modern way uses a
 # bucket policy granting the AWS Logs service principal. We use the latter.
+# CloudFront access logs use an ACL (above), not a bucket policy, so this
+# resource is gated on the ALB flag specifically.
 resource "aws_s3_bucket_policy" "access_logs" {
-  count  = local.any_access_logs_enabled ? 1 : 0
+  count  = var.enable_alb_access_logs ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = compact([
-      var.enable_alb_access_logs ? {
+    Statement = [
+      {
         Sid    = "AllowALBLogDelivery"
         Effect = "Allow"
         Principal = {
@@ -114,8 +116,8 @@ resource "aws_s3_bucket_policy" "access_logs" {
         }
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.access_logs[0].arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
-      } : null,
-      var.enable_alb_access_logs ? {
+      },
+      {
         Sid       = "AllowALBLogDeliveryAccessLogService"
         Effect    = "Allow"
         Principal = { Service = "delivery.logs.amazonaws.com" }
@@ -126,14 +128,14 @@ resource "aws_s3_bucket_policy" "access_logs" {
             "s3:x-amz-acl" = "bucket-owner-full-control"
           }
         }
-      } : null,
-      var.enable_alb_access_logs ? {
+      },
+      {
         Sid       = "AllowALBLogDeliveryAclCheck"
         Effect    = "Allow"
         Principal = { Service = "delivery.logs.amazonaws.com" }
         Action    = "s3:GetBucketAcl"
         Resource  = aws_s3_bucket.access_logs[0].arn
-      } : null,
-    ])
+      },
+    ]
   })
 }

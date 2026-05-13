@@ -1,4 +1,11 @@
 # ── ECR repository for the Flask backend image ──
+# Tag mutability is intentionally MUTABLE while the deploy workflow pushes a
+# floating `:latest` tag that the ECS task definition references. Flipping to
+# IMMUTABLE requires migrating the deploy to SHA-tagged images (one tag per
+# build, task def updated with the new image URI on each deploy). Tracked as a
+# follow-up — the operational change is non-trivial and unrelated to the rest
+# of this security pass.
+# trivy:ignore:AVD-AWS-0031 -- Required by current :latest-tag deploy workflow; migrate to SHA tags then remove suppression.
 resource "aws_ecr_repository" "backend" {
   name                 = "aeglero-emr-backend"
   image_tag_mutability = "MUTABLE"

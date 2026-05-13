@@ -41,6 +41,12 @@ resource "aws_acm_certificate_validation" "alb" {
 }
 
 # ── Application Load Balancer ──
+# Internet-facing is required so the CloudFront distribution can reach this
+# ALB as an origin. Actual exposure is limited at the SG layer: aws_security_group.alb
+# only allows ingress from the AWS-managed CloudFront origin-facing prefix list,
+# so direct internet traffic is dropped at the SG even though the ALB itself
+# has a public DNS name.
+# trivy:ignore:AVD-AWS-0053 -- ALB sits behind CloudFront; SG restricts ingress to CloudFront prefix list.
 resource "aws_lb" "main" {
   name               = "aeglero-emr-alb"
   internal           = false
