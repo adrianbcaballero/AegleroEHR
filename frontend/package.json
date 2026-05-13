@@ -2,6 +2,7 @@
   "name": "aeglero-emr",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.30.3",
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 5173",
     "build": "next build",
