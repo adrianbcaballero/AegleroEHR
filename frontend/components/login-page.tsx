@@ -131,7 +131,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         <div className="flex flex-col items-center gap-3 mb-8">
           <Image src="/logo.png" alt="Aeglero" width={100} height={100} className="object-contain rounded-lg" />
           <div className="text-center">
-            <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Aeglero EHR</h1>
+            <h1 className="text-2xl font-bold font-heading tracking-tight text-foreground">Aeglero EMR</h1>
             <p className="text-xs text-muted-foreground">Detox &amp; Behavioral Health</p>
           </div>
         </div>

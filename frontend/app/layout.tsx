@@ -8,8 +8,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans' })
 
 export const metadata: Metadata = {
-  title: 'Aeglero - Detox & Behavioral Health EHR',
-  description: 'Secure electronic health records for detox and behavioral health clinics. Built for 42 CFR Part 2 and HIPAA compliance.',
+  title: 'Aeglero - Detox & Behavioral Health EMR',
+  description: 'Secure electronic medical records for detox and behavioral health clinics. Built for 42 CFR Part 2 and HIPAA compliance.',
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon.ico',

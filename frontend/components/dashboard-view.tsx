@@ -56,12 +56,12 @@ export function DashboardView({
             <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
               If you ever need to familiarize yourself with the system, visit{" "}
               <a
-                href="https://aeglero/learning.com"
+                href="https://www.aeglero.com/learning/"
                 target="_blank"
                 rel="noreferrer"
                 className="text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
               >
-                aeglero/learning.com
+                aeglero.com/learning
               </a>{" "}
               for in-depth tutorials and staff training resources.
             </p>
