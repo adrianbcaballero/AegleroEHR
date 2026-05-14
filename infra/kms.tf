@@ -105,11 +105,38 @@ resource "aws_kms_alias" "logs" {
 }
 
 # ── S3 encryption (frontend bundle, ALB logs, CloudFront logs — Phase 3e) ──
+# CloudFront's OAC needs kms:Decrypt on this key to read encrypted objects
+# from the frontend bucket; without it CloudFront can fetch the S3 object but
+# can't decrypt → 403 AccessDenied surfaced to the browser.
 resource "aws_kms_key" "s3" {
   description             = "Encrypts S3 buckets (frontend, access logs)"
   enable_key_rotation     = true
   deletion_window_in_days = 7
-  policy                  = local.kms_root_only_policy
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "EnableRootPermissions"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "AllowCloudFrontOACDecrypt"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "kms:Decrypt"
+        Resource  = "*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.main.arn
+          }
+        }
+      },
+    ]
+  })
 }
 
 resource "aws_kms_alias" "s3" {

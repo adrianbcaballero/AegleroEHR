@@ -133,11 +133,15 @@ resource "aws_ecs_task_definition" "backend" {
       image     = "${aws_ecr_repository.backend.repository_url}:${var.ecs_image_tag}"
       essential = true
 
-      # Root filesystem is read-only — an attacker who pops the app can't drop
-      # tools, modify code, or write malware to disk. Gunicorn and Python need
-      # somewhere writable for worker temp files and any runtime tmp use, so
-      # /tmp is mounted as an in-memory tmpfs volume below.
-      readonlyRootFilesystem = true
+      # Root filesystem read-only is intended but currently broken on this stack:
+      # the Fargate-mounted /tmp ephemeral volume comes up root-owned and the
+      # non-root `app` user (uid 1000) can't write to it, so gunicorn fails at
+      # worker spawn (tempfile.mkstemp → ENOENT). Re-enable after either:
+      #   (a) chowning the volume in an entrypoint shim that starts as root, or
+      #   (b) running the container as root (defeats the purpose), or
+      #   (c) switching to a different temp dir baked into the image with
+      #       correct ownership and setting TMPDIR + gunicorn worker-tmp-dir.
+      readonlyRootFilesystem = false
 
       portMappings = [
         {
