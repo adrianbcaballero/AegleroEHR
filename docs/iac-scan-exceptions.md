@@ -107,6 +107,7 @@ Real improvements that the current posture trades off against cost or app-side c
 | CKV_AWS_144 | All 4 S3 buckets | Cross-region replication | Adds storage cost in a second region; no regulatory requirement for it. CloudTrail bucket already has Object Lock; state bucket has versioning. |
 | CKV2_AWS_57 | All 3 Secrets Manager secrets | Automatic rotation | Requires a Lambda rotator. SECRET_KEY rotation would invalidate every active session mid-request (needs a session-bleed window). DATABASE_URL is derived from db_master and rotates with it. |
 | CKV2_AWS_62 | All 4 S3 buckets | Event notifications | No downstream consumer (no SNS topic, no Lambda) for any of these buckets. Adding empty notifications is noise. |
+| CKV_AWS_336 | `aws_ecs_task_definition.backend` | `readonlyRootFilesystem = true` | Was enabled in the initial security pass and broke gunicorn on Fargate: the mounted /tmp tmpfs comes up root-owned and our non-root `app` user (uid 1000) can't write to it, so `tempfile.mkstemp` fails at worker spawn. Re-enable after adding an entrypoint shim that runs as root, `chown`s the tmpfs to `app:app`, then drops privileges via `gosu` or `su-exec` before `gunicorn` starts. |
 | CKV2_AWS_31 | `aws_wafv2_web_acl.cloudfront` | WAF logging configuration | Requires either Kinesis Firehose to S3 or direct S3 logging + a parser. Deferred until the WAF rule set is stable enough that full request-level audit is worth the cost. |
 
 **Remove these suppressions when:** The corresponding follow-up work lands.

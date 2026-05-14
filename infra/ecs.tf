@@ -119,6 +119,7 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
 
 # ── Task Definition ──
 resource "aws_ecs_task_definition" "backend" {
+  # checkov:skip=CKV_AWS_336: readonlyRootFilesystem=true breaks gunicorn on Fargate with our non-root user — see inline note on the container's readonlyRootFilesystem field below and docs/iac-scan-exceptions.md.
   family                   = "aeglero-emr-backend"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]

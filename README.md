@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://www.aeglero.com">aeglero.com</a> &middot;
-  <a href="https://democlinic.aeglero.com">Live demo</a> (available on request) &middot;
+  <a href="https://democlinic.aeglero.com">democlinic.aeglero.com</a> (available on request) &middot;
   <a href="ARCHITECTURE.md">Architecture</a> &middot;
   <a href="SECURITY.md">Security</a>
 </p>
