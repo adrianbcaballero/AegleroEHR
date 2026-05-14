@@ -1,6 +1,7 @@
 import os
 from flask import Flask, g
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 import config
 from extensions import db, migrate
 from services.config_validator import validate_config
@@ -8,6 +9,21 @@ from services.config_validator import validate_config
 
 def create_app():
     app = Flask(__name__)
+
+    # Behind CloudFront → ALB → Fargate, every internal hop forwards the
+    # original scheme/host/IP via X-Forwarded-* headers. Without ProxyFix
+    # Flask sees the inner HTTP request and generates http:// URLs in
+    # redirects (e.g. trailing-slash 308s), which browsers block as mixed
+    # content when the page was loaded over HTTPS. TRUSTED_PROXY_COUNT=0 in
+    # local dev leaves the wsgi_app untouched.
+    if config.TRUSTED_PROXY_COUNT > 0:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=config.TRUSTED_PROXY_COUNT,
+            x_proto=config.TRUSTED_PROXY_COUNT,
+            x_host=config.TRUSTED_PROXY_COUNT,
+        )
+
     app.config["SQLALCHEMY_DATABASE_URI"] = config.DATABASE_URL
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = config.SECRET_KEY
