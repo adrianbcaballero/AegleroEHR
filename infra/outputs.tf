@@ -1,6 +1,6 @@
 # ── Network ──
 output "vpc_id" {
-  description = "VPC ID — referenced by ECS, RDS, ALB later."
+  description = "VPC ID."
   value       = aws_vpc.main.id
 }
 
@@ -50,7 +50,7 @@ output "kms_key_s3_arn" {
 
 # ── Secrets ──
 output "secret_arn_db_master" {
-  description = "Secrets Manager ARN for the RDS master credentials. Used by RDS module and ECS task definition."
+  description = "Secrets Manager ARN for the RDS master credentials."
   value       = aws_secretsmanager_secret.db_master.arn
 }
 
@@ -61,12 +61,12 @@ output "secret_arn_flask_secret_key" {
 
 # ── RDS ──
 output "rds_endpoint" {
-  description = "RDS connection endpoint (host:port). What ECS uses for DATABASE_URL."
+  description = "RDS connection endpoint (host:port)."
   value       = aws_db_instance.main.endpoint
 }
 
 output "rds_address" {
-  description = "RDS hostname only (no port). For DNS resolution checks."
+  description = "RDS hostname (no port)."
   value       = aws_db_instance.main.address
 }
 
@@ -80,18 +80,18 @@ output "rds_db_name" {
 
 # ── ECR ──
 output "ecr_repository_url" {
-  description = "ECR repository URL for the backend. Tag your local image with this and push."
+  description = "ECR repository URL for the backend image."
   value       = aws_ecr_repository.backend.repository_url
 }
 
 # ── ALB ──
 output "alb_dns_name" {
-  description = "ALB hostname. CloudFront in Phase 3e will point at this. NOT user-facing."
+  description = "ALB hostname. CloudFront uses this as origin; not user-facing."
   value       = aws_lb.main.dns_name
 }
 
 output "alb_zone_id" {
-  description = "ALB hosted zone ID — used for Route 53 alias records pointing at the ALB."
+  description = "ALB hosted zone ID for Route 53 alias records."
   value       = aws_lb.main.zone_id
 }
 
@@ -114,16 +114,16 @@ output "ecs_task_definition_family" {
 
 # ── Frontend / CloudFront ──
 output "frontend_bucket_name" {
-  description = "S3 bucket holding the frontend bundle. Sync `frontend/out/` here."
+  description = "S3 bucket holding the frontend bundle."
   value       = aws_s3_bucket.frontend.id
 }
 
 output "cloudfront_distribution_id" {
-  description = "EMR CloudFront distribution ID. Pass to `aws cloudfront create-invalidation` after deploying."
+  description = "CloudFront distribution ID for invalidations and config updates."
   value       = aws_cloudfront_distribution.main.id
 }
 
 output "cloudfront_domain" {
-  description = "Auto-generated CloudFront hostname. Users hit *.aeglero.com instead — this is for debugging."
+  description = "Auto-generated CloudFront hostname; user traffic uses the wildcard subdomain."
   value       = aws_cloudfront_distribution.main.domain_name
 }

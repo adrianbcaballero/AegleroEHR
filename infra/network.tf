@@ -75,12 +75,10 @@ resource "aws_subnet" "isolated" {
   }
 }
 
-# ── NAT Gateway (single-AZ for cost) ──
-# One NAT in one AZ = ~$32/mo. Two NATs (one per AZ) = ~$64/mo for true HA.
+# ── NAT Gateway (single-AZ) ──
 # An AZ outage taking down the NAT means tasks in that AZ's private subnet
-# can't make outbound calls; ECS would self-heal in the surviving AZ.
-# Future optimization: replace with VPC endpoints for ECR/Secrets/KMS/S3 to
-# drop NAT costs entirely. Ship single-NAT now, optimize when traffic warrants.
+# lose outbound connectivity; ECS self-heals into the surviving AZ.
+# Replace with VPC endpoints for ECR/Secrets/KMS/S3 to eliminate NAT entirely.
 resource "aws_eip" "nat" {
   domain = "vpc"
 
@@ -181,9 +179,8 @@ resource "aws_security_group" "alb" {
   }
 
   # No HTTP (port 80) rule — CloudFront handles HTTP→HTTPS redirects at the
-  # edge with viewer_protocol_policy = "redirect-to-https". No HTTP traffic
-  # ever reaches the ALB. Each prefix-list reference counts as ~55 toward the
-  # default SG rule quota of 60, so adding a second rule blew past the limit.
+  # edge. Each prefix-list reference also consumes ~55 of the default 60
+  # rules-per-SG quota, so a second prefix-list rule would exceed the limit.
 
   # ALB only ever talks to ECS tasks living in this VPC. Scoping egress to the
   # VPC CIDR eliminates the "unrestricted egress" finding without changing

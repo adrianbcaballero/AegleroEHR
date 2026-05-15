@@ -13,7 +13,7 @@ terraform {
   }
 }
 
-# Default provider — us-east-2 for everything except CloudFront's ACM cert.
+# Default provider. CloudFront's ACM cert uses the us_east_1 alias below.
 provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile
@@ -27,7 +27,7 @@ provider "aws" {
   }
 }
 
-# us-east-1 alias — only used later for the CloudFront ACM cert (Phase 3e).
+# us-east-1 alias for the CloudFront ACM cert (CloudFront requires us-east-1).
 provider "aws" {
   alias   = "us_east_1"
   region  = "us-east-1"

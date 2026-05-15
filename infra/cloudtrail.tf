@@ -1,10 +1,9 @@
-# All resources here are conditional on var.enable_cloudtrail. When that flag
-# is false (dev mode), this entire file produces zero AWS resources.
+# All resources in this file are conditional on var.enable_cloudtrail.
 
 # ── Dedicated KMS key for CloudTrail logs ──
-# Separate key so the audit trail can survive even if other keys are rotated
-# or compromised. CloudTrail service principal needs explicit grant in the
-# key policy to encrypt/decrypt.
+# Separate key so the audit trail remains usable if other keys are rotated
+# or compromised. The CloudTrail service principal needs an explicit grant
+# in the key policy.
 resource "aws_kms_key" "cloudtrail" {
   count = var.enable_cloudtrail ? 1 : 0
 
@@ -50,11 +49,9 @@ resource "aws_kms_alias" "cloudtrail" {
 }
 
 # ── S3 bucket for CloudTrail logs ──
-# Object Lock in Governance mode + KMS encryption + lifecycle for retention.
-# Governance mode (vs Compliance) lets the root user override the retention
-# if absolutely necessary, while still preventing routine deletion. For real
-# HIPAA you may prefer Compliance mode; switch by removing the
-# `mode = "GOVERNANCE"` line in the bucket's default retention.
+# Object Lock in Governance mode (root can override retention if absolutely
+# required), KMS encryption, and lifecycle retention. Switch to Compliance mode
+# by changing the `mode` argument on the bucket's default retention block.
 resource "aws_s3_bucket" "cloudtrail" {
   # checkov:skip=CKV_AWS_18: This bucket already stores audit logs (CloudTrail); logging access to it would be circular.
   # checkov:skip=CKV_AWS_21: Versioning IS enabled — see aws_s3_bucket_versioning.cloudtrail. Checkov doesn't link the split resources.
@@ -197,13 +194,12 @@ resource "aws_iam_role_policy" "cloudtrail_cloudwatch" {
 }
 
 # ── SNS topic for CloudTrail delivery notifications ──
-# Topic exists so monitoring/alerting can subscribe later (email, Lambda,
-# Chatbot, etc.). No subscriptions are wired up by default — just having the
-# topic satisfies CKV_AWS_252 and gives an integration point.
+# Topic exists as an integration point for downstream monitoring (email,
+# Lambda, Chatbot). No subscriptions are wired up by default.
 resource "aws_sns_topic" "cloudtrail" {
   count             = var.enable_cloudtrail ? 1 : 0
   name              = "aeglero-emr-cloudtrail-notifications"
-  kms_master_key_id = aws_kms_key.logs.arn # SSE via the audit-pipeline CMK
+  kms_master_key_id = aws_kms_key.logs.arn
 }
 
 resource "aws_sns_topic_policy" "cloudtrail" {
@@ -228,8 +224,7 @@ resource "aws_sns_topic_policy" "cloudtrail" {
 }
 
 # ── The trail itself ──
-# Multi-region so we capture events from any region operations.
-# include_global_service_events captures IAM, CloudFront, Route 53 etc.
+# Multi-region. include_global_service_events captures IAM, CloudFront, Route 53.
 resource "aws_cloudtrail" "main" {
   # checkov:skip=CKV2_AWS_10: CloudWatch Logs integration IS configured — see cloud_watch_logs_group_arn / cloud_watch_logs_role_arn below. Checkov misreports the link.
   count = var.enable_cloudtrail ? 1 : 0
@@ -245,8 +240,8 @@ resource "aws_cloudtrail" "main" {
   cloud_watch_logs_group_arn = "${aws_cloudwatch_log_group.cloudtrail[0].arn}:*"
   cloud_watch_logs_role_arn  = aws_iam_role.cloudtrail_cloudwatch[0].arn
 
-  # Capture all management events (default). Data events (S3 object reads,
-  # Lambda invokes) would be cost-prohibitive at scale; skip them.
+  # Capture management events only; data events (S3 object reads, Lambda
+  # invocations) are not enabled.
   event_selector {
     read_write_type           = "All"
     include_management_events = true

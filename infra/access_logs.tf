@@ -1,20 +1,19 @@
 # Shared S3 bucket for ALB and CloudFront access logs. Created only when at
-# least one of the two log-emitting features is enabled, so dev mode skips
-# the bucket entirely.
+# least one of the two log-emitting features is enabled.
 
 locals {
   any_access_logs_enabled = var.enable_alb_access_logs || var.enable_cloudfront_access_logs
 }
 
 resource "aws_s3_bucket" "access_logs" {
-  # checkov:skip=CKV_AWS_18: This bucket IS the access-log target; logging it back to itself is circular.
-  # checkov:skip=CKV_AWS_144: Cross-region replication is dev-mode-incompatible cost; access logs are operational, not regulatory.
-  # checkov:skip=CKV_AWS_145: CloudFront standard logging only supports SSE-S3 (AES256), not SSE-KMS — see aws_s3_bucket_server_side_encryption_configuration.access_logs.
-  # checkov:skip=CKV2_AWS_61: Lifecycle is defined in aws_s3_bucket_lifecycle_configuration.access_logs below (90-day expiration).
-  # checkov:skip=CKV2_AWS_62: No downstream consumer for S3 events on this bucket.
+  # checkov:skip=CKV_AWS_18: This bucket is itself the access-log target.
+  # checkov:skip=CKV_AWS_144: Cross-region replication not used; see docs/iac-scan-exceptions.md.
+  # checkov:skip=CKV_AWS_145: CloudFront standard logging requires SSE-S3, not SSE-KMS.
+  # checkov:skip=CKV2_AWS_61: Lifecycle defined in aws_s3_bucket_lifecycle_configuration.access_logs.
+  # checkov:skip=CKV2_AWS_62: No downstream consumer for bucket events.
   count         = local.any_access_logs_enabled ? 1 : 0
   bucket        = "aeglero-emr-access-logs"
-  force_destroy = true # iteration-friendly; flip to false before going to production-on-real-data
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_versioning" "access_logs" {
@@ -26,11 +25,10 @@ resource "aws_s3_bucket_versioning" "access_logs" {
   }
 }
 
-# CloudFront access logs are written by the CloudFront service. CloudFront does
-# NOT support SSE-KMS for its log destination (a long-standing limitation), so
-# the bucket uses AES256 (SSE-S3) instead. ALB tolerates either.
+# CloudFront standard logging does not support SSE-KMS for its log destination,
+# so this bucket uses AES256 (SSE-S3). ALB tolerates either algorithm.
 resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
-  # checkov:skip=CKV_AWS_145: CloudFront standard logging only supports SSE-S3 (AES256), not SSE-KMS.
+  # checkov:skip=CKV_AWS_145: CloudFront standard logging requires SSE-S3.
   count  = local.any_access_logs_enabled ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
 
@@ -51,13 +49,12 @@ resource "aws_s3_bucket_public_access_block" "access_logs" {
   restrict_public_buckets = true
 }
 
-# CloudFront's legacy log delivery requires the bucket to have ACLs enabled
-# (BucketOwnerPreferred or ObjectWriter). The "log-delivery-write" canned ACL
-# below grants AWS's awslogsdelivery canonical user write permission, which
-# is what CloudFront standard logging uses. ALB uses a bucket policy instead,
-# so the two mechanisms coexist without interference.
+# CloudFront standard log delivery requires ACL-enabled ownership
+# (BucketOwnerPreferred or ObjectWriter). The log-delivery-write ACL below
+# grants the AWS log-delivery canonical user write access. ALB uses the
+# bucket-policy path instead and tolerates either ownership mode.
 resource "aws_s3_bucket_ownership_controls" "access_logs" {
-  # checkov:skip=CKV2_AWS_65: CloudFront standard log delivery requires ACL-enabled ownership (BucketOwnerPreferred); BucketOwnerEnforced breaks delivery.
+  # checkov:skip=CKV2_AWS_65: CloudFront standard log delivery requires ACL-enabled ownership.
   count  = local.any_access_logs_enabled ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
 
@@ -66,9 +63,8 @@ resource "aws_s3_bucket_ownership_controls" "access_logs" {
   }
 }
 
-# Only needed when CloudFront access logs are enabled. The canned ACL grants
-# the AWS Log Delivery canonical user write access to the bucket. ALB logging
-# doesn't need this; it uses the bucket policy path.
+# ACL required for CloudFront standard log delivery only. ALB uses the
+# bucket-policy path and does not require this ACL.
 resource "aws_s3_bucket_acl" "access_logs_cloudfront" {
   count  = var.enable_cloudfront_access_logs ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
@@ -77,8 +73,8 @@ resource "aws_s3_bucket_acl" "access_logs_cloudfront" {
   depends_on = [aws_s3_bucket_ownership_controls.access_logs]
 }
 
-# Expire access log files after 90 days. They're operational, not regulatory —
-# CloudTrail handles the long-retention audit case separately.
+# Expire access log files after 90 days. CloudTrail handles long-retention
+# audit retention separately.
 resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   count  = local.any_access_logs_enabled ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
@@ -101,11 +97,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
   depends_on = [aws_s3_bucket_versioning.access_logs]
 }
 
-# ALB needs an explicit ACL grant on the bucket to write its access logs.
-# The "logdelivery" canonical user is the legacy way; the modern way uses a
-# bucket policy granting the AWS Logs service principal. We use the latter.
-# CloudFront access logs use an ACL (above), not a bucket policy, so this
-# resource is gated on the ALB flag specifically.
+# ALB log delivery uses a bucket policy granting the regional ELB account and
+# the AWS log-delivery service principal. CloudFront uses the ACL path above,
+# so this policy is gated specifically on the ALB flag.
 resource "aws_s3_bucket_policy" "access_logs" {
   count  = var.enable_alb_access_logs ? 1 : 0
   bucket = aws_s3_bucket.access_logs[0].id
@@ -117,7 +111,7 @@ resource "aws_s3_bucket_policy" "access_logs" {
         Sid    = "AllowALBLogDelivery"
         Effect = "Allow"
         Principal = {
-          # us-east-2 ELB account ID. Region-specific; lookup table at
+          # Region-specific ELB account ID (us-east-2). Lookup table:
           # https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html
           AWS = "arn:aws:iam::033677994240:root"
         }

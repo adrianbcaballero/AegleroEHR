@@ -47,10 +47,9 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 }
 
 # ── Security headers policy ──
-# Browsers honor these on every response CloudFront serves. We don't manage a
-# CSP here because the Next.js app pulls in inline scripts/styles for hydration
-# and adding a CSP without auditing every page risks breaking the UI; revisit
-# once the frontend has a build-time CSP plugin or per-route nonces.
+# HSTS, X-Content-Type-Options, frame deny, referrer policy. CSP is not set
+# here; the Next.js runtime relies on inline scripts/styles that would require
+# nonce-based CSP or a build-time plugin to remove.
 resource "aws_cloudfront_response_headers_policy" "security" {
   name    = "aeglero-emr-security-headers"
   comment = "HSTS, X-Content-Type-Options, frame deny, referrer policy"
@@ -85,16 +84,16 @@ resource "aws_cloudfront_response_headers_policy" "security" {
 resource "aws_cloudfront_function" "rewrite" {
   name    = "aeglero-emr-rewrite"
   runtime = "cloudfront-js-2.0"
-  comment = "Resolve clean URLs against Next.js static-export trailingSlash output"
+  comment = "Resolve clean URLs for Next.js static export"
   publish = true
   code    = file("${path.module}/cloudfront-rewrite.js")
 }
 
 # ── CloudFront Distribution ──
 resource "aws_cloudfront_distribution" "main" {
-  # checkov:skip=CKV_AWS_310: Single-origin design — failover requires a second regional ALB, deferred until we run active-active.
-  # checkov:skip=CKV_AWS_374: US-only clinic base; geo restriction is a deny-list feature we'd revisit when international tenants arrive.
-  # checkov:skip=CKV2_AWS_47: AWSManagedRulesKnownBadInputsRuleSet (attached in waf.tf) already covers Log4j; CKV2_AWS_47 wants a duplicate rule group.
+  # checkov:skip=CKV_AWS_310: Single-origin design; see docs/iac-scan-exceptions.md.
+  # checkov:skip=CKV_AWS_374: Geo restriction not in use; see docs/iac-scan-exceptions.md.
+  # checkov:skip=CKV2_AWS_47: Log4j coverage provided by KnownBadInputs rule set in waf.tf.
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "Aeglero EMR — multi-tenant"
@@ -126,8 +125,8 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   # ── Origin 2: ALB backend (custom origin) ──
-  # Origin domain is api.aeglero.com (Route 53 record below). This makes the
-  # `*.aeglero.com` cert match during the CloudFront→ALB TLS handshake.
+  # Origin domain is an api.<domain> alias (Route 53 record below) so the
+  # wildcard cert matches during the CloudFront→ALB TLS handshake.
   origin {
     domain_name = "api.${var.domain_name}"
     origin_id   = "alb-backend"
@@ -160,10 +159,9 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # ── /api/* → ALB, no cache, forward everything ──
-  # AllViewer origin request policy forwards Host, cookies, query strings, all
-  # headers. That's how the backend's get_slug_from_host() sees the user's
-  # actual subdomain (e.g. democlinic.aeglero.com) instead of api.aeglero.com.
+  # ── /api/* → ALB, no cache, forward all viewer headers ──
+  # AllViewer origin request policy forwards Host, cookies, query strings,
+  # and all headers so the backend sees the original viewer Host.
   ordered_cache_behavior {
     path_pattern           = "/api/*"
     allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
@@ -210,10 +208,9 @@ resource "aws_cloudfront_distribution" "main" {
 
 # ── DNS records ──
 
-# api.aeglero.com → ALB. CloudFront uses this as origin so the *.aeglero.com
-# cert matches during the TLS handshake. This record is publicly resolvable,
-# but the ALB security group restricts ingress to CloudFront IPs only, so a
-# direct connection from any non-CloudFront source is blocked at the SG.
+# api.<domain> → ALB alias. CloudFront uses this as origin so the wildcard cert
+# matches during the TLS handshake. The record is publicly resolvable, but the
+# ALB security group restricts ingress to CloudFront origin IPs only.
 resource "aws_route53_record" "api_alb" {
   zone_id = data.aws_route53_zone.primary.zone_id
   name    = "api.${var.domain_name}"
@@ -227,9 +224,8 @@ resource "aws_route53_record" "api_alb" {
 }
 
 # Wildcard A-alias for tenant subdomains → CloudFront. More-specific records
-# (aeglero.com, www.aeglero.com from the marketing CF, api.aeglero.com → ALB)
-# take precedence, so this catches everything else: democlinic.aeglero.com,
-# clinic2.aeglero.com, etc.
+# in the zone (apex, www, api.<domain>) take precedence; this catches
+# everything else.
 resource "aws_route53_record" "wildcard" {
   zone_id = data.aws_route53_zone.primary.zone_id
   name    = "*.${var.domain_name}"

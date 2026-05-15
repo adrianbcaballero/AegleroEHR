@@ -1,10 +1,7 @@
-# Per-concern KMS keys keep IAM scoping clean and rotation independent.
-# Each key is ~$1/month; total ~$4/month for the four below.
+# Per-concern KMS keys keep IAM scoping and rotation independent.
 
-# Without an explicit policy, AWS attaches a default policy granting the
-# account root full key use. That's the same thing we set below — but
-# Checkov (CKV2_AWS_64) and several auditors want to see the policy declared
-# explicitly so it's reviewable in source rather than inferred from defaults.
+# Explicit root-only key policy. Declared in source rather than relying on
+# AWS's implicit default so that the policy is reviewable and scanner-visible.
 locals {
   kms_root_only_policy = jsonencode({
     Version = "2012-10-17"
@@ -82,10 +79,8 @@ resource "aws_kms_key" "logs" {
         }
       },
       {
-        # SNS uses this key to encrypt CloudTrail delivery-notification messages
-        # (see aws_sns_topic.cloudtrail in cloudtrail.tf). Reusing the logs key
-        # keeps audit-pipeline encryption under one CMK instead of provisioning
-        # a separate ~$1/month key just for one topic.
+        # SNS encrypts CloudTrail delivery-notification messages with this key
+        # (see aws_sns_topic.cloudtrail in cloudtrail.tf).
         Sid       = "AllowSNSForCloudTrailNotifications"
         Effect    = "Allow"
         Principal = { Service = "sns.amazonaws.com" }
@@ -104,7 +99,7 @@ resource "aws_kms_alias" "logs" {
   target_key_id = aws_kms_key.logs.key_id
 }
 
-# ── S3 encryption (frontend bundle, ALB logs, CloudFront logs — Phase 3e) ──
+# ── S3 encryption (frontend bundle, ALB logs, CloudFront logs) ──
 # CloudFront's OAC needs kms:Decrypt on this key to read encrypted objects
 # from the frontend bucket; without it CloudFront can fetch the S3 object but
 # can't decrypt → 403 AccessDenied surfaced to the browser.

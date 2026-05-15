@@ -5,12 +5,10 @@ data "aws_route53_zone" "primary" {
 }
 
 # ── ACM cert for the ALB ──
-# Wildcard covers every tenant subdomain (democlinic.aeglero.com,
-# clinic2.aeglero.com, etc). DNS-validated since the zone lives in this account.
-# This cert is the REGIONAL one for the ALB. CloudFront in Phase 3e gets its
-# own cert in us-east-1 (CloudFront's hard requirement).
+# Wildcard cert covers every tenant subdomain. DNS-validated against the
+# Route 53 zone in this account. CloudFront uses a separate us-east-1 cert.
 resource "aws_acm_certificate" "alb" {
-  # checkov:skip=CKV2_AWS_71: Wildcard is required for the multi-tenant subdomain model (every tenant gets its own *.aeglero.com host).
+  # checkov:skip=CKV2_AWS_71: Wildcard required for the multi-tenant subdomain model.
   domain_name       = "*.${var.domain_name}"
   validation_method = "DNS"
 
@@ -42,31 +40,28 @@ resource "aws_acm_certificate_validation" "alb" {
 }
 
 # ── Application Load Balancer ──
-# Internet-facing is required so the CloudFront distribution can reach this
-# ALB as an origin. Actual exposure is limited at the SG layer: aws_security_group.alb
-# only allows ingress from the AWS-managed CloudFront origin-facing prefix list,
-# so direct internet traffic is dropped at the SG even though the ALB itself
-# has a public DNS name.
-# trivy:ignore:AVD-AWS-0053 -- ALB sits behind CloudFront; SG restricts ingress to CloudFront prefix list.
+# Internet-facing so the CloudFront distribution can reach it as an origin.
+# Ingress is restricted at the security-group layer to the AWS-managed
+# CloudFront origin-facing prefix list.
+# trivy:ignore:AVD-AWS-0053 -- See docs/iac-scan-exceptions.md.
 resource "aws_lb" "main" {
-  # checkov:skip=CKV_AWS_150: Deletion protection toggled via var.alb_deletion_protection; off in dev for iteration speed.
-  # checkov:skip=CKV2_AWS_28: WAF runs at the CloudFront edge (waf.tf); attaching a regional WAF to this ALB would duplicate rules and double cost.
+  # checkov:skip=CKV_AWS_150: Deletion protection toggled via var.alb_deletion_protection.
+  # checkov:skip=CKV2_AWS_28: WAF runs at the CloudFront edge; see waf.tf.
   name               = "aeglero-emr-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
-  # idle_timeout default 60s. Bump if we have long-running uploads later.
   idle_timeout = 60
 
-  # Drop invalid HTTP requests at the LB instead of forwarding garbage to ECS.
+  # Reject malformed HTTP at the LB before forwarding.
   drop_invalid_header_fields = true
 
-  enable_deletion_protection = false  # keep iteration friendly
+  enable_deletion_protection = false
   enable_http2               = true
 
-  # Access logs to S3 — only enabled when var.enable_alb_access_logs is true.
+  # Access logs to S3, gated on var.enable_alb_access_logs.
   dynamic "access_logs" {
     for_each = var.enable_alb_access_logs ? [1] : []
     content {
@@ -80,15 +75,13 @@ resource "aws_lb" "main" {
 }
 
 # ── Target group ──
-# Points at the ECS tasks on port 5000. Health check on /healthz (the endpoint
-# we already added to the Flask app). Multi-AZ since the targets span both
-# private subnets via the ECS service network configuration.
+# Targets ECS tasks on port 5000. Fargate's awsvpc mode requires target_type = "ip".
 resource "aws_lb_target_group" "backend" {
   name        = "aeglero-emr-backend-tg"
   port        = 5000
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
-  target_type = "ip"  # Fargate uses awsvpc mode → targets are IPs, not instance IDs
+  target_type = "ip"
 
   health_check {
     path                = "/healthz"
@@ -99,13 +92,13 @@ resource "aws_lb_target_group" "backend" {
     matcher             = "200"
   }
 
-  # Stickiness off — stateless app; sessions live in cookies/DB, not memory.
+  # Stateless app; sessions are cookie-based.
   stickiness {
     enabled = false
     type    = "lb_cookie"
   }
 
-  deregistration_delay = 30  # let in-flight requests finish before draining
+  deregistration_delay = 30
 }
 
 # ── HTTPS listener ──
@@ -113,7 +106,7 @@ resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.main.arn
   port              = 443
   protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"  # TLS 1.2+ only
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   certificate_arn   = aws_acm_certificate_validation.alb.certificate_arn
 
   default_action {
@@ -122,8 +115,6 @@ resource "aws_lb_listener" "https" {
   }
 }
 
-# NOTE: No ALB HTTP listener — CloudFront's `viewer_protocol_policy =
-# "redirect-to-https"` handles the HTTP-to-HTTPS redirect at the edge before
-# any traffic reaches this ALB. Adding a port-80 listener here would also
-# require a port-80 ingress rule on the SG referencing the CloudFront prefix
-# list, which doubles the effective rule count and trips the per-SG quota.
+# No HTTP listener — CloudFront performs HTTP→HTTPS redirects at the edge.
+# A port-80 ingress rule would also exceed the per-SG rule quota due to the
+# CloudFront prefix-list footprint.

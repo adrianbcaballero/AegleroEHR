@@ -1,14 +1,9 @@
 # AWS WAF on CloudFront. All resources are conditional on var.enable_waf.
-#
-# CloudFront-scoped WAF MUST live in us-east-1 (CloudFront's hard requirement,
-# same as its ACM cert). Hence the aws.us_east_1 provider alias on each
-# resource here.
-#
-# Rule priorities are arbitrary but must be unique within the Web ACL.
-# Lower numbers evaluate first.
+# CloudFront-scoped WAF must live in us-east-1 (the aws.us_east_1 alias).
+# Rule priorities must be unique within the Web ACL; lower numbers evaluate first.
 
 resource "aws_wafv2_web_acl" "cloudfront" {
-  # checkov:skip=CKV2_AWS_31: WAF logging requires Kinesis Firehose or an S3 logging destination + parser; deferred until the WAF posture is stable and we want full request-level audit.
+  # checkov:skip=CKV2_AWS_31: WAF logging deferred; see docs/iac-scan-exceptions.md.
   count    = var.enable_waf ? 1 : 0
   provider = aws.us_east_1
 
@@ -90,8 +85,7 @@ resource "aws_wafv2_web_acl" "cloudfront" {
   }
 
   # ── Rule 4: Per-IP rate limit ──
-  # Blocks any single IP making more than 2000 requests in a 5-minute window.
-  # Generous threshold; legitimate users won't hit it.
+  # Blocks any single IP exceeding 2000 requests in a 5-minute window.
   rule {
     name     = "RateLimitPerIP"
     priority = 10

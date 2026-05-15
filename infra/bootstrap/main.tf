@@ -1,6 +1,6 @@
 # ── KMS key dedicated to encrypting Terraform state ──
-# Customer-managed (not aws/s3) so we control rotation, key policy, and audit
-# logs separately from any application data keys we'll create later.
+# Customer-managed (not aws/s3) so rotation, key policy, and audit logs are
+# controlled independently of application data keys.
 data "aws_caller_identity" "current" {}
 
 resource "aws_kms_key" "tfstate" {
@@ -8,10 +8,8 @@ resource "aws_kms_key" "tfstate" {
   enable_key_rotation     = true
   deletion_window_in_days = 7
 
-  # Explicit root-only policy (functionally identical to AWS's auto-generated
-  # default, but declared in source so Checkov CKV2_AWS_64 and auditors can
-  # see it). Tighten with named principals later if multiple IAM users need
-  # to apply terraform directly.
+  # Explicit root-only policy; declared in source rather than relying on
+  # AWS's implicit default so the policy is reviewable and scanner-visible.
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -31,18 +29,16 @@ resource "aws_kms_alias" "tfstate" {
 
 # ── State bucket ──
 resource "aws_s3_bucket" "tfstate" {
-  # checkov:skip=CKV_AWS_18: Bootstrap-only state bucket; access logging would create a second bucket needing its own bootstrap and adds no audit value over CloudTrail data events (not enabled here for cost).
-  # checkov:skip=CKV_AWS_144: Cross-region replication for Terraform state is overkill — state is regenerable via `terraform plan/import` and the bucket already has versioning + Object Lock.
+  # checkov:skip=CKV_AWS_18: Bootstrap-only state bucket; CloudTrail covers audit.
+  # checkov:skip=CKV_AWS_144: State is regenerable; versioning + Object Lock suffice.
   # checkov:skip=CKV2_AWS_62: No downstream consumer for state-bucket events.
   bucket = var.state_bucket_name
 
-  # State buckets should never be force-destroyed casually — losing state
-  # means losing track of every resource Terraform manages. Keep this off.
+  # Never force-destroy the state bucket; losing state means losing track of
+  # every resource Terraform manages.
   force_destroy = false
 }
 
-# Block all public access — defense in depth even though no public policy
-# could grant access here.
 resource "aws_s3_bucket_public_access_block" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
 
@@ -52,7 +48,7 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   restrict_public_buckets = true
 }
 
-# Versioning lets us roll back if a bad apply corrupts state.
+# Versioning enables state rollback after a bad apply.
 resource "aws_s3_bucket_versioning" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
 
@@ -61,9 +57,7 @@ resource "aws_s3_bucket_versioning" "tfstate" {
   }
 }
 
-# SSE-KMS with our customer-managed key.
-# bucket_key_enabled batches KMS calls so encryption costs are negligible
-# even on heavy state writes.
+# SSE-KMS via the customer-managed key. bucket_key_enabled batches KMS calls.
 resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
 
@@ -77,8 +71,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
   }
 }
 
-# Expire old state versions after 90 days. Keeps the bucket from growing
-# unbounded while still leaving a recovery window for accidents.
+# Expire old state versions after 90 days.
 resource "aws_s3_bucket_lifecycle_configuration" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
 
@@ -86,7 +79,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "tfstate" {
     id     = "expire-old-versions"
     status = "Enabled"
 
-    filter {} # apply to entire bucket
+    filter {}
 
     noncurrent_version_expiration {
       noncurrent_days = 90
@@ -101,8 +94,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "tfstate" {
 }
 
 # ── DynamoDB lock table ──
-# Pay-per-request: zero cost when idle, no capacity planning.
-# Schema: single string PK called "LockID" — required by Terraform's S3 backend.
+# Single string PK named "LockID" as required by Terraform's S3 backend.
 resource "aws_dynamodb_table" "tflock" {
   name         = var.lock_table_name
   billing_mode = "PAY_PER_REQUEST"
@@ -118,8 +110,6 @@ resource "aws_dynamodb_table" "tflock" {
     kms_key_arn = aws_kms_key.tfstate.arn
   }
 
-  # Lock table contains no PHI — just lock IDs and timestamps — but PITR is
-  # cheap insurance against accidental deletion.
   point_in_time_recovery {
     enabled = true
   }

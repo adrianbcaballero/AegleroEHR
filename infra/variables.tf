@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "aws_profile" {
-  description = "AWS CLI profile (must be the Aeglero account)."
+  description = "AWS CLI profile to use for this deployment."
   type        = string
   default     = "aeglero"
 }
@@ -29,73 +29,71 @@ variable "azs" {
 }
 
 variable "db_username" {
-  description = "Postgres master username. Default is fine; the password is generated and stored in Secrets Manager."
+  description = "Postgres master username. Password is generated and stored in Secrets Manager."
   type        = string
   default     = "aeglero_admin"
 }
 
 variable "log_retention_days" {
-  description = "Days to retain CloudWatch Logs (audit, flow logs, app logs). HIPAA needs at least 6 months; 1 year is safe default."
+  description = "Days to retain CloudWatch Logs (audit, flow logs, app logs)."
   type        = number
   default     = 365
 }
 
 variable "rds_deletion_protection" {
-  description = "Prevent accidental deletion of the database. Production: true. Iteration testing: set to false in tfvars."
+  description = "Prevent accidental deletion of the database."
   type        = bool
   default     = true
 }
 
 variable "rds_skip_final_snapshot" {
-  description = "Skip the final snapshot on `terraform destroy`. Production: false (so you have a recovery snapshot). Iteration testing: set to true."
+  description = "Skip the final snapshot on `terraform destroy`."
   type        = bool
   default     = false
 }
 
-# ── Cost-vs-compliance toggles ──
-# Pattern: variable defaults reflect production-tuned values. `terraform.tfvars`
-# overrides each one back to dev mode for daily/testing use. `prod.tfvars` flips
-# them all on for the full HIPAA-aligned deployment. Run dev daily, run prod
-# when you actually need the security posture.
+# ── Compliance feature toggles ──
+# Defaults reflect the production posture. `terraform.tfvars` opts down for
+# iteration; `prod.tfvars` keeps everything on for the HIPAA-aligned deploy.
 
 variable "rds_multi_az" {
-  description = "Enable RDS Multi-AZ standby for automatic failover. Adds ~$0.40/day."
+  description = "Enable RDS Multi-AZ standby for automatic failover."
   type        = bool
   default     = true
 }
 
 variable "enable_cloudtrail" {
-  description = "Account-wide CloudTrail trail with KMS-encrypted, object-locked S3 bucket. HIPAA-aligned admin audit trail. Cost: pennies/day."
+  description = "Account-wide CloudTrail with KMS-encrypted, object-locked S3 bucket."
   type        = bool
   default     = true
 }
 
 variable "enable_waf" {
-  description = "AWS WAF on CloudFront with managed rule groups (common, known-bad inputs, SQLi). Adds ~$0.50/day."
+  description = "AWS WAF on CloudFront with managed rule groups (common, known-bad inputs, SQLi)."
   type        = bool
   default     = true
 }
 
 variable "enable_guardduty" {
-  description = "GuardDuty threat detection across CloudTrail, VPC Flow Logs, DNS logs. Free 30-day trial, then ~$1-3/day."
+  description = "GuardDuty threat detection across CloudTrail, VPC Flow Logs, and DNS logs."
   type        = bool
   default     = true
 }
 
 variable "enable_alb_access_logs" {
-  description = "ALB writes access logs to S3 for after-the-fact request analysis. Cost: pennies/day."
+  description = "ALB writes access logs to S3."
   type        = bool
   default     = true
 }
 
 variable "enable_cloudfront_access_logs" {
-  description = "CloudFront writes edge access logs to S3. Cost: pennies/day."
+  description = "CloudFront writes edge access logs to S3."
   type        = bool
   default     = true
 }
 
 variable "cloudtrail_retention_days" {
-  description = "How many days to retain CloudTrail logs under S3 Object Lock governance mode. HIPAA minimum is 6 years (2190 days); 7 years (2555) is conservative default. Set lower in dev if you ever enable CloudTrail there."
+  description = "Days to retain CloudTrail logs under S3 Object Lock governance mode. Default 2555 (~7 years)."
   type        = number
   default     = 2555
 }
@@ -133,14 +131,14 @@ variable "ecs_image_tag" {
 }
 
 variable "ecs_desired_count" {
-  description = "Number of ECS tasks to keep running. Set to 0 before pushing your first image, then 1 after."
+  description = "Number of ECS tasks to keep running."
   type        = number
   default     = 0
 }
 
 # ── App config ──
 variable "cors_origins" {
-  description = "Comma-separated list of allowed CORS origins. For one tenant: 'https://democlinic.aeglero.com'. Add more as you onboard tenants."
+  description = "Comma-separated list of allowed CORS origins."
   type        = string
   default     = "https://democlinic.aeglero.com"
 }

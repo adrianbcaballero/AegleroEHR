@@ -68,7 +68,7 @@ Examples below use the dev account values from a real deploy — substitute your
 
 ### 0. Prep
 
-Make sure the right AWS profile is active. The terraform code assumes account `300724397697` in `us-east-2`.
+Make sure the right AWS profile is active. The terraform code defaults to `us-east-2`; update `terraform.tfvars` / `variables.tf` for a different region.
 
 ```bash
 export AWS_PROFILE=aeglero          # bash

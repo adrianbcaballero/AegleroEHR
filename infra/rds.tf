@@ -70,7 +70,7 @@ resource "aws_cloudwatch_log_group" "rds_postgresql" {
 
 # ── RDS Postgres instance ──
 resource "aws_db_instance" "main" {
-  # checkov:skip=CKV_AWS_157: Multi-AZ toggled via var.rds_multi_az; off in dev (~$0.40/day savings), prod.tfvars flips it on.
+  # checkov:skip=CKV_AWS_157: Multi-AZ toggled via var.rds_multi_az per deployment mode.
   # checkov:skip=CKV_AWS_293: Deletion protection toggled via var.rds_deletion_protection; off in dev so teardowns aren't blocked.
   # checkov:skip=CKV_AWS_161: App authenticates via Secrets Manager-managed password; IAM auth requires SDK changes to the Flask app and is deferred.
   identifier     = "aeglero-emr-db"
@@ -90,8 +90,7 @@ resource "aws_db_instance" "main" {
   username = var.db_username
   password = jsondecode(aws_secretsmanager_secret_version.db_master.secret_string)["password"]
 
-  # HA — Multi-AZ standby for failover. Controlled by var.rds_multi_az so dev
-  # mode can save ~$0.40/day by running single-AZ. Prod always Multi-AZ.
+  # Multi-AZ standby for failover; controlled via var.rds_multi_az.
   multi_az = var.rds_multi_az
 
   # Network — isolated subnets, RDS SG, no public access
@@ -100,26 +99,22 @@ resource "aws_db_instance" "main" {
   publicly_accessible    = false
   port                   = 5432
 
-  # Backups — 7-day retention is the minimum for HIPAA-aligned RPO; PITR is
-  # automatic when retention > 0.
+  # Backups — 7-day retention enables PITR.
   backup_retention_period   = 7
   backup_window             = "03:00-04:00"          # UTC
   maintenance_window        = "sun:04:00-sun:05:00"  # UTC, after backup window
   copy_tags_to_snapshot     = true
   delete_automated_backups  = true
 
-  # Logs
   enabled_cloudwatch_logs_exports = ["postgresql"]
 
-  # Monitoring
   monitoring_interval = 60
   monitoring_role_arn = aws_iam_role.rds_monitoring.arn
 
   performance_insights_enabled          = true
   performance_insights_kms_key_id       = aws_kms_key.rds.arn
-  performance_insights_retention_period = 7  # 7 days = free tier
+  performance_insights_retention_period = 7
 
-  # Lifecycle — both controlled by variables so testing can flip them off
   deletion_protection       = var.rds_deletion_protection
   skip_final_snapshot       = var.rds_skip_final_snapshot
   final_snapshot_identifier = var.rds_skip_final_snapshot ? null : "aeglero-emr-db-final-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
