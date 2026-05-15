@@ -69,6 +69,16 @@ Each clinic gets its own subdomain (e.g. `democlinic.aeglero.com`). The Host hea
 
 For the multi-tenancy model, auth flow, permission system, and audit-log integrity scheme, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Security architecture
+
+<p align="center">
+  <img src="assets/security-architecture.svg" alt="Security architecture: trust boundaries, encryption keys, audit pipeline, and CI security gates" width="95%">
+</p>
+
+Three-tier subnet isolation enforces network boundaries — public for the ALB, private for ECS Fargate, isolated (with no internet route) for RDS. Four customer-managed KMS keys with annual rotation cover RDS, Secrets Manager, CloudWatch Logs, and S3. A SHA-256 hash-chained audit log lives in the database, with each entry referencing the previous entry's hash so any modification is mathematically detectable (ONC §170.315(d)(2)). CloudTrail, WAF, and GuardDuty are controlled by production feature flags, and every CI pipeline run gates merges on Bandit, pip-audit, Trivy, and Checkov scans.
+
+For the full control catalog mapped to HIPAA §164.312 and 42 CFR Part 2, see [SECURITY.md](SECURITY.md).
+
 ## Key features
 
 ### Clinical workflow
