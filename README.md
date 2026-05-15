@@ -43,6 +43,12 @@ Aeglero takes the operational complexity off their plate. Beds, episodes, consen
   </a>
 </p>
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=9aTmj40FKGs">
+    <img src="https://img.shields.io/static/v1?label=&message=%28Or%20Watch%20on%20YouTube%29&color=FF0000&style=for-the-badge&logo=youtube&logoColor=white" alt="Or watch on YouTube">
+  </a>
+</p>
+
 ## Tech stack
 
 | Layer | Stack |
