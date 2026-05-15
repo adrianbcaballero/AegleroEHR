@@ -35,6 +35,14 @@ Detox and rehab clinics operate under conditions you don't see in regular health
 
 Aeglero takes the operational complexity off their plate. Beds, episodes, consents, required-form gates, and audit trails are all first-class concepts in the system. Clinical staff focus on the patient. The software handles the rest.
 
+<h3 align="center">Welcome to Aeglero — one-minute overview</h3>
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=9aTmj40FKGs">
+    <img src="https://img.youtube.com/vi/9aTmj40FKGs/maxresdefault.jpg" alt="Welcome to Aeglero!" width="75%">
+  </a>
+</p>
+
 ## Tech stack
 
 | Layer | Stack |
