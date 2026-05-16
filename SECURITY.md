@@ -100,9 +100,10 @@ See `backend/app.py:add_security_headers()`.
 
 - **CloudWatch Logs** for application output, with KMS encryption and 365-day retention
 - **VPC Flow Logs** for network-level visibility
-- (Phase 3f — planned) **CloudTrail** with S3 object-lock for AWS API audit log
-- (Phase 3f — planned) **AWS Config** for continuous compliance state monitoring
-- (Phase 3f — planned) **AWS WAF** on CloudFront for L7 protection (rate limiting, common attack patterns)
+- **CloudTrail** — multi-region trail with KMS-encrypted, Object-Locked S3 bucket (7-year retention) and SNS notifications. Implemented in `infra/cloudtrail.tf`, gated by `var.enable_cloudtrail` (enabled in prod profile, disabled in dev for cost control).
+- **AWS WAF** — CloudFront-attached Web ACL with AWS-managed rule groups (`AWSManagedRulesCommonRuleSet`, `AWSManagedRulesKnownBadInputsRuleSet`, `AWSManagedRulesSQLiRuleSet`) and per-IP rate limiting. Implemented in `infra/waf.tf`, gated by `var.enable_waf` (enabled in prod profile).
+- **GuardDuty** — Amazon-managed threat detection across CloudTrail, VPC Flow Logs, and DNS queries. Implemented in `infra/guardduty.tf`, gated by `var.enable_guardduty` (enabled in prod profile).
+- (Roadmap) **AWS Config** — continuous compliance state monitoring with managed rules. Not yet implemented.
 
 ### Business continuity
 
